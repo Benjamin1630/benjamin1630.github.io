@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Touch Digital - XXXXXX</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+	</head>
+	<body>
+		<div class="image">
+			<div class="image-text">
+				XXXXXX
+			</div>
+		</div>
+		<div id="navbar">
+			<a href="home.html">Home</a>
+			<a class="active" href="reviews.html">Reviews</a>
+			<a href="#contact">Contact</a>
+			<a href="#about">About</a>
+		</div>
+		<h1></h1>
+		<h2></h2>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+
+		function myFunction() {
+		if (window.pageYOffset >= sticky) {
+		navbar.classList.add("sticky")
+		} else {
+		navbar.classList.remove("sticky");
+		}
+		}
+		</script>
+  </body>
+</html>

@@ -1,6 +1,8 @@
 body {
 	background-color:#fcfcfc;
 	font-family: Arial, Helvetica, sans-serif;
+	font-size:25px;
+	text-align:center;
 	height:100%;
 	margin:0;
 }
@@ -19,11 +21,11 @@ h2 {
 
 p, ul {
 	color:#41337a;
-	font-size:25px;
 }
 
 .image {
 	background-image:url("home.jpg");
+	background-attachment:fixed;
 	background-position:center bottom;
 	background-size:cover;
 	height:500px;
@@ -31,35 +33,70 @@ p, ul {
 
 .image-text {
 	text-align:center;
-	font-family: Arial, Helvetica, sans-serif;
+	font-family:Arial, Helvetica, sans-serif;
 	font-size:100px;
 	color:#fcfcfc;
 	font-weight:bold;
 	position:absolute;
-	top:50%;
+	top:35%;
 	left:50%;
 	transform:translate(-50%, -50%);
+	background-color:#6ea4bf;
+	border-style:double;
+}
+
+
+#navbar {
+  overflow:hidden;
+  background-color:#fcfcfc;
+}
+
+#navbar a {
+  float:left;
+  display:block;
+  color:#6ea4bf;
+  text-align:center;
+  padding:14px 16px;
+  text-decoration:none;
+}
+
+#navbar a:hover {
+  background-color:#6ea4bf;
+  color:white;
+}
+
+#navbar a.active {
+  background-color:#6ea4bf;
+  color:white;
+}
+
+.content {
+  padding:16px;
+}
+
+.sticky {
+  position: fixed;
+  top:0;
+  width:100%;
+}
+
+.sticky + .content {
+  padding-top:60px;
 }
 
 .article {
 	margin-left: auto;
 	margin-right: auto;
-	height:1000px;
 	width:1000px;
-	background-color:#331e36;
+	background-color:#7FDBFF;
 	border-style:solid;
 }
 
-.box {
-	height:350px;
-	width:250px;
-	background-color:#331e36;
-	border-style:solid;
+.review {
+	border-style: ridge;
+	width: 900px;
 }
 
-.box-text {
-	height:80px;
-	text-align:center;
-	color:#41337a;
-	border-style:solid;
+.quote {
+	font-style:italic;
 }

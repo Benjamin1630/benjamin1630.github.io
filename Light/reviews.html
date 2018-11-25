@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Touch Digital - Reviews</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+	</head>
+	<body>
+		<div class="image">
+			<div class="image-text">
+				Reviews
+			</div>
+		</div>
+		<div id="navbar">
+			<a href="home.html">Home</a>
+			<a class="active" href="reviews.html">Reviews</a>
+			<a href="#contact">Contact</a>
+			<a href="#about">About</a>
+		</div>
+		<h1>Reviews</h1>
+		<h2>Below you'll find our Reviews on Games we have played in the past.</h2>
+		<!--
+    !!COPY THIS TO ADD AN UPDATE!!
+
+		<div align="center" class="article">
+    	<h2>Game Title</h2>
+			<img src="" alt="" height="288" width="512">
+			<p>Game Score</p>
+			<p class="quote">"Quote"</p>
+			<p>-Touch Digital</p>
+			<br>
+			<div class="quote">
+				<p></p>
+			</div>
+			<br>
+			<div class="review">
+				<p>
+					Review
+				</p>
+			</div>
+			<br>
+		</div>
+    <!------------------------------------------------------------------------------------------->
+
+    <div align="center" class="article">
+			<h2>Red Dead Redemption 2</h2>
+			<img src="rdr2.jpg" alt="Red Dead Redemption 2" height="288" width="512">
+			<p>10/10</p>
+			<p class="quote">"A new Frontier in Storytelling"</p>
+			<p>-Touch Digital</p>
+			<br>
+			<div class="review">
+				<p>
+					This instant Hit brings an old-timey world into modern technology.
+				</p>
+			</div>
+			<br>
+		</div>
+    <!------------------------------------------------------------------------------------------->
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+
+		function myFunction() {
+		if (window.pageYOffset >= sticky) {
+		navbar.classList.add("sticky")
+		} else {
+		navbar.classList.remove("sticky");
+		}
+		}
+		</script>
+  </body>
+</html>

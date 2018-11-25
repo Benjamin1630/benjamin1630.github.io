@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>Game Enjoyer - Home</title>
+		<title>Touch Digital - Home</title>
 		<meta charset="UTF-8">
 		<link rel="stylesheet" type="text/css" href="style.css" />
 		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
@@ -12,43 +12,32 @@
 				Home
 			</div>
 		</div>
-		<h1>Game Enjoyer</h1>
+		<div id="navbar">
+			<a class="active" href="home.html">Home</a>
+			<a href="reviews.html">Reviews</a>
+			<a href="#contact">Contact</a>
+			<a href="#about">About</a>
+		</div>
+		<h1>Touch Digital</h1>
 		<h2>Your first destination for updates on Games!</h2>
-<!--------------COPY THIS TO MAKE A NEW ARTICLE-----------------------------------------------
+		<p>
+			Keep yourself informed on the latest Games and DLCs by subscribing to our mailing list!!
+		</p>
 
-		<div align="center" class="article">
-		<h2>ARTICLE TITLE</h2>
-		<p>ARTICLE REVIEW</p>
-			<div class="box">
-				<div class="box-text">
-					<p>PRODUCT NAME</p>
-				</div>
-				<ul>
-					<li>Test1</li>
-					<li>Test2</li>
-					<li>Test3</li>
-				</ul>
-			</div>
-		</div>
-<!------------------------------------------------------------------------------------------->
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<script>
+window.onscroll = function() {myFunction()};
 
-<!------------------------------PASTE IT UNDER HERE------------------------------------------>
+var navbar = document.getElementById("navbar");
+var sticky = navbar.offsetTop;
 
-		<div align="center" class="article">
-		<h2>ARTICLE TEST</h2>
-		<p>ARTICLE TEST</p>
-			<div class="box">
-				<div class="box-text">
-					<p>PRODUCT NAME</p>
-				</div>
-				<ul>
-					<li>Test1</li>
-					<li>Test2</li>
-					<li>Test3</li>
-				</ul>
-			</div>
-		</div>
-<!------------------------------------------------------------------------------------------->
-
+function myFunction() {
+  if (window.pageYOffset >= sticky) {
+    navbar.classList.add("sticky")
+  } else {
+    navbar.classList.remove("sticky");
+  }
+}
+</script>
 	</body>
 </html>
