@@ -1,5 +1,9 @@
 body {
 	background-color:#fcfcfc;
+	/*background-image: url("home.jpg");
+	background-attachment:fixed;
+	background-position:center bottom;
+	background-size:cover;*/
 	font-family: Arial, Helvetica, sans-serif;
 	font-size:25px;
 	text-align:center;
@@ -8,19 +12,24 @@ body {
 }
 
 h1 {
-	color:#52ffee;
+	color:#00a7e1;
 	text-align:center;
 	font-size:50px;
 }
 
 h2 {
-	color:black;
+	color:#00a7e1;
 	font-size:30px;
 	text-align:center;
 }
 
 p, ul {
-	color:#41337a;
+	color:black;
+}
+
+a.btw {
+	color: black;
+	text-decoration: none;
 }
 
 .image {
@@ -35,14 +44,14 @@ p, ul {
 	text-align:center;
 	font-family:Arial, Helvetica, sans-serif;
 	font-size:100px;
-	color:#fcfcfc;
+	color:#00a7e1;
 	font-weight:bold;
 	position:absolute;
 	top:35%;
 	left:50%;
 	transform:translate(-50%, -50%);
-	background-color:#6ea4bf;
-	border-style:double;
+	background-color:#FFFFFF;
+	border-style: solid;
 }
 
 
@@ -50,25 +59,26 @@ p, ul {
   overflow:hidden;
   background-color:#fcfcfc;
 	border-bottom: solid;
+	border-color: #00a7e1;
 	/*border-radius: 200px;*/
 }
 
 #navbar a {
   float:left;
   display:block;
-  color:#6ea4bf;
+  color:#00a7e1;
   text-align:center;
   padding:14px 16px;
   text-decoration:none;
 }
 
 #navbar a:hover {
-  background-color:#6ea4bf;
+  background-color:#00a7e1;
   color:white;
 }
 
 #navbar a.active {
-  background-color:#6ea4bf;
+  background-color:#00a7e1;
   color:white;
 }
 .content {
@@ -91,9 +101,17 @@ p, ul {
 	margin-left: auto;
 	margin-right: auto;
 	width:1000px;
-	background-color:#7FDBFF;
+	background-color:#ffffff;
+	/*background-image: url("blue-leather.jpg");
+	background-attachment: fixed;
+	background-position: center bottom;*/
 	border-style:solid;
 	border-color: black;
+	color: yellow;
+}
+
+.title {
+	color: black;
 }
 
 .title:hover {
@@ -115,7 +133,8 @@ p, ul {
 
 footer {
 	border-top: solid;
-	background-color: lightblue;
+	background-color: #00a7e1;
+	border-color: black;
 	height: 150px;
 	text-align: center center;
 }
