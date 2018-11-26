@@ -14,7 +14,7 @@ h1 {
 }
 
 h2 {
-	color:#6ea4bf;
+	color:black;
 	font-size:30px;
 	text-align:center;
 }
@@ -49,6 +49,8 @@ p, ul {
 #navbar {
   overflow:hidden;
   background-color:#fcfcfc;
+	border-bottom: solid;
+	/*border-radius: 200px;*/
 }
 
 #navbar a {
@@ -69,9 +71,10 @@ p, ul {
   background-color:#6ea4bf;
   color:white;
 }
-
 .content {
-  padding:16px;
+  padding: 100px 0;
+  margin: 50px auto 0 auto;
+  width: 80%;
 }
 
 .sticky {
@@ -90,13 +93,29 @@ p, ul {
 	width:1000px;
 	background-color:#7FDBFF;
 	border-style:solid;
+	border-color: black;
+}
+
+.title:hover {
+	color: red;
+	text-decoration: underline;
 }
 
 .review {
-	border-style: ridge;
+	border-style: none;
 	width: 900px;
 }
 
 .quote {
-	font-style:italic;
+	border-style: dashed;
+	border-color: black;
+	font-style: italic;
+	width: 500px;
+}
+
+footer {
+	border-top: solid;
+	background-color: lightblue;
+	height: 150px;
+	text-align: center center;
 }

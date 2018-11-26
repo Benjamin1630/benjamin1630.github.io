@@ -26,22 +26,30 @@
 		<p>
 			This website started off as an idea. I only just started building this when I got a firm grasp on my ideas creatively.
 		</p>
-		<p>To visit the Original Website click, <a href="./Old/OpenMe.html">here</a>.</p>
+		<p>To visit the Original Website click, <a href="../Old/OpenMe.html">here</a>.</p>
 
 <!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<footer>
+			<br>
+			Everything you see is still stongly in development and is subject to change.
+			<br>
+			Report any bugs here: <a href="https://discord.gg/pJMdEUc">discord.gg/pJMdEUc</a>
+			<br>
+			Website created by Benjamin1630.
+		</footer>
 		<script>
-window.onscroll = function() {myFunction()};
+		window.onscroll = function() {myFunction()};
 
-var navbar = document.getElementById("navbar");
-var sticky = navbar.offsetTop;
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
 
-function myFunction() {
-  if (window.pageYOffset >= sticky) {
-    navbar.classList.add("sticky")
-  } else {
-    navbar.classList.remove("sticky");
-  }
-}
+		function myFunction() {
+  	if (window.pageYOffset >= sticky) {
+    	navbar.classList.add("sticky")
+  	} else {
+    	navbar.classList.remove("sticky");
+  	}
+		}
 </script>
 	</body>
 </html>
