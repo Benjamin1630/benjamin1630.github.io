@@ -38,6 +38,10 @@ a.btw {
 	text-decoration: none;
 }
 
+p.btw {
+	font-size: 12px;
+}
+
 .image {
 	background-image:url("home.jpg");
 	background-attachment:fixed;
@@ -190,6 +194,13 @@ a.btw {
 .button:hover span:after {
   opacity: 1;
   right: 0;
+}
+
+.photo {
+  width: 1058px;
+	height: auto;
+  margin: 0 auto;
+	border-style: solid;
 }
 
 footer {
