@@ -203,6 +203,11 @@ p.btw {
 	border-style: solid;
 }
 
+img {
+	padding-top: 4px;
+	width: 1050px;
+}
+
 footer {
 	border-top: solid;
 	background-color: #141311;
