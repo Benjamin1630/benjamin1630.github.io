@@ -203,6 +203,22 @@ p.btw {
 	border-style: solid;
 }
 
+.music {
+	margin-left: auto;
+	margin-right: auto;
+	border-style: solid;
+	border-radius: 20px;
+	width: 1200px;
+}
+
+a.music-link {
+	color: #b7b7b6;
+}
+
+audio {
+	width: 1058px;
+}
+
 footer {
 	border-top: solid;
 	background-color: #141311;

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Touch Digital - Music</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Music
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="home.html">Home</a>
+					<a href="reviews.html">Reviews</a>
+					<a href="pictures.html">Pictures</a>
+          <a class="active" href="music.html">Music</a>
+					<a href="about.html">About</a>
+				</nav>
+			</div>
+		</header>
+		<h1>Music</h1>
+		<h2>Here you'll find a few of my favorite Songs and Music.</h2>
+    <br>
+
+    <!-- Music Starts Here -->
+    <div align="center" class="music">
+      <p><a class="music-link" href="https://nightlighttapes.bandcamp.com/track/melon" target="_blank">Melon - frannsson - ラムネ -​-​- Ramune</a></p>
+      <audio controls>
+        <source src="./Music/Melon.mp3" type="audio/mp3">
+      </audio>
+       <br><br>
+    </div>
+    <br><br><br>
+    <!-- A Gap between Songs -->
+
+    <div align="center" class="music">
+      <p><a class="music-link" href="https://www.youtube.com/watch?v=6P8U9i5rAnA" target="_blank">Aroma - Lucid Luke (prod. Nionbeats)</a></p>
+      <audio controls>
+        <source src="./Music/aroma.mp3" type="audio/mp3">
+      </audio>
+      <br><br>
+    </div>
+    <br><br><br>
+    <!-- A Gap between Songs -->
+
+    <div align="center" class="music">
+      <p><a class="music-link" href="https://www.youtube.com/watch?v=luQSQuCHtcI" target="_blank">Overthinker - INZO</a></p>
+      <audio controls>
+        <source src="./Music/Overthinker.mp3" type="audio/mp3">
+      </audio>
+      <br><br>
+    </div>
+    <br><br><br>
+    <!-- A Gap between Songs -->
+
+    <div align="center" class="music">
+      <p><a class="music-link" href="https://www.youtube.com/watch?v=njoqKbbjEeE" target="_blank">Dummy - Rosy</a></p>
+      <audio controls>
+        <source src="./Music/dummy.mp3" type="audio/mp3">
+      </audio>
+      <br><br>
+    </div>
+    <br><br><br>
+    <!-- A Gap between Songs -->
+
+    <!--
+    !!Copy this to add a Song!!
+
+<div align="center" class="music">
+  <p><a class="music-link" href="Link" target="_blank">Music Name</a></p>
+  <audio controls>
+    <source src="./Music/XXXXXX.mp3" type="audio/mp3">
+  </audio>
+  <br><br>
+</div>
+<br><br><br>
+<!-- A Gap between Songs -->
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<p class="btw" id="b">*Touch Digital is a fictional company/brand and is not liable for anything.</p>
+		<footer>
+			<br>
+			Everything you see is still stongly in development and is subject to change.
+			<br>
+			Report any bugs here: <a href="https://discord.gg/pJMdEUc" target="_blank">discord.gg/pJMdEUc</a>
+			<br>
+			Website created by Benjamin1630.
+		</footer>
+		<script>
+      document.addEventListener('play', function(e){
+        var audios = document.getElementsByTagName('audio');
+        for(var i = 0, len = audios.length; i < len;i++){
+          if(audios[i] != e.target){
+              audios[i].pause();
+            }
+          }
+        }, true);
+
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+
+		function myFunction() {
+		if (window.pageYOffset >= sticky) {
+		navbar.classList.add("sticky")
+		} else {
+		navbar.classList.remove("sticky");
+		}
+		}
+		</script>
+  </body>
+</html>
