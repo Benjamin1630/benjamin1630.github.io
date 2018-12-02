@@ -45,9 +45,9 @@ p.btw {
 .image {
 	background-image:url("home.jpg");
 	background-attachment:fixed;
-	background-position:center bottom;
+	background-position:center top;
 	background-size:cover;
-	height:500px;
+	height:550px;
 }
 
 .image-text {
@@ -57,7 +57,7 @@ p.btw {
 	color:#FFFFFF;
 	font-weight:bold;
 	position:absolute;
-	top:35%;
+	top:25%;
 	left:50%;
 	transform:translate(-50%, -50%);
 	background-color:#141311;
@@ -92,6 +92,58 @@ p.btw {
   background-color:#A2482E;
   color:white;
 }
+
+.dropdown {
+  float: left;
+  overflow: hidden;
+}
+
+/* Dropdown button */
+.dropdown .dropbtn {
+  font-size: inherit;
+  border: none;
+  outline: none;
+  color: inherit;
+  padding: inherit;
+  background-color: inherit;
+  font-family: inherit;
+  margin: 0;
+}
+
+/* Add a red background color to navbar links on hover */
+.navbar a:hover, .dropdown:hover .dropbtn {
+  background-color: black;
+}
+
+/* Dropdown content (hidden by default) */
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
+
+/* Links inside the dropdown */
+.dropdown-content a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+/* Add a grey background color to dropdown links on hover */
+.dropdown-content a:hover {
+  background-color: #ddd;
+}
+
+/* Show the dropdown menu on hover */
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
 .content {
   padding: 100px 0;
   margin: 50px auto 0 auto;
