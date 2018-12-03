@@ -1,3 +1,7 @@
+html {
+	scroll-behavior: smooth;
+}
+
 body {
 	background-color:#141311;
 	/*background-image: url("home.jpg");
@@ -157,7 +161,7 @@ p.btw {
 }
 
 .sticky + .content {
-  padding-top:60px;
+  padding-top:100px;
 }
 
 .article {
@@ -253,6 +257,10 @@ p.btw {
 	height: auto;
   margin: 0 auto;
 	border-style: solid;
+}
+
+a {
+	color: inherit;
 }
 
 .music {
