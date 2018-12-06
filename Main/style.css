@@ -37,6 +37,10 @@ p, ul, ol {
 	font-family: 'Roboto', sans-serif;
 }
 
+ol, ul {
+	text-align: left;
+}
+
 a.btw {
 	color: #A2482E;
 	text-decoration: none;
@@ -47,7 +51,9 @@ p.btw {
 }
 
 .ordered {
-	margin: 0 auto;
+    margin-left: auto;
+    margin-right: auto;
+    display: table;
 }
 
 .image {
