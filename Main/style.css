@@ -32,7 +32,7 @@ h3 {
 	color: #b7b7b6;
 }
 
-p, ul {
+p, ul, ol {
 	color:#B7B7B6;
 	font-family: 'Roboto', sans-serif;
 }
@@ -44,6 +44,10 @@ a.btw {
 
 p.btw {
 	font-size: 12px;
+}
+
+.ordered {
+	margin: 0 auto;
 }
 
 .image {
@@ -161,7 +165,7 @@ p.btw {
 }
 
 .sticky + .content {
-  padding-top:100px;
+  padding-top: 60px;
 }
 
 .article {
