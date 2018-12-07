@@ -71,7 +71,7 @@ p.btw {
 	color:#FFFFFF;
 	font-weight:bold;
 	position:absolute;
-	top:25%;
+	top:229px;
 	left:50%;
 	transform:translate(-50%, -50%);
 	background-color:#141311;
@@ -171,7 +171,8 @@ p.btw {
 }
 
 .sticky + .content {
-  padding-top: 60px;
+  padding-top: 600px;
+	margin-top: 600px;
 }
 
 .article {
@@ -193,6 +194,10 @@ p.btw {
 .title:hover {
 	color: #A2482E;
 	text-decoration: underline;
+}
+
+img {
+	max-width: 100%;
 }
 
 .score {
@@ -287,6 +292,26 @@ a.music-link {
 
 audio {
 	width: 1058px;
+}
+
+.about-text {
+	width: 75%;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.member {
+	display: inline-block;
+	width: 30%;
+	height: 500px;
+	margin-left: auto;
+	margin-right: auto;
+	margin-bottom: 10px;
+	border: 10px solid #A2482E;
+}
+.small-image {
+	height: 300px;
+	width: auto;
 }
 
 footer {
