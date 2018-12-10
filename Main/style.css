@@ -32,12 +32,14 @@ h3 {
 	color: #b7b7b6;
 }
 
-p, ul, ol {
+p {
 	color:#B7B7B6;
 	font-family: 'Roboto', sans-serif;
 }
 
 ol, ul {
+	color:#B7B7B6;
+	font-family: 'Roboto', sans-serif;
 	text-align: left;
 }
 
