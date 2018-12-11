@@ -26,7 +26,6 @@
 			</div>
 		</header>
     <main>
-			<br><br>
 			<h1>We enjoy making Videos.</h1>
 			<h2>Here are a few from our Youtube:</h2>
 
@@ -49,7 +48,7 @@
 		<p class="btw" id="b">*Touch Digital is a fictional company/brand and is not liable for anything.</p>
 		<footer>
 			<br>
-			Everything you see is still stongly in development and is subject to change.
+			Everything you see is still strongly in development and is subject to change.
 			<br>
 			Report any bugs here: <a href="https://discord.gg/pJMdEUc" target="_blank">discord.gg/pJMdEUc</a>
 			<br>
@@ -60,13 +59,16 @@
 
 		var navbar = document.getElementById("navbar");
 		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
 
 		function myFunction() {
-		if (window.pageYOffset >= sticky) {
-		navbar.classList.add("sticky")
-		} else {
-		navbar.classList.remove("sticky");
-		}
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
 		}
 		</script>
   </body>

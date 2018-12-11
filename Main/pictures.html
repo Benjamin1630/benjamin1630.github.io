@@ -26,9 +26,8 @@
 			</div>
 		</header>
 		<main>
-			<br><br>
 			<h1>Our Portfolio</h1>
-			<h2>Here are some of the Images we've capture using our Panasonic LUMIX DMC-FZ1000EG 4K Camera.</h2>
+			<h2>Here are some of the Images we've captured using our Panasonic LUMIX DMC-FZ1000EG 4K Camera.</h2>
 
 	    <div class="photo">
 				<a href="photo1.jpg">
@@ -77,20 +76,20 @@
 	      <br>
 	    </div>
 	    <br><br>
-	        <!-- This is a break between Pictures. -->
+      <!-- This is a break between Pictures. -->
 
-					<div class="photo">
-					<a href="photo5.jpg">
-						<img src="https://benjamin1630.github.io/Main/photo5.jpg" alt="Beautiful Sky" width="1058">
-					</a>
-					  <br>
-					  <h2>"Mesmerizing Sky"</h2>
-					  <p>When you look up, it seems like there is no limit.</p>
-						<p>The Clouds just look so amazing.</p>
-					  <br>
-					</div>
-					<br><br>
-					<!-- This is a break between Pictures. -->
+			<div class="photo">
+			<a href="photo5.jpg">
+				<img src="https://benjamin1630.github.io/Main/photo5.jpg" alt="Beautiful Sky" width="1058">
+			</a>
+			  <br>
+			  <h2>"Mesmerizing Sky"</h2>
+			  <p>When you look up, it seems like there is no limit.</p>
+				<p>The Clouds just look so amazing.</p>
+			  <br>
+			</div>
+			<br><br>
+			<!-- This is a break between Pictures. -->
 
     <!--
     !!Copy this to add a Picture!!
@@ -116,7 +115,7 @@
 		<!-- <p class="btw" style="font-size:12px;">*Touch Digital is a fictional company/brand and is not liable for anything.</p> -->
 		<footer>
 			<br>
-			Everything you see is still stongly in development and is subject to change.
+			Everything you see is still strongly in development and is subject to change.
 			<br>
 			Report any bugs here: <a href="https://discord.gg/pJMdEUc" target="_blank">discord.gg/pJMdEUc</a>
 			<br>
@@ -127,13 +126,16 @@
 
 		var navbar = document.getElementById("navbar");
 		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
 
 		function myFunction() {
-		if (window.pageYOffset >= sticky) {
-		navbar.classList.add("sticky")
-		} else {
-		navbar.classList.remove("sticky");
-		}
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
 		}
 		</script>
   </body>

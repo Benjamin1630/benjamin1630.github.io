@@ -26,7 +26,6 @@
 			</div>
 		</header>
 		<main>
-			<br><br>
 			<h1>Reviews</h1>
 			<h2>Below you'll find our Reviews on Games we have played in the past.</h2>
 			<!--
@@ -68,12 +67,11 @@
 				<br>
 				<div class="review">
 					<p>
-						This Game takes its player to a stunning World with breathtaking views.
+						This game takes its player to a stunning world with breathtaking views.
 						Don't let this fool you, as enemies are quick to overwhelm and attack you.
-						The Game gives the player a brief tutorial on the combat in the game with is extremely
-						satisfying with the player feeling every punch and kick. However, the main objective is
-						never really explained to you. Overall, this game recieves a 8.5 thanks to its
-						beautiful scenery and brilliant combat.
+						The game gives the player a brief tutorial on the combat system which
+						is extremely satisfying, as the player feels every punch and kick.
+						Overall, this game recieves a 8.5 thanks to its beautiful scenery and brilliant combat.
 					</p>
 				</div>
 				<br>
@@ -92,17 +90,18 @@
 				<img src="r6s.jpg" alt="Rainbow Six Siege" height="288" width="512">
 				<p class="score">9.5/10</p>
 				<div class="quote">
-					<p class="quote-text">"A breath of fresh Air."</p>
+					<p class="quote-text">"A breath of fresh air."</p>
 					<p class="author">-Touch Digital</p>
 				</div>
 				<br>
 				<div class="review">
 					<p>
-						This Ubisoft Title is unlike any other game by Ubisoft and rightfully
-						so, has much more of an impact on the Player. From the Explosions in walls
-						to the Strategical thinking, no two games are ever the same. You can pick
-						from over 20 different operators, each with their own unique Weapons
-						and Abilities.
+						This Ubisoft title is unlike any other game Ubisoft has produced in
+						recent years. Siege has a large impact on the player, from strategically
+						selecting operators for certain situations and map layouts to using
+						technology such as drones to plan out your assault. Siege currently
+						has over 20 operators as of now, all of which have their own unique
+						abilities that they can bring to the table.
 					</p>
 				</div>
 				<br>
@@ -127,12 +126,11 @@
 				<br>
 				<div class="review">
 					<p>
-						This instant Hit brings an old-timey world into modern technology.
+						This instant hit brings an old-timey world into modern technology.
 						From the second it starts it makes the player feel as if we they in this dense
 						world and never, not even for one second, does anything seem unreal.
-						The Graphics are Stunning! This Game keeps the player involved even with it's
-						side missions which don't lack in Quality.
-						Rockstar has outdone themselves with this one!
+						The graphics are stunning! This game keeps the player involved even with it's
+						side missions which don't lack in quality. Rockstar has outdone themselves with this one!
 					</p>
 				</div>
 				<br>
@@ -157,15 +155,15 @@
 				<br>
 				<div class="review">
 					<p>
-						This early access Title is surprisingly polished with new enemies
+						This early access title is surprisingly polished with new enemies
 						and weapons always revealing themselves to the player along their playthrough.
 						The further down you go, the tougher it gets. This is apparent
 						immediately with "Tiers". The higher the tier, the stronger it is.
-						Levels remain exciting to play as different biomes and levels keep
+						Levels remain exciting to play as different biomes and enemies keep
 						the player busy and don't feel repetitive, since each level is procedurally
 						generated to some degree.
 						<br><br>
-						**WARNING** Developers have abandoned this Game. It's a shame.
+						**WARNING** Developers have abandoned this game. It's a shame.
 					</p>
 				</div>
 				<br>
@@ -185,7 +183,7 @@
 		<p class="btw" id="b">*Touch Digital is a fictional company/brand and is not liable for anything.</p>
 		<footer>
 			<br>
-			Everything you see is still stongly in development and is subject to change.
+			Everything you see is still strongly in development and is subject to change.
 			<br>
 			Report any bugs here: <a href="https://discord.gg/pJMdEUc" target="_blank">discord.gg/pJMdEUc</a>
 			<br>
@@ -196,13 +194,16 @@
 
 		var navbar = document.getElementById("navbar");
 		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
 
 		function myFunction() {
-		if (window.pageYOffset >= sticky) {
-		navbar.classList.add("sticky")
-		} else {
-		navbar.classList.remove("sticky");
-		}
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
 		}
 		</script>
   </body>

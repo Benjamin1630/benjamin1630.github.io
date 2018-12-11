@@ -26,7 +26,6 @@
 			</div>
 		</header>
 		<main>
-			<br><br>
 			<h1 id="top">Music</h1>
 			<h2>Here you'll find a few of our favorite Songs and Music.</h2>
 	    <p class="btw">(In alphabetical order.)</p>
@@ -43,26 +42,25 @@
 			<h3>A</h3>
 			<p><a href="#top">Back to Top</a></p>
 			<br>
-
-			<div align="center" class="music">
-				<p><a class="music-link" href="https://www.youtube.com/watch?v=AM4IyEDuu1I" target="_blank">Americas - OLDTV</a></p>
-					<audio controls loop>
-				  	<source src="./Music/Americas.mp3" type="audio/mp3">
-				</audio>
-				<br><br>
+			<!-- Music Starts Here -->
+			<div data-video="AM4IyEDuu1I"
+			         data-autoplay="0"
+			         data-loop="1"
+			         id="youtube-audio">
 			</div>
-			<br><br><br>
-					<!-- A Gap between Songs -->
+			<script src="https://www.youtube.com/iframe_api"></script>
+			<script src="https://cdn.rawgit.com/labnol/files/master/yt.js"></script>
+ 	    <br><br><br>
+ 	    <!-- A Gap between Songs -->
 
-	    <!-- Music Starts Here -->
-	    <div align="center" class="music">
-	      <p><a class="music-link" href="https://www.youtube.com/watch?v=6P8U9i5rAnA" target="_blank">Aroma - Lucid Luke (prod. Nionbeats)</a></p>
-	      <audio controls loop>
-	        <source src="./Music/aroma.mp3" type="audio/mp3">
-	      </audio>
-	      <br><br>
-	    </div>
-	    <br><br><br>
+			<div data-video="6P8U9i5rAnA"
+							 data-autoplay="0"
+							 data-loop="1"
+							 id="youtube-audio">
+			</div>
+			<script src="https://www.youtube.com/iframe_api"></script>
+			<script src="https://cdn.rawgit.com/labnol/files/master/yt.js"></script>
+			<br><br><br>
 	    <!-- A Gap between Songs -->
 
 			<br id="B"> <!-- B Section Starts Here!!! -->
@@ -71,6 +69,14 @@
 			<p><a href="#top">Back to Top</a></p>
 			<br>
 
+			<div data-video="pIzq5BmcKF4"
+							 data-autoplay="0"
+							 data-loop="1"
+							 id="youtube-audio">
+			</div>
+			<script src="https://www.youtube.com/iframe_api"></script>
+			<script src="https://cdn.rawgit.com/labnol/files/master/yt.js"></script>
+			<br><br><br>
 			<div align="center" class="music">
 			  <p><a class="music-link" href="https://www.youtube.com/watch?v=pIzq5BmcKF4" target="_blank">Ber Zer Ker - WATEVA</a></p>
 			  <audio controls loop>
@@ -556,7 +562,7 @@
 		<p class="btw" id="b">*Touch Digital is a fictional company/brand and is not liable for anything.</p>
 		<footer>
 			<br>
-			Everything you see is still stongly in development and is subject to change.
+			Everything you see is still strongly in development and is subject to change.
 			<br>
 			Report any bugs here: <a href="https://discord.gg/pJMdEUc" target="_blank">discord.gg/pJMdEUc</a>
 			<br>
@@ -572,18 +578,21 @@
           }
         }, true);
 
-		window.onscroll = function() {myFunction()};
+				window.onscroll = function() {myFunction()};
 
-		var navbar = document.getElementById("navbar");
-		var sticky = navbar.offsetTop;
+				var navbar = document.getElementById("navbar");
+				var sticky = navbar.offsetTop;
+				var main = document.getElementsByTagName('main')[0];
 
-		function myFunction() {
-		if (window.pageYOffset >= sticky) {
-		navbar.classList.add("sticky")
-		} else {
-		navbar.classList.remove("sticky");
-		}
-		}
+				function myFunction() {
+					if (window.pageYOffset >= sticky) {
+						navbar.classList.add("sticky")
+						main.style.paddingTop = '60px';
+					} else {
+						navbar.classList.remove("sticky");
+						main.style.paddingTop = '0';
+					}
+				}
 		</script>
   </body>
 </html>
