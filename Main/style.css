@@ -287,6 +287,7 @@ a {
 	border-style: solid;
 	border-radius: 20px;
 	width: 1200px;
+	z-index: 50;
 }
 
 a.music-link {
@@ -295,6 +296,7 @@ a.music-link {
 
 audio {
 	width: 1058px;
+	z-index: 50;
 }
 
 .about-text {
