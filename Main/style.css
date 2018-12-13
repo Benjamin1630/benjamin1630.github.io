@@ -59,10 +59,12 @@ p.btw {
 }
 
 .image {
+	/*
 	background-image:url("home.jpg");
 	background-attachment:fixed;
 	background-position:center top;
-	background-size:cover;
+	background-size:cover;*/
+	border-bottom: solid;
 	height:550px;
 }
 
@@ -114,7 +116,7 @@ p.btw {
 	z-index: 500;
 }
 
-.navbar a:hover, {
+.navbar a:hover {
   background-color: black;
 	z-index: 500;
 }
@@ -168,6 +170,8 @@ img {
 }
 
 .quote {
+	margin-left: auto;
+	margin-right: auto;
 	border-style: dashed;
 	border-color: #A2482E;
 	font-style: italic;
@@ -186,6 +190,9 @@ img {
 
 .review {
 	border-style: none;
+	text-align: center;
+	margin-left: auto;
+	margin-right: auto;
 	width: 900px;
 }
 
@@ -264,7 +271,7 @@ audio {
 .member {
 	display: inline-block;
 	width: 30%;
-	height: 500px;
+	height: 550px;
 	margin-left: auto;
 	margin-right: auto;
 	margin-bottom: 10px;
@@ -280,7 +287,8 @@ footer {
 	background-color: #141311;
 	border-color: black;
 	height: 150px;
-	text-align: center center;
+	text-align: center;
 	border-top: solid;
 	border-color: #A2482E;
+	font-family: 'Roboto', sans-serif;
 }
