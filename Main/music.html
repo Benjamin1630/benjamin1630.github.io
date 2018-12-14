@@ -28,6 +28,7 @@
 		<main>
 			<h1 id="top">Music</h1>
 			<h2>Here you'll find a few of our favorite Songs and Music.</h2>
+			<button onclick="topFunction()" id="myBtn" title="Go to top">Top</button>
 	    <p class="btw">(In alphabetical order.)</p>
 			<h3>
 				<a href="#A">A</a> - <a href="#B">B</a> - <a href="#C">C</a> - <a href="#D">D</a> - <a href="#E">E</a> - <a href="#F">F</a> -
@@ -594,6 +595,21 @@
 						navbar.classList.remove("sticky");
 						main.style.paddingTop = '0';
 					}
+				}
+
+				window.onscroll = function() {scrollFunction()};
+
+				function scrollFunction() {
+				  if (document.body.scrollTop > 1000 || document.documentElement.scrollTop > 1000) {
+				    document.getElementById("myBtn").style.display = "block";
+				  } else {
+				    document.getElementById("myBtn").style.display = "none";
+				  }
+				}
+
+				function topFunction() {
+				  document.body.scrollTop = 500;
+				  document.documentElement.scrollTop = 500;
 				}
 		</script>
   </body>
