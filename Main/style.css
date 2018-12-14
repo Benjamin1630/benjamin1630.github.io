@@ -3,28 +3,28 @@ html {
 }
 
 body {
-	background-color:#141311;
+	background-color: #141311;
 	/*background-image: url("home.jpg");
 	background-attachment:fixed;
 	background-position:center bottom;
 	background-size:cover;*/
 	font-family: 'Do Hyeon', sans-serif;
 	color: #A2482E;
-	font-size:25px;
-	text-align:center;
-	height:100%;
-	margin:0;
+	font-size: 25px;
+	text-align: center;
+	height: 100%;
+	margin: 0;
 }
 
 h1 {
-	color:#FFFFFF;
-	text-align:center;
-	font-size:50px;
+	color: #FFFFFF;
+	text-align: center;
+	font-size: 50px;
 }
 
 h2 {
-	color:#A2482E;
-	font-size:30px;
+	color: #A2482E;
+	font-size: 30px;
 	text-align:center;
 }
 
@@ -33,12 +33,12 @@ h3 {
 }
 
 p {
-	color:#B7B7B6;
+	color: #B7B7B6;
 	font-family: 'Roboto', sans-serif;
 }
 
 ol, ul {
-	color:#B7B7B6;
+	color: #B7B7B6;
 	font-family: 'Roboto', sans-serif;
 	text-align: left;
 }
