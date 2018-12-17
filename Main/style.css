@@ -121,6 +121,17 @@ p.btw {
 	z-index: 500;
 }
 
+@media screen and (max-width: 1000px) {
+  .navbar a {
+    float: none;
+    display: block;
+    text-align: left;
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+  }
+}
+
 .content {
   padding: 100px 0;
   margin: 50px auto 0 auto;
