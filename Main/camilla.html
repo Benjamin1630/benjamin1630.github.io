@@ -42,6 +42,7 @@
         Someone as nice as you, deserves the best.
       </p>
       <br>
+			<!--
       <h2>Here is something I wrote for you ages ago.</h2>
       <p>
         No matter how alone you feel, you'll always have me.
@@ -58,6 +59,8 @@
       </p>
       <br><br><br>
       <img src="quote.png" alt="Quotation Marks">
+		-->
+			<h2 style="font-family:'Roboto';font-size:250px;height:120px;margin:0;padding:0;">"</h2>
       <p>
         No, it won't be love at first sight when we meet,
         <br>
@@ -85,6 +88,7 @@
 <!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
 		<br>
 		<br>
+		<!--
 		<p class="btw" id="b">*Touch Digital is a fictional group and is not liable for anything.</p>
 		<footer>
 			<br>
@@ -94,18 +98,22 @@
 			<br>
 			Website created by Benjamin1630.
 		</footer>
+	-->
 		<script>
 		window.onscroll = function() {myFunction()};
 
 		var navbar = document.getElementById("navbar");
 		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
 
 		function myFunction() {
-		if (window.pageYOffset >= sticky) {
-		navbar.classList.add("sticky")
-		} else {
-		navbar.classList.remove("sticky");
-		}
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
 		}
 		</script>
   </body>
