@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Dream Corp LLC - Story</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Montserrat|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./Images/favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Dream Corp LLC
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a class="active" href="story.html">Story</a>
+					<a href="characters.html">Characters</a>
+					<a href="about.html">About</a>
+          <a href="theories.html">Theories</a>
+					<a href="more.html">More</a>
+          <a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+      <h1>What is Dream Corp about?</h1>
+      <h2>Main Story</h2>
+      <p>
+        The main plot of Dream Corp LLC is about a small business that specializes
+        in entering dreams and finding out what causes the patient to behave the way
+        they do.
+      </p>
+		</main>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<p class="btw" id="b">*Touch Digital is a fictional group and is not liable for anything.</p>
+		<footer>
+			<br>
+			All copyright goes to Adult Swim.
+			<br>
+			Website created by Benjamin1630.
+		</footer>
+		<script>
+		window.onscroll = function() {myFunction()};
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+</script>
+	</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Dream Corp LLC</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Montserrat|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./Images/favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Dream Corp LLC
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a class="active" href="index.html">Home</a>
+					<a href="story.html">Story</a>
+					<a href="characters.html">Characters</a>
+					<a href="about.html">About</a>
+          <a href="theories.html">Theories</a>
+					<a href="more.html">More</a>
+          <a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<article class="what-is-dcllc">
+				<h1>What is Dream Corp LLC?</h1>
+				<img src="images/dcllc-logo.png" alt="Dream Corp Logo" class="dcllc-home" >
+				<p class="what-is-dcllc-text">
+					Dream Corp LLC is a TV Series <br> on Adult Swim, who are known <br> for their
+					absurdly ridiculous line up of shows.
+				</p>
+			</article>
+			<article class="review">
+				<div class="review">
+					<h2>Rating</h2>
+					<img src="images/rating.jpg" alt="4 out of 5 Stars" class="review">
+					<p>"Dream analysis comedy is full of laughs, some iffy material." -Common Sense Media</p>
+				</div>
+			</article>
+			<br>
+			<section>
+				<h2>Characters</h2>
+				<div class="flex-container">
+					<div class="flex-item">
+						<a href="characters.html#roberts">
+						<img src="images/roberts.jpg" alt="Dr. Roberts" class="char">
+						<p>Dr. Roberts</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#88">
+						<img src="images/88.jpg" alt="88" class="char">
+						<p>88</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#ahmed">
+						<img src="images/ahmed.jpg" alt="Ahmed" class="char">
+						<p>Ahmed</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#randy">
+						<img src="images/randy.jpg" alt="Randy" class="char">
+						<p>Randy</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#terry">
+						<img src="images/terry.jpg" alt="Terry the Robot" class="char">
+						<p>Terry</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#joey">
+						<img src="images/joey.jpg" alt="Joey" class="char">
+						<p>Joey</p>
+						</a>
+					</div>
+				</div>
+			</section>
+		</main>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<footer>
+			<br>
+			All copyright goes to Adult Swim.
+			<br>
+			Website created by Benjamin1630.
+		</footer>
+		<script>
+		window.onscroll = function() {myFunction()};
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+		</script>
+	</body>
+</html>
