@@ -16,6 +16,12 @@ body {
 	margin: 0;
 }
 
+main {
+	width: 75%;
+	margin-left: auto;
+	margin-right: auto;
+}
+
 h1 {
 	color: #007D70;
 	text-align: center;
@@ -129,11 +135,11 @@ div.review {
 	flex-basis: auto;
 	margin-right: 20px;
 }
-
+/*
 a {
 	text-decoration: none;
 }
-
+*/
 img.char {
 	height: 150px;
 }
