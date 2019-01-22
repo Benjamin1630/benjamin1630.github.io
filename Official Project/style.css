@@ -69,7 +69,6 @@ p {
 	padding: 20px;
 }
 
-
 #navbar {
   overflow:hidden;
   background-color:white;
@@ -142,6 +141,36 @@ a {
 
 img.char {
 	height: 150px;
+}
+
+section.character {
+	border: 2px solid #0E8281;
+	display: block;
+	width: 750px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+section.character > article > img.char { /*Normal Charater*/
+	transform: translate(-250px,0);
+}
+
+p.description { /*Normal Description*/
+	transform: translate(250px,-175px);
+	width: 450px;
+	height: 0;
+	/*border: 1px solid black;*/
+}
+
+section.character > article > img.alt-char { /*Alternate Character*/
+	transform: translate(250px,0);
+}
+
+p.alt-description { /*Alternate Description*/
+	transform: translate(75px,-175px);
+	width: 450px;
+	height: 0;
+	/*border: 1px solid black;*/
 }
 
 footer {

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Dream Corp LLC - Characters</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Montserrat|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Dream Corp LLC
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a href="story.html">Story</a>
+					<a class="active" href="characters.html">Characters</a>
+					<a href="about.html">About</a>
+          <a href="theories.html">Theories</a>
+					<a href="more.html">More</a>
+          <a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+      <section>
+				<h2>Characters</h2>
+				<div class="flex-container">
+					<div class="flex-item">
+						<a href="characters.html#roberts">
+						<img src="images/roberts.jpg" alt="Dr. Roberts" class="char">
+						<p>Dr. Roberts</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#88">
+						<img src="images/88.jpg" alt="Patient 88" class="char">
+						<p>Patient 88</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#ahmed">
+						<img src="images/ahmed.jpg" alt="Ahmed" class="char">
+						<p>Ahmed</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#randy">
+						<img src="images/randy.jpg" alt="Randy" class="char">
+						<p>Randy</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#terry">
+						<img src="images/terry.jpg" alt="Terry the Robot" class="char">
+						<p>T.E.R.R.Y</p>
+						</a>
+					</div>
+					<div class="flex-item">
+						<a href="characters.html#joey">
+						<img src="images/joey.jpg" alt="Joey" class="char">
+						<p>Joey</p>
+						</a>
+					</div>
+				</div>
+			</section>
+      <br><br>
+      <section class="character">
+        <h2 id="roberts">Dr. Roberts</h2>
+        <article>
+          <img src="images/roberts.jpg" alt="Dr. Roberts" class="char">
+          <p class="description">
+            Dr. Roberts is the main Doctor. He goes into the dreams
+            of the patients. <br> Dr. Roberts is always energtic and sympathetic.
+          </p>
+        </article>
+      </section>
+      <br>
+      <section class="character">
+        <h2 id="88">Patient 88</h2>
+        <article>
+          <img src="images/88.jpg" alt="Patient 88" class="alt-char">
+          <p class="alt-description">
+            Patient 88 is a Nurse. 88 joined the team in season 1.
+            He is very disconfident and is treated like he has been
+            working there for ages.
+          </p>
+        </article>
+      </section>
+      <br>
+      <section class="character">
+        <h2 id="ahmed">Ahmed</h2>
+        <article>
+          <img src="images/ahmed.jpg" alt="Ahmed" class="char">
+          <p class="description">
+            Ahmed is an odd charater. He prepares patients for the
+            Dreams by stapling a camera on their face. Ahmed also
+            usually just eats or drinks.
+          </p>
+        </article>
+      </section>
+      <br>
+      <section class="character">
+        <h2 id="randy">Randy</h2>
+        <article>
+          <img src="images/randy.jpg" alt="Randy" class="alt-char">
+          <p class="alt-description">
+            Randy has been working alongside Dr. Roberts since the
+            start. Randy has some weird secrets, but he is usually very
+            open about them.
+          </p>
+        </article>
+      </section>
+      <br>
+      <section class="character">
+        <h2 id="terry">T.E.R.R.Y</h2>
+        <article>
+          <img src="images/terry.jpg" alt="Terry" class="char">
+          <p class="description">
+            T.E.R.R.Y is a Robot created by Dr. Roberts himself.
+            He has a british accent. T.E.R.R.Y is quite humurous and
+            likes to make jokes when he gets the chance.
+          </p>
+        </article>
+      </section>
+      <br>
+      <section class="character">
+        <h2 id="joey">Joey</h2>
+        <article>
+          <img src="images/joey.jpg" alt="Joey" class="alt-char">
+          <p class="alt-description">
+            Joey is a Nurse like 88, but has been working at Dream
+            Corp LLC for much longer. She understands the
+            metaphors inside the dreams of the partients.
+          </p>
+        </article>
+      </section>
+      <br>
+		</main>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<footer>
+			<br>
+			All copyright goes to Adult Swim.
+			<br>
+			Website created by Benjamin1630.
+		</footer>
+		<script>
+		window.onscroll = function() {myFunction()};
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+</script>
+	</body>
+</html>
