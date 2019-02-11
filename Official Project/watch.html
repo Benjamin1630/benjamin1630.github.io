@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Dream Corp LLC - Watch</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Montserrat|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="images/favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Dream Corp LLC
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a href="story.html">Story</a>
+					<a href="characters.html">Characters</a>
+					<a href="about.html">About</a>
+          <a href="theories.html">Theories</a>
+					<a class="active" href="watch.html">Watch</a>
+					<a href="more.html">More</a>
+          <a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<br>
+      <h1 id="trailers">Watch Trailers & Sneek Peeks</h1>
+      <iframe src="https://www.youtube.com/embed/CfK2xp7wnJc" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <iframe src="https://www.youtube.com/embed/5ZpYgYQKNhM" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <iframe src="https://www.youtube.com/embed/7bJwHYZnaiQ" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <iframe src="https://www.youtube.com/embed/Btwe7Nf82pU" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <iframe src="https://www.youtube.com/embed/gyWvv2P1NWw" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+			<br>
+      <h1>Watch Episodes</h1>
+			<h3><del>Here are some episodes:</del></h3>
+			<h3>
+				<ins>Sadly, we <strong>can't</strong> show episodes on this Website, but we <strong>can</strong> redirect you
+				to the <a href="https://www.adultswim.com/videos/dream-corp-llc" target="_blank">
+				official Adult Swim</a> page, where you can watch
+				<a href="https://www.adultswim.com/videos/dream-corp-llc" target="_blank">free episodes of
+				Dream Corp LLC</a>.</ins>
+			</h3>
+		</main>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<footer>
+			<br>
+			All copyright goes to <a href="http://www.adultswim.com/">Adult Swim.</a>
+			<br>
+			<a href="contact.html">Website created by Benjamin1630.</a>
+		</footer>
+		<script>
+		window.onscroll = function() {myFunction()};
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+</script>
+	</body>
+</html>
