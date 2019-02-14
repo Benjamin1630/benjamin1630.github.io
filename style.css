@@ -2,7 +2,7 @@ main {
   font-size: 20px;
 }
 
-div {
+div.cube {
   width: 100px;
   height: 100px;
   background-color: red;
@@ -16,6 +16,54 @@ div {
   50%  {background-color:cyan; left:65.3%; top:407px;}
   75%  {background-color:magenta; left:24.1%; top:407px;}
   100% {background-color:red; left:24.1%; top:0px;}
+}
+
+div.rectangle-left {
+  width: 20px;
+  height: 150px;
+  background-color: black;
+  position: relative;
+  animation: rectangle-left 6s linear infinite;
+}
+
+@keyframes rectangle-left {
+  0%   {left:24.1%; top:0px;}
+  25%  {left:24.1%; top:0px;}
+  50%  {left:24.1%; top:105px;}
+  75%  {left:24.1%; top:105px;}
+  100% {left:24.1%; top:0px;}
+}
+
+div.ball {
+  width: 20px;
+  height: 20px;
+  background-color: black;
+  position: relative;
+  animation: ball 6s linear infinite;
+}
+
+@keyframes ball {
+  0%   {left:25%; top:-60px;}
+  25%  {left:74.3%; top:-110px;}
+  50%  {left:25%; top:0px;}
+  75%  {left:74.3%; top:90px;}
+  100% {left:25%; top:-60px;}
+}
+
+div.rectangle-right {
+  width: 20px;
+  height: 150px;
+  background-color: black;
+  position: relative;
+  animation: rectangle-right 6s linear infinite;
+}
+
+@keyframes rectangle-right {
+  0%   {left:75%; top:0px;}
+  25%  {left:75%; top:-200px;}
+  50%  {left:75%; top:-200px;}
+  75%  {left:75%; top:0px;}
+  100% {left:75%; top:0px;}
 }
 
 table, th, td {
