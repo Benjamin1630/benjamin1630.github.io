@@ -2,6 +2,22 @@ main {
   font-size: 20px;
 }
 
+div {
+  width: 100px;
+  height: 100px;
+  background-color: red;
+  position: relative;
+  animation: test 6s ease-in-out infinite;
+}
+
+@keyframes test {
+  0%   {background-color:red; left:24.1%; top:0px;}
+  25%  {background-color:yellow; left:65.3%; top:0px;}
+  50%  {background-color:cyan; left:65.3%; top:407px;}
+  75%  {background-color:magenta; left:24.1%; top:407px;}
+  100% {background-color:red; left:24.1%; top:0px;}
+}
+
 table, th, td {
   border: 1px black solid;
   border-collapse: collapse;
