@@ -1,3 +1,7 @@
+html {
+	scroll-behavior: smooth;
+}
+
 body {
 
 }
@@ -13,19 +17,23 @@ h1, h2, h3 {
 
 h1 {
   font-size: 7em;
+  height: 129px;
+  /*margin: 2px;*/
 }
 
 h2 {
   font-size: 4em;
+  /*margin: 2px;*/
 }
 
 h3 {
   font-size: 3em;
+  /*margin: 2px;*/
 }
 
 div.warning {
   background-color: red;
-  width: 50%;
+  width: 900px;
   height: auto;
   margin-left: auto;
   margin-right: auto;
