@@ -33,11 +33,8 @@ div.warning {
 }
 
 form {
-  display: block;
-  height: auto;
-  width: 100px;
-  margin-left: auto;
-  margin-right: auto;
+	text-align:center;
+	color:#7FDBFF;
 }
 
 button {
