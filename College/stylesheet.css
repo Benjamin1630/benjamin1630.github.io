@@ -1,0 +1,155 @@
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	background-color: #0B090A;
+	/*background-image: url("College.png");
+	background-attachment:fixed;
+	background-position:center bottom;
+	background-size:cover;*/
+	font-family: 'Do Hyeon', sans-serif;
+	color: white;
+	font-size: 150%;
+	text-align: center;
+	height: 100%;
+	margin: 0;
+}
+
+h1 {
+	color: #FFFFFF;
+	text-align: center;
+	font-size: 200%;
+}
+
+h2 {
+	color: #A2482E;
+	font-size: 150%;
+	text-align:center;
+}
+
+h3 {
+	color: #b7b7b6;
+}
+
+h4 {
+	color: #b7b7b6;
+	font-size: 75%;
+}
+
+p {
+	color: #B7B7B6;
+	font-family: 'Roboto', sans-serif;
+}
+
+ol, ul {
+	color: #B7B7B6;
+	font-family: 'Roboto', sans-serif;
+	text-align: left;
+}
+
+.image {
+	background-image:url("College.png");
+	background-attachment:fixed;
+	background-position:center top;
+	background-size: contain;
+	image-resolution: from-image;
+	border-bottom: solid;
+	height:350px;
+}
+
+.image-text {
+	text-align:center;
+	font-family: 'Roboto', sans-serif;
+	font-size:300%;
+	color:#FFFFFF;
+	font-weight:bold;
+	position:absolute;
+	top:200px;
+	left:50%;
+	transform:translate(-50%, -65%);
+	background-color:#0B090A;
+	border-style: solid;
+	padding: 20px;
+}
+
+
+#navbar {
+  overflow:hidden;
+  background-color:inherit;
+	border-bottom: solid;
+	border-color: white;
+	/*border-radius: 200px;*/
+	z-index: 500;
+}
+
+#navbar a {
+  float:left;
+  display:block;
+  color:white;
+  text-align:center;
+	font-family: 'Roboto', sans-serif;
+  padding:14px 16px;
+  text-decoration:none;
+	z-index: 500;
+}
+
+#navbar a:hover {
+  background-color:white;
+  color:black;
+	z-index: 500;
+}
+
+#navbar a.active {
+  background-color:white;
+  color:black;
+	z-index: 500;
+}
+
+.navbar a:hover {
+  background-color: #95F9E3;
+	z-index: 500;
+}
+
+@media screen and (max-width: 670px) {
+  #navbar a {
+    float: none;
+    display: block;
+    text-align: left;
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+  }
+}
+
+.content {
+  padding: 100px 0;
+  margin: 50px auto 0 auto;
+  width: 80%;
+}
+
+.sticky {
+  position: fixed;
+  top:0;
+  width:100%;
+}
+
+.sticky + .content {
+  padding-top: 600px;
+	margin-top: 600px;
+}
+a {
+	color: inherit;
+}
+
+footer {
+	color: white;
+	border-top: solid;
+	background-color: #141311;
+	border-color: black;
+	height: 150px;
+	text-align: center;
+	border-top: solid;
+	border-color: #A2482E;
+	font-family: 'Roboto', sans-serif;
+}

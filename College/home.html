@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>BucksCollegeGroup ESports 2021</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="stylesheet.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					BucksCollegeGroup Esports 2021
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a class="active" href="home.html">Home</a>
+					<a href="about.html">About</a>
+					<!-- <a href="pictures.html">Pictures</a> -->
+				</nav>
+			</div>
+		</header>
+		<main>
+			<h1>Welcome to our ESports Event!</h1>
+			<h3>Our first time creating such an experience.</h3>
+			<br><br>
+			<h4>Want to find out how to join the event? Got to the <a href="about.html">About</a> page to find out more!</h4>
+		</main>
+
+<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+</script>
+	</body>
+</html>
