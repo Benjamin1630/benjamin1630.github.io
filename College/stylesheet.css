@@ -3,12 +3,11 @@ html {
 }
 
 body {
-	background-color: #0B090A;
+	background-color: #534D56;
 	/*background-image: url("College.png");
 	background-attachment:fixed;
 	background-position:center bottom;
 	background-size:cover;*/
-	font-family: 'Do Hyeon', sans-serif;
 	color: white;
 	font-size: 150%;
 	text-align: center;
@@ -16,34 +15,42 @@ body {
 	margin: 0;
 }
 
+header {
+}
+
+main, footer {
+	color: #F8F1FF;
+	font-family: 'Roboto';
+}
+
 h1 {
-	color: #FFFFFF;
+	color: inherit;
 	text-align: center;
 	font-size: 200%;
 }
 
 h2 {
-	color: #A2482E;
+	color: inherit;
 	font-size: 150%;
 	text-align:center;
 }
 
 h3 {
-	color: #b7b7b6;
+	color: inherit;
 }
 
 h4 {
-	color: #b7b7b6;
+	color: inherit;
 	font-size: 75%;
 }
 
 p {
-	color: #B7B7B6;
+	color: inherit;
 	font-family: 'Roboto', sans-serif;
 }
 
 ol, ul {
-	color: #B7B7B6;
+	color: inherit;
 	font-family: 'Roboto', sans-serif;
 	text-align: left;
 }
@@ -55,20 +62,22 @@ ol, ul {
 	background-size: contain;
 	image-resolution: from-image;
 	border-bottom: solid;
+	border-color: white;
 	height:350px;
 }
 
 .image-text {
 	text-align:center;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Do Hyeon';
 	font-size:300%;
-	color:#FFFFFF;
+	color:#DECDF5;
 	font-weight:bold;
 	position:absolute;
 	top:200px;
 	left:50%;
 	transform:translate(-50%, -65%);
-	background-color:#0B090A;
+	background-color: #A72608;
+	border-color: white;
 	border-style: solid;
 	padding: 20px;
 }
