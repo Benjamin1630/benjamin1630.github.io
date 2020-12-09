@@ -3,12 +3,12 @@ html {
 }
 
 body {
-	background-color: #534D56;
+	background-color: #241C25;
 	/*background-image: url("College.png");
 	background-attachment:fixed;
 	background-position:center bottom;
 	background-size:cover;*/
-	color: white;
+	color: #F3F3F3;
 	font-size: 150%;
 	text-align: center;
 	height: 100%;
@@ -19,8 +19,11 @@ header {
 }
 
 main, footer {
-	color: #F8F1FF;
+	color: #F3F3F3;
 	font-family: 'Roboto';
+	padding-left: 20%;
+	padding-right: 20%;
+	z-index: 1:
 }
 
 h1 {
@@ -62,7 +65,7 @@ ol, ul {
 	background-size: contain;
 	image-resolution: from-image;
 	border-bottom: solid;
-	border-color: white;
+	border-color: #D59A55;
 	height:350px;
 }
 
@@ -70,14 +73,14 @@ ol, ul {
 	text-align:center;
 	font-family: 'Do Hyeon';
 	font-size:300%;
-	color:#DECDF5;
+	color:#E5EDE6;
 	font-weight:bold;
 	position:absolute;
 	top:200px;
 	left:50%;
 	transform:translate(-50%, -65%);
-	background-color: #A72608;
-	border-color: white;
+	background-color: #AD2E28;
+	border-color: #D59A55;
 	border-style: solid;
 	padding: 20px;
 }
@@ -85,56 +88,41 @@ ol, ul {
 
 #navbar {
   overflow:hidden;
-  background-color:inherit;
+  background-color:#AD2E28;
 	border-bottom: solid;
-	border-color: white;
+	border-color: #D59A55;
 	/*border-radius: 200px;*/
-	z-index: 500;
+	z-index: 10;
 }
 
 #navbar a {
   float:left;
   display:block;
-  color:white;
+  color:#F3F3F3;
   text-align:center;
 	font-family: 'Roboto', sans-serif;
   padding:14px 16px;
   text-decoration:none;
-	z-index: 500;
 }
 
 #navbar a:hover {
-  background-color:white;
-  color:black;
-	z-index: 500;
+  background-color:#D59A55;
+  color:#F3F3F3;
 }
 
 #navbar a.active {
-  background-color:white;
-  color:black;
-	z-index: 500;
+  background-color:#D59A55;
+  color:#F3F3F3;
 }
 
-.navbar a:hover {
-  background-color: #95F9E3;
-	z-index: 500;
-}
-
-@media screen and (max-width: 670px) {
-  #navbar a {
-    float: none;
-    display: block;
-    text-align: left;
-    width: 100%;
-    margin: 0;
-    padding: 14px;
-  }
-}
-
-.content {
-  padding: 100px 0;
-  margin: 50px auto 0 auto;
-  width: 80%;
+div.section {
+	position: relative;
+	border-style: solid;
+	border-color: #D59A55;
+	padding: 20px;
+	padding-top: 10px;
+	left: 50%;
+	transform:translate(-50%);
 }
 
 .sticky {
@@ -147,8 +135,9 @@ ol, ul {
   padding-top: 600px;
 	margin-top: 600px;
 }
+
 a {
-	color: inherit;
+	color: #0796E5;
 }
 
 footer {
