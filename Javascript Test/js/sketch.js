@@ -112,7 +112,7 @@ function reset() {
     text2 = text2Default;
     text2Box.value(text1Default);
     /*
-    //reset the pause bool when
+    //reset the pause bool when escape pressed
     if (pause === 1) {
         pause = 0;
     }
