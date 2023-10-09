@@ -69,13 +69,13 @@ function draw() {
         text(text1, random(-50, displayWidth), random(-50, displayHeight));
         fill(text2Colour.value());
         text(text2, random(-50, displayWidth), random(-50, displayHeight));
-        
+        /*
         if (text1 != ' ' || text2 != ' ') {
             showSecretTextChance = random(0, 1001);
             if (showSecretTextChance >= 1000) {
                 text('YOU WILL DIE.', random(-50, displayWidth), random(-50, displayHeight));
             }
-        }
+        }*/
     }
 }
 
