@@ -3,7 +3,7 @@ html {
 }
 
 body {
-	background-color: white;
+	background-color: #111111;
 	/*background-image: url("./Images/home.jpg");
 	background-attachment:fixed;
 	background-position:center bottom;
@@ -37,12 +37,12 @@ h2 {
 }
 
 h3 {
-	color: black;
+	color: aliceblue;
 	font-weight: normal;
 }
 
 p {
-	color: black;
+	color: aliceblue;
 	font-family: 'Roboto', sans-serif;
 }
 

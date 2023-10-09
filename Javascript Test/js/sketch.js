@@ -112,7 +112,7 @@ function reset() {
     text2 = text2Default;
     text2Box.value(text1Default);
     /*
-    //reset the pause bool when escape pressed
+    //reset the pause bool when
     if (pause === 1) {
         pause = 0;
     }
@@ -157,9 +157,9 @@ function norahMode() {
     text1 = text1Box.value();
     text2Box.value('Norah');
     text2 = text2Box.value();
-    bgColour.value('#ff00ff')
+    bgColour.value('#ffddec');
     background(bgColour.value());
-    circleColour.value('#ff0000');
+    circleColour.value('#0f0f0f');
     circleSize.value(64);
 }
 
