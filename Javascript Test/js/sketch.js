@@ -142,7 +142,7 @@ function secretRainbowMode() {
 
 function norahMode() {
     clear();
-    background(0,0,0);
+    background(255,0,255);
     text1 = 'Norah';
     text2 = 'Norah';
 }
