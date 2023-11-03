@@ -1,0 +1,14 @@
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	background-color: #141311;
+	font-family: 'Do Hyeon', sans-serif;
+	color: #A2482E;
+	font-size: 150%;
+	/*
+	height: 100%;
+	*/
+	margin-left: 5%;
+}
