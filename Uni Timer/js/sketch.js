@@ -24,7 +24,7 @@ function setup() {
 
     //create the button to reset timer
     timerResetButton = createButton("Reset");
-    timerResetButton.position(150,20);
+    timerResetButton.position(200,20);
     timerResetButton.mousePressed(resetTimer);
 }
 
@@ -33,6 +33,7 @@ function draw() {
         timeDeltaPassed += deltaTime;
     }
     timer = timeDeltaPassed / 1000;
+    timer = round(timer, 2);
 
     document.getElementById("timer").innerHTML = timer;
 
@@ -44,9 +45,11 @@ function draw() {
     */
 }
 
+/*
 function mousePressed() {
-    print(timer);
+    print(round(timer, 2));
 }
+*/
 
 function startTimer() {
     if (timerRunning == 0) {
