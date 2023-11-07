@@ -19,12 +19,12 @@ function setup() {
 
     //create the button to start timer
     timerStartButton = createButton("Start/Pause");
-    timerStartButton.position(50,20);
+    timerStartButton.position(15,20);
     timerStartButton.mousePressed(startTimer);
 
     //create the button to reset timer
     timerResetButton = createButton("Reset");
-    timerResetButton.position(200,20);
+    timerResetButton.position(250,20);
     timerResetButton.mousePressed(resetTimer);
 }
 
