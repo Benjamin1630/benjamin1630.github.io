@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Portfolio | Contact</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Contact
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a href="projects.html">Projects</a>
+					<a href="about.html">About</a>
+        			<a class="active" href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<div class="about-text">
+				<h2>You can find me on most social platforms:</h2>
+                <h3>Email: benjamin1630@hotmail.com</h3>
+                <h3><a href="https://www.linkedin.com/in/benjamin-reding-7b8876214/">LinkedIn</a></h3>
+                <h3><a href="https://bjreding.itch.io/">Itch.io</a></h3>
+		</main>
+
+        <!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+	</body>
+	<footer>
+		Report any bugs to me on discord: red_neb
+		<br>
+		Website created by Benjamin Reding.
+	</footer>
+	<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+	</script>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Portfolio | About</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image" style="background-image: url(favicon.ico);height:550px;">
+				<div class="image-text">
+					About me
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a href="projects.html">Projects</a>
+					<a class="active" href="about.html">About</a>
+        			<a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<div class="about-text">
+				<h1>Who am I?</h1>
+				<h2>My History</h2>
+				<p>
+					I was born and raised in Luxembourg where I spent my first 20 Years.
+					<br><br>
+					Most of my late teens were spent moving between schools trying to find the right course
+					for games programming, but unfortunately at this time, there were no such courses, but I 
+					still spent a good 4 years picking up skills and learning regardless.
+					<br><br>
+					Since there were no courses, I looked beyond the borders and went to college 
+					in the UK where I studied for 3 years.
+					<br><br>
+					I then moved to the Netherlands to study at a University level.
+				</p>
+				<br>
+				<h2>My Future</h2>
+				<p>
+					In my future, I aim to either start my own studio, or join a team 
+					that continues to innovate and focus on the user first.
+				</p>
+				<br>
+				<h2>My Passion</h2>
+				<p>
+					I aim to bring a pleasent and satisfying feel alongside a polished experience 
+					to everything I make.
+					<br>
+					It is very important to me that a game feels good to play.
+				</p>
+		</main>
+
+		<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+	</body>
+	<footer>
+		Report any bugs to me on discord: red_neb
+		<br>
+		Website created by Benjamin Reding.
+	</footer>
+	<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+	</script>
+</html>

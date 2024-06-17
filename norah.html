@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>My Dear Baby</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./Images/favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image">
+				<div class="image-text">
+					Dear Norah
+				</div>
+			</div>
+		</header>
+		<main>
+			<h1>This page is dedicated to you.</h1>
+			<h2>Dear Norah,</h2>
+			<p>
+				I love you sosososo much my baby Norah.
+			</p>
+			<br>
+		</main>
+		<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+		<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+		</script>
+  	</body>
+</html>

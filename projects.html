@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Portfolio | Reviews</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Do+Hyeon|Roboto" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image" style="background-image:url(./Images/Projects.png);height:550px;">
+				<div class="image-text">
+					Projects
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="index.html">Home</a>
+					<a class="active" href="projects.html">Projects</a>
+					<a href="about.html">About</a>
+        			<a href="contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<h1>My Projects</h1>
+			<h2>
+				Below you will find a range of past and present prototypes 
+				I have and am working on
+				<br>
+				both professionally and in my own time.
+			</h2>
+			<!-- Just copy the latest div to add more Projects to the Site! -->
+			<div class="article">
+				<h2 class="title">Dike Keepers (Unity) (Uni Project)</h2>
+				<img src="./Images/DikeKeepers.png" alt="" height="288" width="512">
+				<p style="color:#FFFFFF;">Final Grade:</p>
+				<p class="score" style="color:#FFFFFF;">10/10</p>
+				<p style="color:#FFFFFF;">
+					A First Person Shooter with a spin on the zombies formula. 
+					As a new recruit, it is your job to keep tranquilizing Muskrats 
+					and maintain the stability of the Dike. (Made with Unity)
+				</p>
+				<div class="quote">
+					<p class="quote-text">Role: Lead Programmer</p>
+					<p class="author">(Only C#) -Benjamin Reding</p>
+				</div>
+				<div class="review">
+					<p>You can play this game for yourself by grabbing it from itch.io</p>
+				</div>
+				<form action="" target="_blank">
+					<iframe frameborder="0" src="https://itch.io/embed/2778873?bg_color=8f533a&amp;fg_color=ffffff&amp;link_color=ff0707&amp;border_color=000000" width="552" height="167"><a href="https://bjreding.itch.io/dike-keepers">Dike Keepers by Red_Neb</a></iframe>
+				</form>
+				<br>
+				<p style="font-size:50%;color:#FFFFFF;">June 2024</p>
+				<br>
+			</div>
+			<br>
+			<br>
+			<!-- This is a break between Articles. -->
+
+			<div class="article">
+				<h2 class="title">Bedlam Breakout (Gamemaker 2) (Uni Project)</h2>
+				<img src="./Images/BedlamBreakout.png" alt="" height="288" width="575">
+				<p style="color:#FFFFFF;">Final Grade:</p>
+				<p class="score" style="color:#FFFFFF;">7.1/10</p>
+				<p style="color:#FFFFFF;">
+					2D Platformer where you play as an Asylum patient who needs 
+					to use their unique skillset of copying personalities to 
+					escape from the Asylum.
+				</p>
+				<div class="quote">
+					<p class="quote-text">Role: Programmer</p>
+					<p class="author">(GML) -Benjamin Reding</p>
+				</div>
+				<div class="review">
+					<p>You can play this game for yourself by grabbing it from itch.io</p>
+				</div>
+				<form action="" target="_blank">
+					<iframe frameborder="0" src="https://itch.io/embed/2779539?border_width=5&amp;bg_color=ffffff&amp;fg_color=222222&amp;link_color=7a3039&amp;border_color=7a3039" width="560" height="175"><a href="https://bjreding.itch.io/bedlam-breakout">Bedlam Breakout by Red_Neb</a></iframe>
+				</form>
+				<br>
+				<p style="font-size:50%;color:#FFFFFF;">January 2024</p>
+				<br>
+			</div>
+			<br>
+			<br>
+			<!-- This is a break between Articles. -->
+
+			<div class="article">
+				<h2 class="title">Porco Rosso inspired Unreal Engine Game</h2>
+				<img src="./Images/PorcoRosso.png" alt="An android woman standing on the coast with a sunset and stars" height="288" width="575">
+				<!-- <p class="score" style="color:#FFFFFF;">9/10</p> -->
+				<p style="color:#FFFFFF;">
+					An Open World Exploration game where you play as a dog fighting pilot 
+					collecting bounties. This game currently features a flyable plane, several islands 
+					and a day & night cycle (pic related).
+				</p>
+				<div class="quote">
+					<p class="quote-text"></p>
+					<p class="author">Created everything with Blueprints</p>
+				</div>
+				<div class="review">
+					<p>
+						This game is just a prototype I created in my own free time to further 
+						develop my skills.
+					</p>
+				</div>
+				<br>
+				<p style="font-size:50%;color:#FFFFFF;">April 2023</p>
+				<br>
+			</div>
+			<br>
+			<br>
+			<!-- This is a break between Articles. -->
+		</main>
+
+		<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+	</body>
+	<footer>
+		Report any bugs to me on discord: red_neb
+		<br>
+		Website created by Benjamin Reding.
+	</footer>
+	<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+	</script>
+</html>
