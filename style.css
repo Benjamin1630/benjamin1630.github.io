@@ -8,7 +8,7 @@ body {
 	background-attachment:fixed;
 	background-position:center bottom;
 	background-size:cover;*/
-	font-family: 'Do Hyeon', sans-serif;
+	font-family: 'Montserrat', sans-serif;
 	color: #A2482E;
 	font-size: 25px;
 	text-align: center;
@@ -34,12 +34,12 @@ h3 {
 
 p {
 	color: #B7B7B6;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Roboto Condensed Condensed', sans-serif;
 }
 
 ol, ul {
 	color: #B7B7B6;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Roboto Condensed Condensed', sans-serif;
 	text-align: left;
 }
 
@@ -62,20 +62,20 @@ p.btw {
 	/*background-image:url("./Images/home.jpg");*/
 	background-attachment:fixed;
 	background-position:center top;
-	background-repeat:repeat-y;
-	background-size:contain;
+	background-repeat:round;
+	background-size:40%;
 	border-bottom: solid;
-	height:450px;
+	height:300px;
 }
 
 .image-text {
 	text-align:center;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Roboto Condensed Condensed', sans-serif;
 	font-size:100px;
 	color:#FFFFFF;
 	font-weight:bold;
 	position:absolute;
-	top:229px;
+	top:150px;
 	left:50%;
 	transform:translate(-50%, -50%);
 	background-color:#141311;
@@ -98,7 +98,7 @@ p.btw {
   display:block;
   color:#A2482E;
   text-align:center;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Roboto Condensed Condensed', sans-serif;
   padding:14px 16px;
   text-decoration:none;
 	z-index: 500;
@@ -220,13 +220,13 @@ p.btw {
 }
 
 .title {
-	color: #FFFFFF;
+	color:#FFFFFF;
 }
-
+/*
 .title:hover {
-	text-decoration: underline;
+	text-decoration:underline;
 }
-
+*/
 img {
 	max-width: 100%;
 }
@@ -272,7 +272,7 @@ img {
   text-align: center;
   font-size: 28px;
   padding: 20px;
-  width: 200px;
+  width: 250px;
   transition: all 0.5s;
   cursor: pointer;
   margin: 5px;
@@ -378,5 +378,5 @@ footer {
 	text-align: center;
 	border-top: solid;
 	border-color: #A2482E;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Roboto Condensed Condensed', sans-serif;
 }
