@@ -1,0 +1,58 @@
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	background-color: #FDECF2;
+	/*font-family: 'Do Hyeon', sans-serif;*/
+	color: #F00;
+	text-align: center;
+	/*height: 100%;*/
+}
+
+h1 {
+	color: #F00;
+	font-size: 600%;
+    line-height: 50%;
+    margin-top: 35px;
+}
+
+h2 {
+	font-size: 150%;
+    margin-left: 5%;
+    margin-right: 5%;
+    line-height: 50%;
+}
+
+#tools {
+    container-name: tools;
+    text-align: left;
+    line-height: 0%;
+    height: 0%;
+    margin: 0%;
+    margin-left: 30%;
+}
+
+input {
+    height: 0%;
+    margin: 0%;
+    transform: translate(+103px,-27px);
+}
+
+.answer {
+    text-align: left;
+    line-height: 0%;
+    height: 0%;
+    margin: 0%;
+    transform: translate(40%,-37px);
+}
+
+@Container tools (width < 1500) {
+    .answer {
+        text-align: right;
+        line-height: 0%;
+        height: 0%;
+        margin: 0%;
+        transform: translate(-50%,-27px);
+    }
+}
