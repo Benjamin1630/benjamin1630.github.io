@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Portfolio | Reviews</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="/style.css" />
+		<link href="https://fonts.googleapis.com/css?family=Montserrat|Roboto+Condensed" rel="stylesheet">
+		<link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+	</head>
+	<body>
+		<header>
+			<div class="image" style="background-image:url(./Images/Projects.png);">
+				<div class="image-text">
+					Projects
+				</div>
+			</div>
+			<div id="navbar">
+				<nav>
+					<a href="/index.html">Home</a>
+					<a class="active" href="/projects.html">Projects</a>
+					<a href="/about.html">About</a>
+        			<a href="/contact.html">Contact</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<h1>Dike Keepers (Unity) (Uni Project)</h1>
+			<h2>My Role</h2>
+			<p style="margin-left:15%;margin-right:15%;">
+				I was designated Lead Programmer for this project, because I was the only one who knew how to write any code.
+				I learned a lot while working on this project and I learned quickly.
+				Within 2 months I went from writing basic movement to implementing complex and dynamic mechanics for the enemy AI and player UX.
+			</p>
+			<br>
+			<img src="/./Images/DikeKeepers.png" alt="" height="288" width="512">
+			<p  style="margin-left:15%;margin-right:15%;">
+				The game ended up being an FPS with a spin on the zombies formula.
+				Made entirely within Unity, the game uses momentum based movement for satisfying and responsive gameplay.
+				The enemy AI is managed by a script that tracks everything from where the can spawn to how the enemy behaves.
+				To stop the player from just sitting in one spot the enemy manager chooses a couple random points every so often
+				and directs the enemies to attack those points, which the player needs to protect.
+				<br><br>
+				The player is given a number of tools which can be upgraded and exchanged for caught muskrats, which are the enemy in the game.
+				<br><br>
+				(The in-game art and 3D models were made by my team members.)
+			</p>
+			<br>
+			<p style="color:#FFFFFF;">Final Grade recieved:</p>
+			<p class="score" style="color:#FFFFFF;">10/10</p>
+			<br>
+			<div class="review">
+				<p>You can play this game for yourself by grabbing it from itch.io</p>
+			</div>
+			<form action="" target="_blank">
+				<iframe frameborder="0" src="https://itch.io/embed/2778873?bg_color=8f533a&amp;fg_color=ffffff&amp;link_color=ff0707&amp;border_color=000000" width="552" height="167"><a href="https://bjreding.itch.io/dike-keepers">Dike Keepers by Red_Neb</a></iframe>
+			</form>
+			<br>
+		</main>
+
+		<!-- IGNORE THIS PART!!!!! It's so that the Navigation Bar "sticks" -->
+		<br>
+		<br>
+	</body>
+	<footer>
+		Report any bugs to me on discord: red_neb
+		<br>
+		Website created by Benjamin J. Reding.
+	</footer>
+	<script>
+		window.onscroll = function() {myFunction()};
+
+		var navbar = document.getElementById("navbar");
+		var sticky = navbar.offsetTop;
+		var main = document.getElementsByTagName('main')[0];
+
+		function myFunction() {
+			if (window.pageYOffset >= sticky) {
+				navbar.classList.add("sticky")
+				main.style.paddingTop = '60px';
+			} else {
+				navbar.classList.remove("sticky");
+				main.style.paddingTop = '0';
+			}
+		}
+	</script>
+</html>
