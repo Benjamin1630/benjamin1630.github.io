@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Naughts and Crosses</title>
+    <link rel="stylesheet" href="naughts-crosses-style.css">
+</head>
+<body>
+    <!-- Menu Screen -->
+    <div class="menu-screen" id="menu-screen">
+        <div class="menu-container">
+            <div class="header">
+                <a href="../projects.html" class="back-btn" title="Back to Projects">← Back</a>
+                <h1>Naughts and Crosses</h1>
+                <button id="nightModeToggle" class="night-mode-btn" title="Toggle Night Mode">🌙</button>
+            </div>
+            <h2>Choose Game Mode</h2>
+            <div class="menu-buttons">
+                <button class="menu-btn" id="play-human-btn">
+                    <div class="menu-btn-icon">👥</div>
+                    <div class="menu-btn-text">Two Players</div>
+                    <div class="menu-btn-desc">Play against a friend</div>
+                </button>
+                <button class="menu-btn" id="play-bot-btn">
+                    <div class="menu-btn-icon">🤖</div>
+                    <div class="menu-btn-text">Play vs Bot</div>
+                    <div class="menu-btn-desc">Play against computer</div>
+                </button>
+            </div>
+            <div class="difficulty-selector hidden" id="difficulty-selector">
+                <h3>Select Difficulty</h3>
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+                    <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+                    <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container hidden" id="game-container">
+        <div class="header">
+            <a href="../projects.html" class="back-btn" title="Back to Projects">← Back</a>
+            <h1>Naughts and Crosses</h1>
+            <button id="nightModeToggle2" class="night-mode-btn" title="Toggle Night Mode">🌙</button>
+        </div>
+        
+        <div class="game-mode-display">
+            <span id="game-mode-text">Two Players</span>
+            <button class="btn-back" id="back-to-menu">Back to Menu</button>
+        </div>
+        
+        <div class="game-info">
+            <div class="player-turn">
+                <span id="current-player">X</span>'s Turn
+            </div>
+            <div class="score-board">
+                <div class="score-item">
+                    <span class="score-label">X Wins:</span>
+                    <span id="x-score">0</span>
+                </div>
+                <div class="score-item">
+                    <span class="score-label">Draws:</span>
+                    <span id="draw-score">0</span>
+                </div>
+                <div class="score-item">
+                    <span class="score-label">O Wins:</span>
+                    <span id="o-score">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-board" id="game-board">
+            <div class="cell" data-cell-index="0"></div>
+            <div class="cell" data-cell-index="1"></div>
+            <div class="cell" data-cell-index="2"></div>
+            <div class="cell" data-cell-index="3"></div>
+            <div class="cell" data-cell-index="4"></div>
+            <div class="cell" data-cell-index="5"></div>
+            <div class="cell" data-cell-index="6"></div>
+            <div class="cell" data-cell-index="7"></div>
+            <div class="cell" data-cell-index="8"></div>
+        </div>
+
+        <div class="game-controls">
+            <button id="reset-btn" class="btn btn-primary">Reset Game</button>
+            <button id="clear-scores-btn" class="btn btn-secondary">Clear Scores</button>
+        </div>
+
+        <div id="game-message" class="game-message hidden">
+            <div class="message-content">
+                <h2 id="message-text"></h2>
+                <button id="play-again-btn" class="btn btn-large">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let currentPlayer = 'X';
+        let gameState = ['', '', '', '', '', '', '', '', ''];
+        let gameActive = true;
+        let gameMode = 'human'; // 'human' or 'bot'
+        let botDifficulty = 'medium'; // 'easy', 'medium', 'hard'
+        let scores = {
+            X: 0,
+            O: 0,
+            draws: 0
+        };
+
+        // Winning combinations
+        const winningConditions = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]
+        ];
+
+        // DOM elements
+        const menuScreen = document.getElementById('menu-screen');
+        const gameContainer = document.getElementById('game-container');
+        const playHumanBtn = document.getElementById('play-human-btn');
+        const playBotBtn = document.getElementById('play-bot-btn');
+        const difficultySelector = document.getElementById('difficulty-selector');
+        const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+        const backToMenuBtn = document.getElementById('back-to-menu');
+        const gameModeText = document.getElementById('game-mode-text');
+        const cells = document.querySelectorAll('.cell');
+        const currentPlayerDisplay = document.getElementById('current-player');
+        const gameMessage = document.getElementById('game-message');
+        const messageText = document.getElementById('message-text');
+        const resetBtn = document.getElementById('reset-btn');
+        const playAgainBtn = document.getElementById('play-again-btn');
+        const clearScoresBtn = document.getElementById('clear-scores-btn');
+        const xScoreDisplay = document.getElementById('x-score');
+        const oScoreDisplay = document.getElementById('o-score');
+        const drawScoreDisplay = document.getElementById('draw-score');
+
+        // Night mode toggle
+        const nightModeToggle = document.getElementById('nightModeToggle');
+        const nightModeToggle2 = document.getElementById('nightModeToggle2');
+        
+        function toggleNightMode() {
+            document.body.classList.toggle('night-mode');
+            localStorage.setItem('nightMode', document.body.classList.contains('night-mode'));
+        }
+        
+        // Check for saved night mode preference
+        if (localStorage.getItem('nightMode') === 'true') {
+            document.body.classList.add('night-mode');
+        }
+        
+        nightModeToggle.addEventListener('click', toggleNightMode);
+        nightModeToggle2.addEventListener('click', toggleNightMode);
+
+        // Initialize game
+        function initGame() {
+            // Menu event listeners
+            playHumanBtn.addEventListener('click', startHumanGame);
+            playBotBtn.addEventListener('click', showDifficultySelector);
+            backToMenuBtn.addEventListener('click', returnToMenu);
+            
+            difficultyBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    botDifficulty = e.target.getAttribute('data-difficulty');
+                    startBotGame();
+                });
+            });
+
+            // Game event listeners
+            cells.forEach(cell => {
+                cell.addEventListener('click', handleCellClick);
+            });
+            resetBtn.addEventListener('click', resetGame);
+            playAgainBtn.addEventListener('click', resetGame);
+            clearScoresBtn.addEventListener('click', clearScores);
+            loadScores();
+            updateScoreDisplay();
+        }
+
+        // Menu functions
+        function startHumanGame() {
+            gameMode = 'human';
+            gameModeText.textContent = 'Two Players Mode';
+            showGameScreen();
+        }
+
+        function showDifficultySelector() {
+            difficultySelector.classList.remove('hidden');
+            playHumanBtn.style.opacity = '0.5';
+            playBotBtn.style.opacity = '0.5';
+        }
+
+        function startBotGame() {
+            gameMode = 'bot';
+            const difficultyNames = {
+                'easy': 'Easy',
+                'medium': 'Medium',
+                'hard': 'Hard'
+            };
+            gameModeText.textContent = `vs Bot (${difficultyNames[botDifficulty]})`;
+            showGameScreen();
+        }
+
+        function showGameScreen() {
+            menuScreen.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            resetGame();
+        }
+
+        function returnToMenu() {
+            gameContainer.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+            difficultySelector.classList.add('hidden');
+            playHumanBtn.style.opacity = '1';
+            playBotBtn.style.opacity = '1';
+            resetGame();
+        }
+
+        // Handle cell click
+        function handleCellClick(event) {
+            const clickedCell = event.target;
+            const clickedCellIndex = parseInt(clickedCell.getAttribute('data-cell-index'));
+
+            if (gameState[clickedCellIndex] !== '' || !gameActive) {
+                return;
+            }
+
+            // In bot mode, only allow human player (X) to click
+            if (gameMode === 'bot' && currentPlayer === 'O') {
+                return;
+            }
+
+            handleCellPlayed(clickedCell, clickedCellIndex);
+            handleResultValidation();
+        }
+
+        // Update cell
+        function handleCellPlayed(clickedCell, clickedCellIndex) {
+            gameState[clickedCellIndex] = currentPlayer;
+            clickedCell.textContent = currentPlayer;
+            clickedCell.classList.add('taken', `player-${currentPlayer.toLowerCase()}`);
+        }
+
+        // Check for winner or draw
+        function handleResultValidation() {
+            let roundWon = false;
+            let winningCombination = null;
+
+            for (let i = 0; i < winningConditions.length; i++) {
+                const [a, b, c] = winningConditions[i];
+                if (gameState[a] === '' || gameState[b] === '' || gameState[c] === '') {
+                    continue;
+                }
+                if (gameState[a] === gameState[b] && gameState[b] === gameState[c]) {
+                    roundWon = true;
+                    winningCombination = [a, b, c];
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                announceWinner(currentPlayer, winningCombination);
+                scores[currentPlayer]++;
+                saveScores();
+                updateScoreDisplay();
+                gameActive = false;
+                return;
+            }
+
+            if (!gameState.includes('')) {
+                announceDraw();
+                scores.draws++;
+                saveScores();
+                updateScoreDisplay();
+                gameActive = false;
+                return;
+            }
+
+            changePlayer();
+        }
+
+        // Announce winner
+        function announceWinner(player, combination) {
+            messageText.textContent = `Player ${player} Wins! 🎉`;
+            gameMessage.classList.remove('hidden');
+            
+            // Highlight winning cells
+            combination.forEach(index => {
+                cells[index].classList.add('winner');
+            });
+        }
+
+        // Announce draw
+        function announceDraw() {
+            messageText.textContent = `It's a Draw! 🤝`;
+            gameMessage.classList.remove('hidden');
+        }
+
+        // Change player
+        function changePlayer() {
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            currentPlayerDisplay.textContent = currentPlayer;
+            currentPlayerDisplay.className = `player-${currentPlayer.toLowerCase()}`;
+            
+            // If bot mode and now bot's turn, make bot move
+            if (gameMode === 'bot' && currentPlayer === 'O' && gameActive) {
+                setTimeout(makeBotMove, 500); // Delay for better UX
+            }
+        }
+
+        // Bot AI functions
+        function makeBotMove() {
+            if (!gameActive) return;
+
+            let moveIndex;
+            
+            if (botDifficulty === 'easy') {
+                moveIndex = getRandomMove();
+            } else if (botDifficulty === 'medium') {
+                // 50% chance of smart move, 50% random
+                moveIndex = Math.random() < 0.5 ? getBestMove() : getRandomMove();
+            } else {
+                // Hard: always best move
+                moveIndex = getBestMove();
+            }
+
+            const cell = cells[moveIndex];
+            handleCellPlayed(cell, moveIndex);
+            handleResultValidation();
+        }
+
+        function getRandomMove() {
+            const availableMoves = gameState
+                .map((cell, index) => cell === '' ? index : null)
+                .filter(val => val !== null);
+            return availableMoves[Math.floor(Math.random() * availableMoves.length)];
+        }
+
+        function getBestMove() {
+            // First, try to win
+            let move = findWinningMove('O');
+            if (move !== -1) return move;
+
+            // Block player from winning
+            move = findWinningMove('X');
+            if (move !== -1) return move;
+
+            // Take center if available
+            if (gameState[4] === '') return 4;
+
+            // Take a corner
+            const corners = [0, 2, 6, 8];
+            const availableCorners = corners.filter(i => gameState[i] === '');
+            if (availableCorners.length > 0) {
+                return availableCorners[Math.floor(Math.random() * availableCorners.length)];
+            }
+
+            // Take any available space
+            return getRandomMove();
+        }
+
+        function findWinningMove(player) {
+            for (let i = 0; i < winningConditions.length; i++) {
+                const [a, b, c] = winningConditions[i];
+                const line = [gameState[a], gameState[b], gameState[c]];
+                
+                // Check if two positions have the player and one is empty
+                const playerCount = line.filter(cell => cell === player).length;
+                const emptyCount = line.filter(cell => cell === '').length;
+                
+                if (playerCount === 2 && emptyCount === 1) {
+                    if (gameState[a] === '') return a;
+                    if (gameState[b] === '') return b;
+                    if (gameState[c] === '') return c;
+                }
+            }
+            return -1;
+        }
+
+        // Reset game
+        function resetGame() {
+            gameActive = true;
+            currentPlayer = 'X';
+            gameState = ['', '', '', '', '', '', '', '', ''];
+            currentPlayerDisplay.textContent = currentPlayer;
+            currentPlayerDisplay.className = 'player-x';
+            messageText.textContent = '';
+            gameMessage.classList.add('hidden');
+
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('taken', 'player-x', 'player-o', 'winner');
+            });
+        }
+
+        // Update score display
+        function updateScoreDisplay() {
+            xScoreDisplay.textContent = scores.X;
+            oScoreDisplay.textContent = scores.O;
+            drawScoreDisplay.textContent = scores.draws;
+        }
+
+        // Save scores to localStorage
+        function saveScores() {
+            localStorage.setItem('naughtsAndCrossesScores', JSON.stringify(scores));
+        }
+
+        // Load scores from localStorage
+        function loadScores() {
+            const savedScores = localStorage.getItem('naughtsAndCrossesScores');
+            if (savedScores) {
+                scores = JSON.parse(savedScores);
+            }
+        }
+
+        // Clear scores
+        function clearScores() {
+            scores = { X: 0, O: 0, draws: 0 };
+            saveScores();
+            updateScoreDisplay();
+        }
+
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
