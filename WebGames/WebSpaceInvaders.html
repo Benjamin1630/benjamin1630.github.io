@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders: Infinite Upgrade</title>
+    <link rel="stylesheet" href="space-invaders-style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Navigation Header -->
+        <div class="nav-header">
+            <a href="../projects.html" class="back-btn" title="Back to Projects">← Back</a>
+            <h1 class="game-title">🚀 SPACE INVADERS 🚀</h1>
+            <button id="nightModeToggle" class="night-mode-btn" title="Toggle Night Mode">🌙</button>
+        </div>
+
+        <!-- Header Stats -->
+        <div class="header">
+            <div class="stat-group">
+                <div class="stat">
+                    <span class="stat-label">💰 Money:</span>
+                    <span id="money" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">⭐ Prestige Points:</span>
+                    <span id="prestigePoints" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">🔄 Rebirths:</span>
+                    <span id="rebirths" class="stat-value">0</span>
+                </div>
+            </div>
+            <div class="stat-group">
+                <div class="stat">
+                    <span class="stat-label">🎯 Score:</span>
+                    <span id="score" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">💖 Lives:</span>
+                    <span id="lives" class="stat-value">3</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">🌊 Wave:</span>
+                    <span id="wave" class="stat-value">1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="game-wrapper">
+            <!-- Game Canvas -->
+            <div class="canvas-container">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                
+                <!-- Touchscreen Controls -->
+                <button id="touchPauseBtn" class="touch-pause-btn" title="Pause">⏸️</button>
+                
+                <div class="touch-controls">
+                    <button id="touchLeftBtn" class="touch-control-btn touch-left">◀️</button>
+                    <button id="touchRightBtn" class="touch-control-btn touch-right">▶️</button>
+                </div>
+                
+                <div id="gameOverScreen" class="overlay hidden">
+                    <h2>Game Over!</h2>
+                    <p>Final Score: <span id="finalScore">0</span></p>
+                    <p>Money Earned: <span id="finalMoney">0</span></p>
+                    <button id="restartBtn" class="btn btn-primary">Continue Playing</button>
+                </div>
+                <div id="pauseScreen" class="overlay hidden">
+                    <h2>Paused</h2>
+                    <p>Press P or Continue to resume</p>
+                    <button id="resumeBtn" class="btn btn-primary">Continue</button>
+                </div>
+            </div>
+
+            <!-- Upgrade Panel -->
+            <div class="upgrade-panel">
+                <h2>🚀 Upgrades</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="combat">⚔️ Combat</button>
+                    <button class="tab-btn" data-tab="economy">💰 Economy</button>
+                    <button class="tab-btn" data-tab="prestige">⭐ Prestige</button>
+                    <button class="tab-btn" data-tab="rebirth">🔄 Rebirth</button>
+                </div>
+
+                <!-- Combat Upgrades -->
+                <div id="combat-tab" class="tab-content active">
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🔫 Fire Rate</strong>
+                            <p>Level: <span id="fireRateLevel">1</span></p>
+                            <p class="upgrade-desc">Shoot faster</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="fireRateBtn">
+                                <span class="cost">💰 <span id="fireRateCost">100</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="fireRateBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>💥 Damage</strong>
+                            <p>Level: <span id="damageLevel">1</span></p>
+                            <p class="upgrade-desc">Deal more damage</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="damageBtn">
+                                <span class="cost">💰 <span id="damageCost">150</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="damageBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>⚡ Speed</strong>
+                            <p>Level: <span id="speedLevel">1</span></p>
+                            <p class="upgrade-desc">Move faster</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="speedBtn">
+                                <span class="cost">💰 <span id="speedCost">120</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="speedBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🎯 Multi-Shot</strong>
+                            <p>Level: <span id="multiShotLevel">0</span></p>
+                            <p class="upgrade-desc">Fire multiple bullets</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="multiShotBtn">
+                                <span class="cost">💰 <span id="multiShotCost">500</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="multiShotBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🛡️ Extra Life</strong>
+                            <p>Current: <span id="extraLivesCount">0</span></p>
+                            <p class="upgrade-desc">Buy an extra life</p>
+                        </div>
+                        <button class="upgrade-btn" id="extraLifeBtn">
+                            <span class="cost">💰 <span id="extraLifeCost">1000</span></span>
+                        </button>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🚀 Bullet Speed</strong>
+                            <p>Level: <span id="bulletSpeedLevel">1</span></p>
+                            <p class="upgrade-desc">Bullets travel faster</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="bulletSpeedBtn">
+                                <span class="cost">💰 <span id="bulletSpeedCost">200</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="bulletSpeedBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Economy Upgrades -->
+                <div id="economy-tab" class="tab-content">
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>💸 Money Per Kill</strong>
+                            <p>Level: <span id="moneyPerKillLevel">1</span></p>
+                            <p class="upgrade-desc">+$10 per kill per level</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="moneyPerKillBtn">
+                                <span class="cost">💰 <span id="moneyPerKillCost">200</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="moneyPerKillBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🎁 Bonus Multiplier</strong>
+                            <p>Level: <span id="bonusMultiplierLevel">1</span></p>
+                            <p class="upgrade-desc">+10% money per level</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="bonusMultiplierBtn">
+                                <span class="cost">💰 <span id="bonusMultiplierCost">300</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="bonusMultiplierBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🌟 Wave Bonus</strong>
+                            <p>Level: <span id="waveBonusLevel">0</span></p>
+                            <p class="upgrade-desc">+$50 per wave completed</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="waveBonusBtn">
+                                <span class="cost">💰 <span id="waveBonusCost">400</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="waveBonusBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>💎 Critical Hits</strong>
+                            <p>Level: <span id="criticalLevel">0</span></p>
+                            <p class="upgrade-desc">+5% chance for 2x money</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn upgrade-btn-small" id="criticalBtn">
+                                <span class="cost">💰 <span id="criticalCost">600</span></span>
+                            </button>
+                            <button class="upgrade-btn upgrade-btn-small upgrade-btn-bulk" id="criticalBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prestige Upgrades -->
+                <div id="prestige-tab" class="tab-content">
+                    <p class="prestige-info">Prestige Points: <strong><span id="prestigePointsDisplay">0</span></strong></p>
+                    <p class="prestige-info-small">Earned from rebirths. Permanent upgrades!</p>
+                    
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🎯 Prestige Damage</strong>
+                            <p>Level: <span id="prestigeDamageLevel">0</span></p>
+                            <p class="upgrade-desc">+20% base damage</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small" id="prestigeDamageBtn">
+                                <span class="cost">⭐ <span id="prestigeDamageCost">1</span></span>
+                            </button>
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small upgrade-btn-bulk" id="prestigeDamageBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>💰 Prestige Money</strong>
+                            <p>Level: <span id="prestigeMoneyLevel">0</span></p>
+                            <p class="upgrade-desc">+25% money earned</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small" id="prestigeMoneyBtn">
+                                <span class="cost">⭐ <span id="prestigeMoneyCost">1</span></span>
+                            </button>
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small upgrade-btn-bulk" id="prestigeMoneyBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>⚡ Prestige Speed</strong>
+                            <p>Level: <span id="prestigeSpeedLevel">0</span></p>
+                            <p class="upgrade-desc">+15% movement speed</p>
+                        </div>
+                        <div class="upgrade-buttons">
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small" id="prestigeSpeedBtn">
+                                <span class="cost">⭐ <span id="prestigeSpeedCost">1</span></span>
+                            </button>
+                            <button class="upgrade-btn prestige-btn upgrade-btn-small upgrade-btn-bulk" id="prestigeSpeedBtn10">
+                                x10
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>💖 Prestige Lives</strong>
+                            <p>Level: <span id="prestigeLivesLevel">0</span></p>
+                            <p class="upgrade-desc">Start with +1 life</p>
+                        </div>
+                        <button class="upgrade-btn prestige-btn" id="prestigeLivesBtn">
+                            <span class="cost">⭐ <span id="prestigeLivesCost">2</span></span>
+                        </button>
+                    </div>
+
+                    <div class="upgrade-item">
+                        <div class="upgrade-info">
+                            <strong>🚀 Starting Money</strong>
+                            <p>Level: <span id="startingMoneyLevel">0</span></p>
+                            <p class="upgrade-desc">Start with $500</p>
+                        </div>
+                        <button class="upgrade-btn prestige-btn" id="startingMoneyBtn">
+                            <span class="cost">⭐ <span id="startingMoneyCost">3</span></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Rebirth Tab -->
+                <div id="rebirth-tab" class="tab-content">
+                    <div class="rebirth-info">
+                        <h3>🔄 Rebirth System</h3>
+                        <p>Reset all progress to gain Prestige Points!</p>
+                        <p>You will earn: <strong><span id="potentialPrestige">0</span></strong> Prestige Points</p>
+                        <p class="rebirth-formula">Formula: 1 point per 1 Million total money earned</p>
+                        <p class="rebirth-keeps">You keep: Prestige upgrades & rebirth count</p>
+                        <p class="rebirth-lose">You lose: All regular upgrades, money, score</p>
+                        <button id="rebirthBtn" class="btn btn-rebirth">🔄 REBIRTH</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Info -->
+        <div class="controls-info">
+            <p><strong>Controls:</strong> Arrow Keys or A/D to move | P to pause/unpause</p>
+        </div>
+
+        <!-- Number Reference Drawer -->
+        <div class="number-reference">
+            <button id="numberRefToggle" class="number-ref-toggle">
+                <span class="toggle-icon">▼</span>
+                <span class="toggle-text">Number Reference Guide</span>
+            </button>
+            <div id="numberRefContent" class="number-ref-content">
+                <table class="number-ref-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Short</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Thousand</td><td>K</td><td>1,000</td></tr>
+                        <tr><td>Million</td><td>Mil</td><td>1,000,000</td></tr>
+                        <tr><td>Billion</td><td>Bil</td><td>1,000,000,000</td></tr>
+                        <tr><td>Trillion</td><td>Tri</td><td>1,000,000,000,000</td></tr>
+                        <tr><td>Quadrillion</td><td>Qad</td><td>1,000,000,000,000,000</td></tr>
+                        <tr><td>Quintillion</td><td>Qnt</td><td>1,000,000,000,000,000,000</td></tr>
+                        <tr><td>Sextillion</td><td>Sxt</td><td>10<sup>21</sup></td></tr>
+                        <tr><td>Septillion</td><td>Sep</td><td>10<sup>24</sup></td></tr>
+                        <tr><td>Octillion</td><td>Oct</td><td>10<sup>27</sup></td></tr>
+                        <tr><td>Nonillion</td><td>Non</td><td>10<sup>30</sup></td></tr>
+                        <tr><td>Decillion</td><td>Dec</td><td>10<sup>33</sup></td></tr>
+                        <tr><td>Undecillion</td><td>UnD</td><td>10<sup>36</sup></td></tr>
+                        <tr><td>Duodecillion</td><td>DuD</td><td>10<sup>39</sup></td></tr>
+                        <tr><td>Tredecillion</td><td>TrD</td><td>10<sup>42</sup></td></tr>
+                        <tr><td>Quattuordecillion</td><td>QtD</td><td>10<sup>45</sup></td></tr>
+                        <tr><td>Quindecillion</td><td>QnD</td><td>10<sup>48</sup></td></tr>
+                        <tr><td>Sexdecillion</td><td>SxD</td><td>10<sup>51</sup></td></tr>
+                        <tr><td>Septendecillion</td><td>SpD</td><td>10<sup>54</sup></td></tr>
+                        <tr><td>Octodecillion</td><td>OcD</td><td>10<sup>57</sup></td></tr>
+                        <tr><td>Novemdecillion</td><td>NoD</td><td>10<sup>60</sup></td></tr>
+                        <tr><td>Vigintillion</td><td>Vig</td><td>10<sup>63</sup></td></tr>
+                        <tr><td>Unvigintillion</td><td>UnV</td><td>10<sup>66</sup></td></tr>
+                        <tr><td>Duovigintillion</td><td>DuV</td><td>10<sup>69</sup></td></tr>
+                        <tr><td>Tresvigintillion</td><td>TrV</td><td>10<sup>72</sup></td></tr>
+                        <tr><td>Quattuorvigintillion</td><td>QtV</td><td>10<sup>75</sup></td></tr>
+                        <tr><td>Quinvigintillion</td><td>QnV</td><td>10<sup>78</sup></td></tr>
+                        <tr><td>Sesvigintillion</td><td>SsV</td><td>10<sup>81</sup></td></tr>
+                        <tr><td>Septemvigintillion</td><td>SpV</td><td>10<sup>84</sup></td></tr>
+                        <tr><td>Octovigintillion</td><td>OcV</td><td>10<sup>87</sup></td></tr>
+                        <tr><td>Novemvigintillion</td><td>NvV</td><td>10<sup>90</sup></td></tr>
+                        <tr><td>Trigintillion</td><td>Trg</td><td>10<sup>93</sup></td></tr>
+                        <tr><td>Untrigintillion</td><td>UnT</td><td>10<sup>96</sup></td></tr>
+                        <tr><td>Duotrigintillion</td><td>DuT</td><td>10<sup>99</sup></td></tr>
+                        <tr><td>Trestrigintillion</td><td>TrT</td><td>10<sup>102</sup></td></tr>
+                        <tr><td>Quattuortrigintillion</td><td>QtT</td><td>10<sup>105</sup></td></tr>
+                        <tr><td>Quintrigintillion</td><td>QnT</td><td>10<sup>108</sup></td></tr>
+                        <tr><td>Sestrigintillion</td><td>SsT</td><td>10<sup>111</sup></td></tr>
+                        <tr><td>Septentrigintillion</td><td>SpT</td><td>10<sup>114</sup></td></tr>
+                        <tr><td>Octotrigintillion</td><td>OcT</td><td>10<sup>117</sup></td></tr>
+                        <tr><td>Noventrigintillion</td><td>NvT</td><td>10<sup>120</sup></td></tr>
+                        <tr><td>Quadragintillion</td><td>Qda</td><td>10<sup>123</sup></td></tr>
+                        <tr><td>Quinquagintillion</td><td>Qqa</td><td>10<sup>153</sup></td></tr>
+                        <tr><td>Sexagintillion</td><td>Sxg</td><td>10<sup>183</sup></td></tr>
+                        <tr><td>Septuagintillion</td><td>Spg</td><td>10<sup>213</sup></td></tr>
+                        <tr><td>Octogintillion</td><td>Oco</td><td>10<sup>243</sup></td></tr>
+                        <tr><td>Nonagintillion</td><td>Noa</td><td>10<sup>273</sup></td></tr>
+                        <tr><td>Centillion</td><td>Cen</td><td>10<sup>303</sup></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Wipe Progress Section -->
+        <div class="wipe-progress-section">
+            <button id="wipeProgressBtn" class="btn btn-wipe">⚠️ WIPE ALL PROGRESS ⚠️</button>
+        </div>
+    </div>
+
+    <!-- Rebirth Confirmation Modal -->
+    <div id="rebirthModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔄 REBIRTH CONFIRMATION 🔄</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning">You will gain <strong id="modalPrestigePoints">0</strong> Prestige Points!</p>
+                <p class="modal-subtext">✅ <strong>You Keep:</strong></p>
+                <p class="modal-keeps">• All Prestige Upgrades<br>• Rebirth Count<br>• Prestige Points</p>
+                <p class="modal-subtext" style="margin-top: 1rem;">❌ <strong>You Lose:</strong></p>
+                <p class="modal-lose">• All Regular Upgrades<br>• Current Money<br>• Score & Wave Progress</p>
+                <p class="modal-question">Are you ready to ascend?</p>
+            </div>
+            <div class="modal-buttons">
+                <button id="confirmRebirthBtn" class="modal-btn modal-btn-yes">YES, REBIRTH!</button>
+                <button id="cancelRebirthBtn" class="modal-btn modal-btn-no">NOT YET</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- First Wipe Warning Modal -->
+    <div id="wipeWarning1Modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚠️ WARNING: DELETE ALL PROGRESS ⚠️</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning" style="color: #ff4444; font-size: 20px;">This action is IRREVERSIBLE!</p>
+                <p class="modal-subtext" style="margin-top: 1.5rem;">❌ <strong>You will PERMANENTLY lose:</strong></p>
+                <p class="modal-lose">
+                    • ALL Regular Upgrades<br>
+                    • ALL Prestige Upgrades<br>
+                    • ALL Prestige Points<br>
+                    • ALL Rebirth Progress<br>
+                    • ALL Money & Score<br>
+                    • EVERYTHING will be reset to zero
+                </p>
+                <p class="modal-question" style="margin-top: 1.5rem; color: #ffaa00;">Are you ABSOLUTELY SURE?</p>
+            </div>
+            <div class="modal-buttons">
+                <button id="wipeWarning1YesBtn" class="modal-btn modal-btn-no" style="background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);">YES, CONTINUE</button>
+                <button id="wipeWarning1NoBtn" class="modal-btn modal-btn-yes">NO, GO BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Wipe Confirmation Modal -->
+    <div id="wipeWarning2Modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🚨 FINAL WARNING 🚨</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning" style="color: #ff0000; font-size: 22px; font-weight: 900;">LAST CHANCE!</p>
+                <p class="modal-subtext" style="margin-top: 1.5rem; font-size: 18px;">
+                    This will <strong style="color: #ff4444;">PERMANENTLY DELETE</strong> all your progress.
+                </p>
+                <p class="modal-subtext" style="margin-top: 1rem; font-size: 16px;">
+                    There is <strong>NO UNDO</strong>.<br>
+                    Everything will be gone <strong>FOREVER</strong>.
+                </p>
+                <p class="modal-question" style="margin-top: 2rem; color: #ff0000; font-size: 20px; font-weight: 900;">
+                    DELETE EVERYTHING?
+                </p>
+            </div>
+            <div class="modal-buttons">
+                <button id="wipeWarning2YesBtn" class="modal-btn modal-btn-no" style="background: linear-gradient(135deg, #ff0000 0%, #990000 100%); font-size: 18px; font-weight: 900;">DELETE EVERYTHING</button>
+                <button id="wipeWarning2NoBtn" class="modal-btn modal-btn-yes" style="font-size: 18px;">CANCEL, KEEP MY PROGRESS</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="space-invaders-script.js"></script>
+</body>
+</html>
