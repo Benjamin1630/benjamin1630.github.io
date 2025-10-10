@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Clicker Empire</title>
+    <link rel="stylesheet" href="cookie-clicker-style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="../projects.html" class="back-btn" title="Back to Projects">← Back</a>
+            <h1>🍪 Cookie Clicker Empire 🍪</h1>
+            <button id="nightModeToggle" class="night-mode-btn" title="Toggle Night Mode">🌙</button>
+        </div>
+        
+        <!-- Main Stats Display -->
+        <div class="stats-wrapper">
+            <div class="main-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Cookies:</span>
+                    <span id="cookie-count" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Per Second:</span>
+                    <span id="cps" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Per Click:</span>
+                    <span id="cpc" class="stat-value">1</span>
+                </div>
+            </div>
+            <div class="prestige-stats">
+                <div class="stat-item">
+                    <span class="stat-label">🌟 Prestige Level:</span>
+                    <span id="prestige-level" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">💫 Multiplier:</span>
+                    <span id="prestige-multiplier" class="stat-value">1.00x</span>
+                </div>
+                <div class="stat-item rebirth-progress">
+                    <button id="rebirth-btn" class="rebirth-btn" disabled>
+                        Next Rebirth: <span id="rebirth-cost">1,000,000</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-content-wrapper">
+            <!-- Cookie Clicker Area -->
+            <div class="clicker-area">
+                <div class="cookie-container">
+                    <button id="cookie-btn" class="cookie-btn">
+                        <span class="cookie-emoji">🍪</span>
+                    </button>
+                    <div id="click-numbers"></div>
+                </div>
+                <div class="golden-cookie-area" id="golden-cookie-area"></div>
+            </div>
+
+            <!-- Tabs Section -->
+            <div class="tabs-section">
+                <!-- Bulk Buy Controls -->
+                <div class="bulk-buy-controls">
+                    <span class="bulk-label">Buy Amount:</span>
+                    <div class="bulk-buttons">
+                        <button class="bulk-btn active" data-bulk="1">x1</button>
+                        <button class="bulk-btn" data-bulk="10">x10</button>
+                        <button class="bulk-btn" data-bulk="25">x25</button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="buildings">🏭 Buildings</button>
+                    <button class="tab-btn" data-tab="upgrades">⬆️ Upgrades</button>
+                    <button class="tab-btn" data-tab="achievements">🏆 Achievements</button>
+                    <button class="tab-btn" data-tab="prestige">🌟 Prestige</button>
+                    <button class="tab-btn" data-tab="stats">📊 Stats</button>
+                </div>
+
+                <!-- Buildings Tab -->
+                <div id="buildings-tab" class="tab-content active">
+                    <h3>Cookie Production Buildings</h3>
+                    <div class="buildings-grid" id="buildings-grid">
+                        <!-- Buildings will be dynamically generated -->
+                    </div>
+                </div>
+
+                <!-- Upgrades Tab -->
+                <div id="upgrades-tab" class="tab-content">
+                    <h3>Available Upgrades</h3>
+                    <div class="upgrades-info">
+                        <p>Upgrades permanently increase your production and clicking power!</p>
+                    </div>
+                    <div class="upgrades-grid" id="upgrades-grid">
+                        <!-- Upgrades will be dynamically generated -->
+                    </div>
+                    <div id="no-upgrades-msg" class="no-items-msg" style="display: none;">
+                        <p>🎉 All available upgrades purchased!</p>
+                        <p class="hint">Keep playing to unlock more...</p>
+                    </div>
+                </div>
+
+                <!-- Achievements Tab -->
+                <div id="achievements-tab" class="tab-content">
+                    <h3>Achievements</h3>
+                    <div class="achievement-filters">
+                        <button class="filter-btn active" data-filter="all">All (<span id="total-achievements">0</span>)</button>
+                        <button class="filter-btn" data-filter="unlocked">Unlocked (<span id="unlocked-achievements">0</span>)</button>
+                        <button class="filter-btn" data-filter="locked">Locked (<span id="locked-achievements">0</span>)</button>
+                    </div>
+                    <div class="achievements-grid" id="achievements-grid">
+                        <!-- Achievements will be dynamically generated -->
+                    </div>
+                </div>
+
+                <!-- Prestige Tab -->
+                <div id="prestige-tab" class="tab-content">
+                    <h3>Prestige System</h3>
+                    <div class="prestige-info">
+                        <div class="info-box">
+                            <h4>🌟 What is Prestige?</h4>
+                            <p>Rebirth your cookie empire to gain permanent multipliers!</p>
+                            <ul>
+                                <li>Reset all cookies and buildings</li>
+                                <li>Keep all achievements and upgrades</li>
+                                <li>Gain prestige points for permanent bonuses</li>
+                                <li>Unlock special prestige upgrades</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="prestige-calculator">
+                            <h4>💫 Rebirth Preview</h4>
+                            <div class="calc-row">
+                                <span>Current Total Cookies:</span>
+                                <span id="total-cookies-baked">0</span>
+                            </div>
+                            <div class="calc-row">
+                                <span>Prestige Points Earned:</span>
+                                <span id="prestige-points-preview">0</span>
+                            </div>
+                            <div class="calc-row">
+                                <span>Current Multiplier:</span>
+                                <span id="current-multiplier">1.00x</span>
+                            </div>
+                            <div class="calc-row highlight">
+                                <span>New Multiplier:</span>
+                                <span id="new-multiplier">1.00x</span>
+                            </div>
+                            <div class="calc-row highlight">
+                                <span>Multiplier Increase:</span>
+                                <span id="multiplier-increase">+0.00x</span>
+                            </div>
+                        </div>
+
+                        <button id="prestige-confirm-btn" class="prestige-confirm-btn" disabled>
+                            🌟 PRESTIGE NOW 🌟
+                        </button>
+                    </div>
+
+                    <div class="prestige-upgrades-section">
+                        <h4>🌠 Prestige Upgrades</h4>
+                        <div class="prestige-upgrades-grid" id="prestige-upgrades-grid">
+                            <!-- Prestige upgrades will be dynamically generated -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Tab -->
+                <div id="stats-tab" class="tab-content">
+                    <h3>Game Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-category">🍪 Cookie Stats</div>
+                            <div class="stat-row">
+                                <span>Total Cookies Baked:</span>
+                                <span id="stat-total-cookies">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Total Hand-Made Cookies:</span>
+                                <span id="stat-hand-made">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Cookies Per Second:</span>
+                                <span id="stat-cps">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Cookies Per Click:</span>
+                                <span id="stat-cpc">1</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-box">
+                            <div class="stat-category">👆 Clicking Stats</div>
+                            <div class="stat-row">
+                                <span>Total Clicks:</span>
+                                <span id="stat-total-clicks">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Golden Cookies Clicked:</span>
+                                <span id="stat-golden-clicks">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Clicks This Session:</span>
+                                <span id="stat-session-clicks">0</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-box">
+                            <div class="stat-category">🏭 Building Stats</div>
+                            <div class="stat-row">
+                                <span>Total Buildings Owned:</span>
+                                <span id="stat-total-buildings">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Most Expensive Building:</span>
+                                <span id="stat-most-expensive">None</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-box">
+                            <div class="stat-category">⬆️ Progress Stats</div>
+                            <div class="stat-row">
+                                <span>Upgrades Purchased:</span>
+                                <span id="stat-upgrades-bought">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Achievements Unlocked:</span>
+                                <span id="stat-achievements-unlocked">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Prestige Level:</span>
+                                <span id="stat-prestige-level">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Total Rebirths:</span>
+                                <span id="stat-total-rebirths">0</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-box">
+                            <div class="stat-category">⏱️ Time Stats</div>
+                            <div class="stat-row">
+                                <span>Time Played:</span>
+                                <span id="stat-time-played">0s</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Time This Session:</span>
+                                <span id="stat-session-time">0s</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="save-btn" class="action-btn save-btn">💾 Save Game</button>
+                        <button id="export-btn" class="action-btn">📤 Export Save</button>
+                        <button id="import-btn" class="action-btn">📥 Import Save</button>
+                        <button id="reset-btn" class="action-btn danger-btn">🗑️ Reset Game</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Display -->
+        <div class="message-display" id="message-display">
+            <span id="message-text">Start clicking to bake cookies!</span>
+        </div>
+    </div>
+
+    <!-- Import/Export Modal -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content">
+            <h3>Import Save Data</h3>
+            <textarea id="import-textarea" placeholder="Paste your save data here..."></textarea>
+            <div class="modal-buttons">
+                <button id="import-confirm-btn" class="btn">Import</button>
+                <button id="import-cancel-btn" class="btn cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="cookie-clicker-script.js"></script>
+</body>
+</html>
