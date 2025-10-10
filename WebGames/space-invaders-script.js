@@ -8,6 +8,7 @@ let gameState = {
     isGameOver: false,
     money: 0,
     totalMoneyEarned: 0,
+    moneyThisRun: 0,
     score: 0,
     lives: 3,
     wave: 1,
@@ -268,6 +269,7 @@ function update() {
                     
                     gameState.money += earnedMoney;
                     gameState.totalMoneyEarned += earnedMoney;
+                    gameState.moneyThisRun += earnedMoney;
                     gameState.score += 100;
                     
                     createParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.color, 10);
@@ -475,6 +477,7 @@ function nextWave() {
         const waveBonus = 50 * upgrades.waveBonus * (1 + prestigeUpgrades.money * 0.25);
         gameState.money += waveBonus;
         gameState.totalMoneyEarned += waveBonus;
+        gameState.moneyThisRun += waveBonus;
         updateUI();
     }
     
@@ -484,21 +487,71 @@ function nextWave() {
 // Game Over
 function gameOver() {
     gameState.isGameOver = true;
+    
+    // Save game state before showing modal
+    saveGameState();
+    
+    // Update modal with final stats
     document.getElementById('finalScore').textContent = formatNumber(gameState.score);
-    document.getElementById('finalMoney').textContent = formatNumber(Math.floor(gameState.money));
-    document.getElementById('gameOverScreen').classList.remove('hidden');
+    document.getElementById('finalWave').textContent = formatNumber(gameState.wave);
+    document.getElementById('finalMoney').textContent = formatNumber(Math.floor(gameState.moneyThisRun));
+    
+    // Show game over modal
+    showGameOverModal();
+}
+
+// Game Over Modal Functions
+function showGameOverModal() {
+    const gameOverModal = document.getElementById('gameOverModal');
+    if (gameOverModal) {
+        gameOverModal.classList.add('show');
+    }
+}
+
+function hideGameOverModal() {
+    const gameOverModal = document.getElementById('gameOverModal');
+    if (gameOverModal) {
+        gameOverModal.classList.remove('show');
+    }
+}
+
+function handleGameOverModalClick(e) {
+    const gameOverModal = document.getElementById('gameOverModal');
+    if (e.target === gameOverModal) {
+        // Don't allow closing by clicking overlay for game over
+        // Player must click the button to continue
+    }
 }
 
 // Restart Game
 function restartGame() {
+    hideGameOverModal();
+    
     gameState.isGameOver = false;
     gameState.lives = 3 + prestigeUpgrades.lives;
+    gameState.score = 0;
+    gameState.wave = 1;
+    gameState.moneyThisRun = 0;
     bullets = [];
     particles = [];
+    enemies = [];
     
+    // Reset enemy settings for new run
+    enemySettings.rows = 3;
+    enemySettings.cols = 8;
+    enemySettings.speed = 1;
+    enemySettings.direction = 1;
+    
+    // Update displays
     document.getElementById('lives').textContent = gameState.lives;
-    document.getElementById('gameOverScreen').classList.add('hidden');
+    document.getElementById('score').textContent = '0';
+    document.getElementById('wave').textContent = '1';
+    
+    // Spawn first wave
     spawnWave();
+    
+    // Save the reset state
+    saveGameState();
 }
 
 // Pause/Resume
@@ -801,6 +854,7 @@ function confirmRebirth() {
     // Reset everything except prestige
     gameState.money = prestigeUpgrades.startingMoney * 500;
     gameState.totalMoneyEarned = 0;
+    gameState.moneyThisRun = 0;
     gameState.score = 0;
     gameState.lives = 3 + prestigeUpgrades.lives;
     gameState.wave = 1;
@@ -837,7 +891,7 @@ function confirmRebirth() {
     enemies = [];
     particles = [];
     gameState.isGameOver = false;
-    document.getElementById('gameOverScreen').classList.add('hidden');
+    hideGameOverModal();
     
     // Update UI
     document.getElementById('prestigePoints').textContent = formatNumber(gameState.prestigePoints);
@@ -906,6 +960,7 @@ function confirmWipeProgress() {
     gameState = {
         money: 0,
         totalMoneyEarned: 0,
+        moneyThisRun: 0,
         score: 0,
         lives: 3,
         wave: 1,
@@ -979,8 +1034,8 @@ function confirmWipeProgress() {
     gameState.isGameOver = false;
     gameState.isPaused = false;
     
-    // Hide all overlays
-    document.getElementById('gameOverScreen').classList.add('hidden');
+    // Hide all overlays and modals
+    hideGameOverModal();
     document.getElementById('pauseScreen').classList.add('hidden');
     
     // Close modal
@@ -1083,16 +1138,25 @@ document.addEventListener('keyup', (e) => {
     gameState.keys[e.key] = false;
 });
 
-// Tab switching
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const tab = btn.dataset.tab;
-        
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
-        btn.classList.add('active');
-        document.getElementById(`${tab}-tab`).classList.add('active');
+// Tab switching - refactored to work per panel
+document.querySelectorAll('.upgrade-panel').forEach(panel => {
+    const tabButtons = panel.querySelectorAll('.tab-btn');
+    const tabContents = panel.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            
+            // Only affect tabs within this panel
+            tabButtons.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            const targetTab = panel.querySelector(`#${tab}-tab`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        });
     });
 });
 
@@ -1152,8 +1216,19 @@ document.getElementById('wipeWarning1NoBtn').addEventListener('click', cancelWip
 document.getElementById('wipeWarning2YesBtn').addEventListener('click', confirmWipeProgress);
 document.getElementById('wipeWarning2NoBtn').addEventListener('click', cancelWipeWarning2);
 
-// Restart button
-document.getElementById('restartBtn').addEventListener('click', restartGame);
+// Game Over Modal
+const gameOverModal = document.getElementById('gameOverModal');
+const gameOverNewGame = document.getElementById('gameOverNewGame');
+
+if (gameOverNewGame) {
+    gameOverNewGame.addEventListener('click', restartGame);
+}
+
+if (gameOverModal) {
+    gameOverModal.addEventListener('click', handleGameOverModalClick);
+}
+
+// Pause/Resume buttons
 document.getElementById('resumeBtn').addEventListener('click', togglePause);
 
 // Number reference drawer toggle
@@ -1164,6 +1239,17 @@ numberRefToggle.addEventListener('click', () => {
     const isOpen = numberRefContent.classList.toggle('open');
     numberRefToggle.classList.toggle('active', isOpen);
 });
+
+// Panel toggle for mobile
+const panelToggle = document.getElementById('panelToggle');
+const upgradePanel = document.querySelector('.upgrade-panel.right-panel');
+
+if (panelToggle && upgradePanel) {
+    panelToggle.addEventListener('click', () => {
+        const isActive = upgradePanel.classList.toggle('active');
+        panelToggle.querySelector('.toggle-icon').textContent = isActive ? '▶' : '◀';
+    });
+}
 
 // Night mode toggle
 const nightModeToggle = document.getElementById('nightModeToggle');

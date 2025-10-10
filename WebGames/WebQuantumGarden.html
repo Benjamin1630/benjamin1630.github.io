@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Garden</title>
+    <link rel="stylesheet" href="quantum-garden-style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Top HUD Bar -->
+        <header class="top-hud">
+            <a href="../projects.html" class="back-btn" title="Back to Projects">← Back</a>
+            <div class="title-section">
+                <h1>🌸 Quantum Garden</h1>
+                <p class="subtitle">Cultivate quantum patterns</p>
+            </div>
+            <div class="stats-hud">
+                <div class="stat-item">
+                    <span class="stat-icon">🔄</span>
+                    <div class="stat-info">
+                        <span class="stat-label">Cycle</span>
+                        <span class="stat-value" id="cycle-count">0</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">✨</span>
+                    <div class="stat-info">
+                        <span class="stat-label">Harmony</span>
+                        <span class="stat-value" id="harmony">0</span>
+                    </div>
+                </div>
+                <div class="stat-item energy-stat">
+                    <span class="stat-icon">⚡</span>
+                    <div class="stat-info">
+                        <span class="stat-label">Energy</span>
+                        <span class="stat-value" id="energy">100</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Game Area -->
+        <div class="game-area">
+            <!-- Left Sidebar - Particle Palette -->
+            <aside class="left-sidebar">
+                <div class="sidebar-section particle-section">
+                    <h3 class="section-title">
+                        <span class="title-icon">🧬</span>
+                        Quantum Seeds
+                    </h3>
+                    <div class="particle-palette">
+                        <button class="particle-btn active" data-type="photon" title="Photon - Spreads light energy">
+                            <div class="particle-icon photon-color"></div>
+                            <div class="particle-info">
+                                <span class="particle-name">Photon</span>
+                                <span class="particle-cost">⚡5</span>
+                            </div>
+                        </button>
+                        <button class="particle-btn" data-type="electron" title="Electron - Orbits and connects">
+                            <div class="particle-icon electron-color"></div>
+                            <div class="particle-info">
+                                <span class="particle-name">Electron</span>
+                                <span class="particle-cost">⚡8</span>
+                            </div>
+                        </button>
+                        <button class="particle-btn" data-type="quark" title="Quark - Creates stable structures">
+                            <div class="particle-icon quark-color"></div>
+                            <div class="particle-info">
+                                <span class="particle-name">Quark</span>
+                                <span class="particle-cost">⚡12</span>
+                            </div>
+                        </button>
+                        <button class="particle-btn" data-type="neutrino" title="Neutrino - Passes through others">
+                            <div class="particle-icon neutrino-color"></div>
+                            <div class="particle-info">
+                                <span class="particle-name">Neutrino</span>
+                                <span class="particle-cost">⚡10</span>
+                            </div>
+                        </button>
+                        <button class="particle-btn" data-type="boson" title="Boson - Creates harmony fields">
+                            <div class="particle-icon boson-color"></div>
+                            <div class="particle-info">
+                                <span class="particle-name">Boson</span>
+                                <span class="particle-cost">⚡15</span>
+                            </div>
+                        </button>
+                        <button class="particle-btn observe-btn" data-type="observe" title="Observe - Collapse superposition">
+                            <div class="particle-icon observe-color">👁️</div>
+                            <div class="particle-info">
+                                <span class="particle-name">Observe</span>
+                                <span class="particle-cost">⚡3</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section achievements-section">
+                    <h3 class="section-title">
+                        <span class="title-icon">🏆</span>
+                        Achievements
+                    </h3>
+                    <div class="achievements-grid" id="achievement-list">
+                        <div class="achievement locked" data-achievement="first-seed" title="Place your first particle">
+                            <span class="achievement-icon">🌱</span>
+                        </div>
+                        <div class="achievement locked" data-achievement="harmony-10" title="Reach Harmony 10">
+                            <span class="achievement-icon">✨</span>
+                        </div>
+                        <div class="achievement locked" data-achievement="pattern-maker" title="Create 50 particles">
+                            <span class="achievement-icon">🎨</span>
+                        </div>
+                        <div class="achievement locked" data-achievement="zen-master" title="Reach Harmony 100">
+                            <span class="achievement-icon">🧘</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center - Canvas -->
+            <main class="canvas-area">
+                <canvas id="garden-canvas"></canvas>
+                <div id="tooltip" class="tooltip"></div>
+            </main>
+
+            <!-- Right Sidebar - Controls -->
+            <aside class="right-sidebar">
+                <div class="sidebar-section">
+                    <button id="btn-tutorial" class="tutorial-btn-main">
+                        <span class="btn-icon">📚</span>
+                        <span class="btn-text">Tutorial</span>
+                    </button>
+                </div>
+
+                <div class="sidebar-section controls-section">
+                    <h3 class="section-title">
+                        <span class="title-icon">⏱️</span>
+                        Time Control
+                    </h3>
+                    <div class="control-group">
+                        <button id="btn-next-cycle" class="control-btn next-cycle-btn">
+                            <span class="btn-icon">⏭️</span>
+                            <span class="btn-label">Next Cycle</span>
+                        </button>
+                        <button id="btn-play" class="control-btn">
+                            <span class="btn-icon">▶️</span>
+                            <span class="btn-label">Play</span>
+                        </button>
+                        <button id="btn-pause" class="control-btn active">
+                            <span class="btn-icon">⏸️</span>
+                            <span class="btn-label">Pause</span>
+                        </button>
+                        <button id="btn-slow" class="control-btn">
+                            <span class="btn-icon">🐌</span>
+                            <span class="btn-label">Slow</span>
+                        </button>
+                        <button id="btn-fast" class="control-btn">
+                            <span class="btn-icon">⚡</span>
+                            <span class="btn-label">Fast</span>
+                        </button>
+                        <button id="btn-clear" class="control-btn danger">
+                            <span class="btn-icon">🗑️</span>
+                            <span class="btn-label">Clear</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section save-section">
+                    <h3 class="section-title">
+                        <span class="title-icon">💾</span>
+                        Save & Share
+                    </h3>
+                    <div class="control-group">
+                        <button id="btn-save" class="control-btn save-btn">
+                            <span class="btn-icon">💾</span>
+                            <span class="btn-label">Save</span>
+                        </button>
+                        <button id="btn-load" class="control-btn save-btn">
+                            <span class="btn-icon">📂</span>
+                            <span class="btn-label">Load</span>
+                        </button>
+                        <button id="btn-export" class="control-btn save-btn">
+                            <span class="btn-icon">📤</span>
+                            <span class="btn-label">Export</span>
+                        </button>
+                        <button id="btn-import" class="control-btn save-btn">
+                            <span class="btn-icon">📥</span>
+                            <span class="btn-label">Import</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section info-section collapsed">
+                    <h3 class="section-title collapsible">
+                        <span class="title-icon">ℹ️</span>
+                        Guide
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div class="section-content">
+                        <div class="info-item">
+                            <span class="info-icon photon-color">●</span>
+                            <span class="info-text"><strong>Photon:</strong> Spreads light</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-icon electron-color">●</span>
+                            <span class="info-text"><strong>Electron:</strong> Orbits</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-icon quark-color">●</span>
+                            <span class="info-text"><strong>Quark:</strong> Structures</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-icon neutrino-color">●</span>
+                            <span class="info-text"><strong>Neutrino:</strong> Phases</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-icon boson-color">●</span>
+                            <span class="info-text"><strong>Boson:</strong> Harmony</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Modern Game-Like Tutorial Overlay System -->
+    <div id="tutorial-overlay" class="tutorial-overlay hidden">
+        <!-- Backdrop with subtle vignette -->
+        <div class="tutorial-backdrop"></div>
+        
+        <!-- Dynamic Spotlight (highlights specific elements) -->
+        <div id="tutorial-spotlight" class="tutorial-spotlight"></div>
+        
+        <!-- Modern HUD-Style Tutorial Card -->
+        <div id="tutorial-card" class="tutorial-card">
+            <!-- Glowing Header Bar -->
+            <div class="tutorial-card-header">
+                <div class="tutorial-badge">
+                    <span class="badge-icon">📚</span>
+                    <span class="badge-text">Tutorial</span>
+                </div>
+                <div class="tutorial-progress">
+                    <span class="progress-text">Step</span>
+                    <span id="tutorial-step-num" class="step-num">1</span>
+                    <span class="step-separator">/</span>
+                    <span class="step-total">8</span>
+                </div>
+                <button id="tutorial-skip" class="tutorial-skip-btn" title="Skip Tutorial">
+                    <span class="skip-icon">✕</span>
+                </button>
+            </div>
+            
+            <!-- Content Area with Task System -->
+            <div class="tutorial-card-body">
+                <div class="tutorial-title-wrapper">
+                    <h4 id="tutorial-title" class="tutorial-title">Welcome to Quantum Garden!</h4>
+                    <div class="title-underline"></div>
+                </div>
+                
+                <p id="tutorial-text" class="tutorial-text">Let's learn the basics of quantum gardening...</p>
+                
+                <!-- Interactive Task System -->
+                <div id="tutorial-task" class="tutorial-task hidden">
+                    <div class="task-header">
+                        <span class="task-icon">🎯</span>
+                        <span class="task-label">OBJECTIVE</span>
+                    </div>
+                    <div class="task-content">
+                        <span id="task-text" class="task-text">Complete the action</span>
+                        <div class="task-status">
+                            <span id="task-check" class="task-check pending">⏳</span>
+                            <span class="task-status-text">In Progress...</span>
+                        </div>
+                    </div>
+                    <div class="task-progress-bar">
+                        <div class="task-progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Footer with Progress Indicators -->
+            <div class="tutorial-card-footer">
+                <button id="tutorial-prev-btn" class="tutorial-nav-btn prev-btn" disabled>
+                    <span class="nav-icon">◄</span>
+                    <span class="nav-text">Back</span>
+                </button>
+                
+                <div class="tutorial-progress-dots">
+                    <span class="progress-dot active" data-step="1" title="Step 1"></span>
+                    <span class="progress-dot" data-step="2" title="Step 2"></span>
+                    <span class="progress-dot" data-step="3" title="Step 3"></span>
+                    <span class="progress-dot" data-step="4" title="Step 4"></span>
+                    <span class="progress-dot" data-step="5" title="Step 5"></span>
+                    <span class="progress-dot" data-step="6" title="Step 6"></span>
+                    <span class="progress-dot" data-step="7" title="Step 7"></span>
+                    <span class="progress-dot" data-step="8" title="Step 8"></span>
+                </div>
+                
+                <button id="tutorial-finish-btn" class="tutorial-nav-btn finish-btn hidden">
+                    <span class="nav-text">Finish</span>
+                    <span class="nav-icon">✓</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Animated Directional Arrow -->
+        <div id="tutorial-arrow" class="tutorial-arrow hidden">
+            <div class="arrow-body"></div>
+            <div class="arrow-tip"></div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content import-modal-content">
+            <div class="tutorial-header">
+                <h2>📥 Import Garden</h2>
+                <button id="close-import" class="close-btn">✕</button>
+            </div>
+            
+            <div class="import-body">
+                <p>Paste your exported garden code below:</p>
+                <textarea id="import-text" placeholder="Paste garden code here..." rows="10"></textarea>
+                <div class="import-actions">
+                    <button id="btn-import-confirm" class="tutorial-nav-btn">Import Garden</button>
+                    <button id="btn-import-cancel" class="tutorial-nav-btn">Cancel</button>
+                </div>
+                <div id="import-message" class="import-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Save Restore Modal -->
+    <div id="autosave-modal" class="modal-overlay">
+        <div class="modal-content autosave-modal-content">
+            <div class="modal-header">
+                <h2>🌸 GARDEN FOUND 🌸</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning">A recent quantum garden was discovered!</p>
+                <p class="modal-subtext">Your garden was automatically preserved in the quantum realm.</p>
+                <p class="modal-question">Would you like to restore your previous creation?</p>
+            </div>
+            <div class="modal-buttons">
+                <button id="autosave-restore-btn" class="modal-btn modal-btn-yes">✓ RESTORE</button>
+                <button id="autosave-discard-btn" class="modal-btn modal-btn-no">✕ START FRESH</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skip Tutorial Modal -->
+    <div id="skip-tutorial-modal" class="modal-overlay">
+        <div class="modal-content autosave-modal-content">
+            <div class="modal-header">
+                <h2>⚠️ SKIP TUTORIAL ⚠️</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning">Are you sure you want to skip?</p>
+                <p class="modal-subtext">The tutorial will teach you the basics of quantum gardening and unlock your first achievements.</p>
+                <p class="modal-question">Skip the guided experience?</p>
+            </div>
+            <div class="modal-buttons">
+                <button id="skip-tutorial-confirm-btn" class="modal-btn modal-btn-no">✓ SKIP</button>
+                <button id="skip-tutorial-cancel-btn" class="modal-btn modal-btn-yes">✕ CONTINUE TUTORIAL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorial-modal" class="modal">
+        <div class="modal-content">
+            <div class="tutorial-header">
+                <h2>🌸 Welcome to Quantum Garden 🌸</h2>
+                <button id="close-tutorial" class="close-btn">✕</button>
+            </div>
+            
+            <div class="tutorial-body">
+                <div class="tutorial-step active" data-step="1">
+                    <h3>Step 1: Understanding Quantum Seeds</h3>
+                    <p>Welcome to Quantum Garden! This is a unique game where you cultivate beautiful patterns using quantum particles.</p>
+                    <div class="tutorial-visual">
+                        <div class="particle-showcase">
+                            <div class="showcase-item">
+                                <div class="particle-preview photon-color"></div>
+                                <p><strong>Photon</strong> - Spreads light and energy</p>
+                            </div>
+                            <div class="showcase-item">
+                                <div class="particle-preview electron-color"></div>
+                                <p><strong>Electron</strong> - Orbits other particles</p>
+                            </div>
+                            <div class="showcase-item">
+                                <div class="particle-preview quark-color"></div>
+                                <p><strong>Quark</strong> - Forms stable structures</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p>Each particle type has unique behaviors that create emergent patterns when combined!</p>
+                </div>
+
+                <div class="tutorial-step" data-step="2">
+                    <h3>Step 2: Plant Your First Seed</h3>
+                    <p>Let's get hands-on! Time to plant your first quantum particle.</p>
+                    <div class="tutorial-task">
+                        <p><strong>🎯 Task:</strong> Click on the canvas to place a Photon particle!</p>
+                        <div class="task-progress">
+                            <span id="task-2-status">❌ Not completed</span>
+                        </div>
+                    </div>
+                    <p>The Photon is already selected for you. Just click anywhere on the dark canvas in the middle of the screen.</p>
+                    <div class="tutorial-tip">
+                        💡 <strong>Tip:</strong> Each particle costs energy - notice your energy meter decrease when you place it!
+                    </div>
+                </div>
+
+                <div class="tutorial-step" data-step="3">
+                    <h3>Step 3: Start Time!</h3>
+                    <p>Great! Now you have a particle, but notice it's not moving. That's because time is paused!</p>
+                    <div class="tutorial-task">
+                        <p><strong>🎯 Task:</strong> Click the "▶️ Play" button to start time and watch your particle come alive!</p>
+                        <div class="task-progress">
+                            <span id="task-3-status">❌ Not completed</span>
+                        </div>
+                    </div>
+                    <p>You'll see your Photon start to move and shimmer. This is quantum mechanics in action!</p>
+                    <div class="tutorial-tip">
+                        💡 Notice the ghostly copies? That's <strong>quantum superposition</strong> - the particle exists in multiple states at once!
+                    </div>
+                </div>
+
+                <div class="tutorial-step" data-step="4">
+                    <h3>Step 4: Add Different Seeds</h3>
+                    <p>Now let's add variety to your garden. Different particles create different patterns!</p>
+                    <div class="tutorial-task">
+                        <p><strong>🎯 Task:</strong> Select the <strong>Electron</strong> (blue) particle from the left panel, then place it on the canvas.</p>
+                        <div class="task-progress">
+                            <span id="task-4-status">❌ Not completed</span>
+                        </div>
+                    </div>
+                    <p>Electrons will try to orbit around other particles. Watch how it behaves differently from the Photon!</p>
+                </div>
+
+                <div class="tutorial-step" data-step="5">
+                    <h3>Step 5: Collapse the Quantum State</h3>
+                    <p>Time to learn about quantum observation! You can "collapse" particles from their superposition state.</p>
+                    <div class="tutorial-task">
+                        <p><strong>🎯 Task:</strong> Select the <strong>Observe</strong> (eye) tool and click near your particles to lock them in place!</p>
+                        <div class="task-progress">
+                            <span id="task-5-status">❌ Not completed</span>
+                        </div>
+                    </div>
+                    <p>When you observe particles, they collapse from their ghostly state into a solid, locked position. This is based on real quantum mechanics!</p>
+                </div>
+
+                <div class="tutorial-step" data-step="6">
+                    <h3>Step 6: Master Time Control</h3>
+                    <p>You control the flow of time in your quantum garden!</p>
+                    <div class="tutorial-task">
+                        <p><strong>🎯 Task:</strong> Try each time control button:</p>
+                        <ul>
+                            <li id="task-6-pause">⏸️ Pause - ❌</li>
+                            <li id="task-6-slow">🐌 Slow - ❌</li>
+                            <li id="task-6-fast">⚡ Fast - ❌</li>
+                        </ul>
+                        <div class="task-progress">
+                            <span id="task-6-status">❌ Not completed</span>
+                        </div>
+                    </div>
+                    <p>Use pause to carefully plan your garden, then speed it up to watch patterns emerge!</p>
+                </div>
+
+                <div class="tutorial-step" data-step="7">
+                    <h3>Step 7: Understanding Harmony</h3>
+                    <p>Your goal is to create beautiful patterns and maximize <strong>Harmony</strong>!</p>
+                    <div class="tutorial-task">
+                        <p><strong>� Task:</strong> Place at least <strong>3 more particles</strong> of any type to increase your harmony!</p>
+                        <div class="task-progress">
+                            <span id="task-7-status">Particles: <span id="task-7-count">0</span>/3 ❌</span>
+                        </div>
+                    </div>
+                    <p><strong>Harmony increases with:</strong></p>
+                    <ul>
+                        <li>Variety of particle types (try all 5!)</li>
+                        <li>Connections between particles</li>
+                        <li>Balanced energy distribution</li>
+                    </ul>
+                    <div class="tutorial-tip">
+                        💡 Higher harmony = faster energy regeneration!
+                    </div>
+                </div>
+
+                <div class="tutorial-step" data-step="8">
+                    <h3>🎉 You're Ready!</h3>
+                    <p>Congratulations! You've learned the fundamentals of Quantum Garden!</p>
+                    <div class="tutorial-visual">
+                        <div style="text-align: center; font-size: 4em;">🌸✨🌿</div>
+                    </div>
+                    <p><strong>Remember:</strong></p>
+                    <ul>
+                        <li>🌟 <strong>Photons</strong> - Spread energy</li>
+                        <li>⚡ <strong>Electrons</strong> - Orbit and connect</li>
+                        <li>💎 <strong>Quarks</strong> - Form stable triangles</li>
+                        <li>👻 <strong>Neutrinos</strong> - Phase through everything</li>
+                        <li>🌿 <strong>Bosons</strong> - Create harmony fields</li>
+                    </ul>
+                    <p><strong>There's no winning or losing</strong> - just create, explore, and find your zen!</p>
+                    <div class="tutorial-tip">
+                        � Try unlocking all achievements and creating the most harmonious garden possible!
+                    </div>
+                </div>
+            </div>
+
+            <div class="tutorial-footer">
+                <button id="tutorial-prev" class="tutorial-nav-btn" disabled>← Previous</button>
+                <div class="tutorial-dots">
+                    <span class="dot active" data-step="1"></span>
+                    <span class="dot" data-step="2"></span>
+                    <span class="dot" data-step="3"></span>
+                    <span class="dot" data-step="4"></span>
+                    <span class="dot" data-step="5"></span>
+                    <span class="dot" data-step="6"></span>
+                    <span class="dot" data-step="7"></span>
+                    <span class="dot" data-step="8"></span>
+                </div>
+                <button id="tutorial-next" class="tutorial-nav-btn">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rotate Device Modal (Mobile Portrait Only) -->
+    <div id="rotate-modal" class="rotate-modal">
+        <div class="rotate-modal-content">
+            <div class="rotate-icon">
+                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Phone outline -->
+                    <rect x="30" y="20" width="60" height="80" rx="8" stroke="currentColor" stroke-width="3" fill="rgba(255,255,255,0.1)"/>
+                    <!-- Rotation arrow -->
+                    <path d="M 95 60 A 35 35 0 1 1 60 25" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    <path d="M 95 60 L 90 52 M 95 60 L 87 65" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h2>Please Rotate Your Device</h2>
+            <p>For the best experience, please rotate your device to landscape mode.</p>
+            <div class="rotate-hint">🔄</div>
+        </div>
+    </div>
+
+    <script src="quantum-garden-script.js"></script>
+</body>
+</html>
