@@ -9,6 +9,10 @@
     box-sizing: border-box;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 :root {
     /* Light Mode Colors */
     --primary-color: #ff0033;
@@ -110,8 +114,8 @@ body::after {
     display: grid;
     grid-template-columns: 1fr 2fr 1fr;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.3rem 0.75rem;
+    gap: clamp(0.25rem, 1vw, 0.5rem);
+    padding: clamp(0.2rem, 0.5vh, 0.3rem) clamp(0.4rem, 1.5vw, 0.75rem);
     background: linear-gradient(180deg, var(--bg-secondary) 0%, transparent 100%);
     border-bottom: 2px solid var(--border-color);
     box-shadow: 
@@ -224,8 +228,8 @@ body::after {
 .stat-item {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.75rem;
+    gap: clamp(0.15rem, 0.5vw, 0.4rem);
+    padding: clamp(0.2rem, 0.5vh, 0.4rem) clamp(0.3rem, 1vw, 0.75rem);
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -247,8 +251,9 @@ body::after {
 }
 
 .stat-icon {
-    font-size: 1.25rem;
+    font-size: clamp(0.65rem, 1.5vw, 1.25rem);
     filter: drop-shadow(0 0 5px var(--glow-primary));
+    flex-shrink: 0;
 }
 
 .stat-content {
@@ -260,14 +265,14 @@ body::after {
 }
 
 .stat-label {
-    font-size: 0.6rem;
-    letter-spacing: 1px;
+    font-size: clamp(0.35rem, 0.8vw, 0.6rem);
+    letter-spacing: clamp(0.3px, 0.15vw, 1px);
     color: var(--text-secondary);
     text-transform: uppercase;
 }
 
 .stat-value {
-    font-size: 1.1rem;
+    font-size: clamp(0.55rem, 1.5vw, 1.1rem);
     font-weight: 700;
     color: var(--primary-color);
     text-shadow: 0 0 10px var(--glow-primary);
@@ -284,15 +289,15 @@ body::after {
 .game-container {
     flex: 1;
     display: grid;
-    grid-template-columns: 280px 1fr 320px;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    grid-template-columns: minmax(220px, 15vw) 1fr minmax(250px, 17vw);
+    gap: clamp(0.3rem, 1vw, 0.75rem);
+    padding: clamp(0.25rem, 0.5vh, 0.5rem) clamp(0.4rem, 1vw, 0.75rem);
     max-width: 1920px;
     margin: 0 auto;
     width: 100%;
     position: relative;
     z-index: 1;
-    max-height: calc(100vh - 70px);
+    max-height: calc(100vh - clamp(45px, 8vh, 70px));
     overflow: hidden;
 }
 
@@ -308,7 +313,7 @@ body::after {
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 0.6rem;
+    padding: clamp(0.3rem, 0.8vh, 0.6rem);
     backdrop-filter: blur(10px);
     box-shadow: 
         0 4px 15px rgba(0, 0, 0, 0.3),
@@ -318,21 +323,21 @@ body::after {
 .section-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
+    gap: clamp(0.25rem, 0.7vw, 0.5rem);
+    margin-bottom: clamp(0.4rem, 1.2vh, 1rem);
+    padding-bottom: clamp(0.35rem, 0.9vh, 0.75rem);
     border-bottom: 1px solid var(--border-color);
 }
 
 .section-icon {
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 2vw, 1.5rem);
     filter: drop-shadow(0 0 5px var(--glow-primary));
 }
 
 .section-title {
-    font-size: 0.875rem;
+    font-size: clamp(0.65rem, 1.2vw, 0.875rem);
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: clamp(0.5px, 0.3vw, 2px);
     color: var(--primary-color);
     text-transform: uppercase;
 }
@@ -341,8 +346,8 @@ body::after {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
-    margin-bottom: 0.4rem;
+    padding: clamp(0.25rem, 0.7vh, 0.5rem);
+    margin-bottom: clamp(0.2rem, 0.5vh, 0.4rem);
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-left: 3px solid var(--primary-color);
@@ -603,8 +608,8 @@ body.night-mode #gameCanvas {
 .prestige-stats-display {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    padding: 0.75rem;
+    gap: clamp(0.25rem, 0.7vw, 0.5rem);
+    padding: clamp(0.4rem, 1vh, 0.75rem);
     background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
     border-bottom: 1px solid var(--border-color);
 }
@@ -612,8 +617,8 @@ body.night-mode #gameCanvas {
 .prestige-stat-card {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
+    gap: clamp(0.25rem, 0.7vw, 0.5rem);
+    padding: clamp(0.25rem, 0.7vh, 0.5rem);
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -624,7 +629,7 @@ body.night-mode #gameCanvas {
 }
 
 .stat-card-icon {
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 2vw, 1.5rem);
     filter: drop-shadow(0 0 8px var(--glow-primary));
 }
 
@@ -658,23 +663,23 @@ body.night-mode #gameCanvas {
 .tabs {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    gap: clamp(0.25rem, 0.7vw, 0.5rem);
+    margin-bottom: clamp(0.35rem, 0.9vh, 0.75rem);
 }
 
 .tab-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0.5rem 0.4rem;
+    gap: clamp(0.1rem, 0.3vh, 0.2rem);
+    padding: clamp(0.25rem, 0.7vh, 0.5rem) clamp(0.2rem, 0.6vw, 0.4rem);
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 0.7rem;
+    font-size: clamp(0.5rem, 0.9vw, 0.7rem);
 }
 
 .tab-btn:hover {
@@ -690,12 +695,12 @@ body.night-mode #gameCanvas {
 }
 
 .tab-icon {
-    font-size: 1.25rem;
+    font-size: clamp(0.8rem, 1.7vw, 1.25rem);
 }
 
 .tab-label {
-    font-size: 0.65rem;
-    letter-spacing: 0.5px;
+    font-size: clamp(0.45rem, 0.85vw, 0.65rem);
+    letter-spacing: clamp(0.2px, 0.08vw, 0.5px);
     text-transform: uppercase;
 }
 
@@ -714,8 +719,8 @@ body.night-mode #gameCanvas {
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-left: 3px solid var(--primary-color);
     border-radius: 6px;
-    padding: 0.65rem;
-    margin-bottom: 0.5rem;
+    padding: clamp(0.3rem, 0.9vh, 0.65rem);
+    margin-bottom: clamp(0.25rem, 0.6vh, 0.5rem);
     transition: all 0.3s ease;
 }
 
@@ -727,25 +732,25 @@ body.night-mode #gameCanvas {
 }
 
 .upgrade-info {
-    margin-bottom: 0.5rem;
+    margin-bottom: clamp(0.25rem, 0.6vh, 0.5rem);
 }
 
 .upgrade-info strong {
     display: block;
-    font-size: 0.9rem;
+    font-size: clamp(0.65rem, 1.2vw, 0.9rem);
     color: var(--primary-color);
-    margin-bottom: 0.4rem;
+    margin-bottom: clamp(0.2rem, 0.5vh, 0.4rem);
     text-shadow: 0 0 10px var(--glow-primary);
 }
 
 .upgrade-info p {
-    font-size: 0.8rem;
+    font-size: clamp(0.55rem, 1vw, 0.8rem);
     color: var(--text-secondary);
-    margin-bottom: 0.2rem;
+    margin-bottom: clamp(0.1rem, 0.3vh, 0.2rem);
 }
 
 .upgrade-desc {
-    font-size: 0.7rem !important;
+    font-size: clamp(0.5rem, 0.9vw, 0.7rem) !important;
     font-style: italic;
     opacity: 0.7;
 }
@@ -753,7 +758,7 @@ body.night-mode #gameCanvas {
 .upgrade-buttons {
     display: grid;
     grid-template-columns: 2fr 1fr;
-    gap: 0.5rem;
+    gap: clamp(0.25rem, 0.7vw, 0.5rem);
 }
 
 .upgrade-btn {
@@ -787,11 +792,28 @@ body.night-mode #gameCanvas {
 
 .upgrade-btn-bulk {
     background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+    position: relative;
+    transition: all 0.3s ease;
 }
 
 .upgrade-btn-bulk:hover:not(:disabled) {
     background: linear-gradient(135deg, var(--accent-color), var(--secondary-color));
     box-shadow: 0 0 20px var(--glow-secondary);
+}
+
+.upgrade-btn-bulk.shift-active {
+    background: linear-gradient(135deg, #ffaa00, #ff0099);
+    box-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
+    animation: shiftPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes shiftPulse {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(255, 0, 153, 0.8);
+    }
 }
 
 .prestige-btn {
@@ -889,7 +911,10 @@ body.night-mode #gameCanvas {
    ================================ */
 
 .control-bar {
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 100;
     display: flex;
     justify-content: space-between;
@@ -900,7 +925,57 @@ body.night-mode #gameCanvas {
     box-shadow: 
         0 -4px 20px var(--glow-primary),
         inset 0 1px 0 var(--glow-primary);
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
 }
+
+.control-bar.open {
+    transform: translateY(0);
+}
+
+/* Drawer Toggle Button */
+.drawer-toggle {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 101;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+    border: 2px solid var(--border-color);
+    box-shadow: 
+        0 4px 15px rgba(0, 0, 0, 0.5),
+        0 0 20px var(--glow-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.drawer-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.6),
+        0 0 30px var(--glow-secondary);
+}
+
+.drawer-toggle:active {
+    transform: scale(0.95);
+}
+
+.drawer-arrow {
+    font-size: 1.5rem;
+    color: white;
+    transition: transform 0.3s ease;
+    line-height: 1;
+}
+
+.drawer-toggle.open .drawer-arrow {
+    transform: rotate(180deg);
+}
+
 
 .control-section {
     display: flex;
@@ -1196,7 +1271,7 @@ body.night-mode #gameCanvas {
         grid-template-rows: auto;
         gap: 0.5rem;
         padding: 0.5rem;
-        max-height: calc(100vh - 70px);
+        max-height: calc(100vh - 65px);
     }
     
     /* Left panel becomes horizontal at top */
@@ -1235,11 +1310,11 @@ body.night-mode #gameCanvas {
     }
     
     .canvas-wrapper {
-        max-height: calc(50vh - 50px);
+        max-height: calc(45vh - 40px);
     }
     
     #gameCanvas {
-        max-height: calc(50vh - 60px);
+        max-height: calc(45vh - 45px);
     }
 }
 
@@ -1247,41 +1322,44 @@ body.night-mode #gameCanvas {
 @media (max-width: 768px) {
     .cockpit-hud {
         grid-template-columns: auto 1fr auto;
-        gap: 0.4rem;
-        padding: 0.4rem 0.75rem;
+        gap: 0.25rem;
+        padding: 0.25rem 0.4rem;
     }
     
     .title-main {
-        font-size: 1.1rem;
-        letter-spacing: 1.5px;
+        font-size: 0.8rem;
+        letter-spacing: 1px;
     }
     
     .title-sub {
-        font-size: 0.45rem;
-        letter-spacing: 0.5px;
+        font-size: 0.35rem;
+        letter-spacing: 0.3px;
     }
     
     .stat-cluster {
         flex-direction: row;
-        flex-wrap: wrap;
-        gap: 0.3rem;
+        flex-wrap: nowrap;
+        gap: 0.2rem;
     }
     
     .stat-item {
-        padding: 0.3rem 0.5rem;
-        flex: 0 0 calc(50% - 0.15rem);
+        padding: 0.2rem 0.3rem;
+        gap: 0.2rem;
+        flex-shrink: 1;
+        min-width: 0;
     }
     
     .stat-icon {
-        font-size: 1rem;
+        font-size: 0.75rem;
+        flex-shrink: 0;
     }
     
     .stat-label {
-        font-size: 0.5rem;
+        font-size: 0.4rem;
     }
     
     .stat-value {
-        font-size: 0.9rem;
+        font-size: 0.65rem;
     }
     
     .back-text {
@@ -1289,22 +1367,65 @@ body.night-mode #gameCanvas {
     }
     
     .game-container {
-        padding: 0.35rem;
-        gap: 0.35rem;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        padding: 0.25rem;
+        gap: 0.5rem;
+        max-height: none;
+        overflow-y: auto;
+    }
+    
+    /* Game first (spans both columns), then panels side-by-side */
+    .game-main {
+        order: 1;
+        grid-row: 1;
+        grid-column: 1 / -1;
+    }
+    
+    .left-panel {
+        order: 2;
+        grid-row: 2;
+        grid-column: 1;
+        max-height: none;
+        display: flex !important;
+    }
+    
+    .right-panel {
+        order: 3;
+        grid-row: 2;
+        grid-column: 2;
+        position: relative !important;
+        transform: none !important;
+        width: 100% !important;
+        max-width: none !important;
+        max-height: none;
+    }
+    
+    .canvas-wrapper {
+        max-height: 40vh;
+    }
+    
+    #gameCanvas {
+        max-height: 40vh;
+    }
+    
+    /* Hide panel toggle on mobile - panels are always visible and stacked */
+    .panel-toggle {
+        display: none !important;
     }
     
     .control-bar {
         flex-wrap: wrap;
-        gap: 0.35rem;
-        padding: 0.35rem 0.5rem;
+        gap: 0.25rem;
+        padding: 0.25rem 0.4rem;
     }
     
     .control-section {
-        gap: 0.35rem;
+        gap: 0.25rem;
     }
     
     .control-text {
-        font-size: 0.7rem;
+        font-size: 0.6rem;
     }
     
     .control-text strong {
@@ -1313,141 +1434,326 @@ body.night-mode #gameCanvas {
     
     .tabs {
         grid-template-columns: repeat(2, 1fr);
-        gap: 0.35rem;
+        gap: 0.25rem;
+    }
+    
+    .tab-btn {
+        padding: 0.3rem 0.2rem;
+        gap: 0.2rem;
+    }
+    
+    .tab-icon {
+        font-size: 0.9rem;
+    }
+    
+    .tab-label {
+        font-size: 0.5rem;
+    }
+    
+    .panel-header {
+        padding: 0.4rem;
+    }
+    
+    .header-title {
+        font-size: 0.75rem;
+    }
+    
+    .panel-content {
+        padding: 0.4rem;
+        gap: 0.3rem;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+    
+    .panel-section {
+        padding: 0.4rem;
+    }
+    
+    .section-header {
+        margin-bottom: 0.4rem;
+        gap: 0.3rem;
+    }
+    
+    .section-title {
+        font-size: 0.75rem;
     }
     
     .prestige-stats-display {
         grid-template-columns: 1fr;
-        gap: 0.4rem;
-        padding: 0.5rem;
-    }
-    
-    .prestige-stat-card {
+        gap: 0.3rem;
         padding: 0.4rem;
     }
     
+    .prestige-stat-card {
+        padding: 0.3rem;
+    }
+    
+    .stat-card {
+        padding: 0.3rem;
+        margin-bottom: 0.3rem;
+    }
+    
     .stat-card-label {
-        font-size: 0.6rem;
+        font-size: 0.55rem;
     }
     
     .stat-card-value {
-        font-size: 1.1rem;
+        font-size: 0.9rem;
     }
     
     .pause-btn {
-        width: 40px;
-        height: 40px;
-        font-size: 18px;
-        top: 6px;
-        right: 6px;
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+        top: 5px;
+        right: 5px;
     }
     
     .touch-control-btn {
-        width: 55px;
-        height: 55px;
-        font-size: 22px;
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
     }
     
     .upgrade-item {
-        padding: 0.5rem;
-        margin-bottom: 0.4rem;
+        padding: 0.4rem;
+        margin-bottom: 0.3rem;
     }
     
     .upgrade-info strong {
-        font-size: 0.85rem;
+        font-size: 0.75rem;
     }
     
     .upgrade-info p {
+        font-size: 0.65rem;
+        margin: 0.2rem 0;
+    }
+    
+    .upgrade-cost {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.4rem;
+    }
+    
+    .buy-btn {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.65rem;
+    }
+    
+    .overlay-content {
+        padding: 1rem;
+        max-width: 280px;
+    }
+    
+    .overlay h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .overlay p {
         font-size: 0.75rem;
+        margin-bottom: 0.75rem;
     }
 }
 
 /* Small mobile devices */
 @media (max-width: 480px) {
     .cockpit-hud {
-        padding: 0.35rem 0.5rem;
-        gap: 0.3rem;
+        padding: 0.2rem 0.3rem;
+        gap: 0.2rem;
     }
     
     .hud-left {
-        gap: 0.25rem;
+        gap: 0.2rem;
     }
     
     .back-btn {
-        padding: 0.3rem 0.4rem;
-        font-size: 0.7rem;
-    }
-    
-    .night-mode-btn {
-        width: 30px;
-        height: 30px;
-    }
-    
-    .mode-icon {
-        font-size: 1.1rem;
-    }
-    
-    .title-main {
-        font-size: 0.95rem;
-        letter-spacing: 1px;
-    }
-    
-    .title-sub {
-        font-size: 0.4rem;
-    }
-    
-    .stat-item {
-        padding: 0.25rem 0.4rem;
-    }
-    
-    .stat-label {
-        font-size: 0.45rem;
-    }
-    
-    .stat-value {
-        font-size: 0.8rem;
-    }
-    
-    .panel-header {
-        padding: 0.5rem;
-    }
-    
-    .header-title {
-        font-size: 0.8rem;
-    }
-    
-    .panel-content {
-        padding: 0.5rem;
-    }
-    
-    .upgrade-item {
-        padding: 0.45rem;
-    }
-    
-    .upgrade-info strong {
-        font-size: 0.8rem;
-        margin-bottom: 0.3rem;
-    }
-    
-    .upgrade-info p {
-        font-size: 0.7rem;
-    }
-    
-    .tab-btn {
-        padding: 0.4rem 0.3rem;
-    }
-    
-    .tab-icon {
-        font-size: 1.1rem;
-    }
-    
-    .tab-label {
+        padding: 0.25rem 0.3rem;
         font-size: 0.6rem;
     }
     
+    .night-mode-btn {
+        width: 26px;
+        height: 26px;
+    }
+    
+    .mode-icon {
+        font-size: 0.9rem;
+    }
+    
+    .title-main {
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .title-sub {
+        display: none;
+    }
+    
+    .stat-item {
+        padding: 0.2rem 0.25rem;
+        gap: 0.15rem;
+    }
+    
+    .stat-icon {
+        font-size: 0.65rem;
+    }
+    
+    .stat-label {
+        font-size: 0.35rem;
+    }
+    
+    .stat-value {
+        font-size: 0.55rem;
+    }
+    
+    .game-container {
+        padding: 0.2rem;
+        gap: 0.4rem;
+        max-height: none;
+    }
+    
+    .canvas-wrapper {
+        max-height: 35vh;
+    }
+    
+    #gameCanvas {
+        max-height: 35vh;
+    }
+    
+    .panel-header {
+        padding: 0.3rem;
+    }
+    
+    .header-title {
+        font-size: 0.65rem;
+    }
+    
+    .panel-content {
+        padding: 0.3rem;
+        gap: 0.25rem;
+    }
+    
+    .panel-section {
+        padding: 0.3rem;
+    }
+    
+    .section-header {
+        margin-bottom: 0.3rem;
+    }
+    
+    .section-title {
+        font-size: 0.65rem;
+    }
+    
+    .upgrade-item {
+        padding: 0.3rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .upgrade-info strong {
+        font-size: 0.65rem;
+        margin-bottom: 0.2rem;
+    }
+    
+    .upgrade-info p {
+        font-size: 0.55rem;
+        margin: 0.15rem 0;
+    }
+    
+    .upgrade-cost {
+        font-size: 0.55rem;
+        padding: 0.2rem 0.3rem;
+    }
+    
+    .buy-btn {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.55rem;
+    }
+    
+    .tab-btn {
+        padding: 0.25rem 0.15rem;
+        gap: 0.15rem;
+    }
+    
+    .tab-icon {
+        font-size: 0.8rem;
+    }
+    
+    .tab-label {
+        font-size: 0.45rem;
+    }
+    
+    .pause-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+        top: 4px;
+        right: 4px;
+    }
+    
+    .touch-control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+    
+    .prestige-stat-card {
+        padding: 0.25rem;
+    }
+    
+    .stat-card {
+        padding: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-card-label {
+        font-size: 0.5rem;
+    }
+    
+    .stat-card-value {
+        font-size: 0.75rem;
+    }
+    
     .modal-content {
-        padding: 1rem;
-        max-width: 90%;
+        padding: 0.75rem;
+        max-width: 92%;
+    }
+    
+    .modal-title {
+        font-size: 1rem;
+    }
+    
+    .modal-message {
+        font-size: 0.7rem;
+    }
+    
+    .modal-btn {
+        padding: 0.5rem;
+        font-size: 0.65rem;
+    }
+    
+    .control-bar {
+        padding: 0.2rem 0.3rem;
+        gap: 0.2rem;
+    }
+    
+    .control-text {
+        font-size: 0.5rem;
+    }
+    
+    .overlay-content {
+        padding: 0.75rem;
+        max-width: 200px;
+    }
+    
+    .overlay h2 {
+        font-size: 1.2rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .overlay p {
+        font-size: 0.65rem;
+        margin-bottom: 0.5rem;
     }
 }
 
@@ -1543,95 +1849,5 @@ a:focus-visible {
     }
     50% {
         opacity: 0.5;
-    }
-}
-
-/* ================================
-   ROTATE DEVICE MODAL (Portrait Only)
-   ================================ */
-
-.rotate-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(15px);
-    z-index: 9999;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
-
-.rotate-modal-content {
-    text-align: center;
-    padding: 2rem;
-    max-width: 400px;
-    animation: rotatePromptPulse 2s ease-in-out infinite;
-}
-
-.rotate-icon {
-    color: var(--accent-color);
-    margin: 0 auto 2rem;
-    animation: rotateIconSpin 3s ease-in-out infinite;
-}
-
-.rotate-modal h2 {
-    color: var(--text-primary);
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
-    text-shadow: 0 0 20px var(--glow-primary);
-    font-weight: 700;
-    letter-spacing: 2px;
-}
-
-.rotate-modal p {
-    color: var(--text-secondary);
-    font-size: 1.1rem;
-    line-height: 1.6;
-    margin-bottom: 1.5rem;
-}
-
-.rotate-hint {
-    font-size: 3rem;
-    animation: rotateHintBounce 1s ease-in-out infinite;
-}
-
-@keyframes rotatePromptPulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.85;
-    }
-}
-
-@keyframes rotateIconSpin {
-    0%, 100% {
-        transform: rotate(0deg);
-    }
-    25% {
-        transform: rotate(-15deg);
-    }
-    75% {
-        transform: rotate(15deg);
-    }
-}
-
-@keyframes rotateHintBounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-/* Show modal only on mobile devices in portrait mode */
-@media (max-width: 768px) and (orientation: portrait) {
-    .rotate-modal {
-        display: flex !important;
     }
 }

@@ -48,158 +48,65 @@ class QuantumGarden {
             'zen-master': false
         };
         
-        this.currentTutorialStep = 1;
-        this.totalTutorialSteps = 8;
-        
-        // New overlay tutorial system
-        this.tutorialActive = false;
-        this.tutorialSteps = this.createTutorialSteps();
-        
-        // Tutorial task tracking
-        this.tutorialTasks = {
-            step2: false,  // Place first particle
-            step3: false,  // Press play
-            step4: false,  // Place electron
-            step5: false,  // Use observe tool
-            step6: { pause: false, slow: false, fast: false },  // Time controls
-            step7: 0       // Place 3+ particles (count)
-        };
-        this.tutorialMode = false;
-        this.particleCountAtTutorialStart = 0;
+        // Tutorial tracking
+        this.observationsCount = 0; // Track observations for tutorial
+        this.nextCycleCount = 0; // Track next cycle clicks for tutorial
         
         // Auto-save interval
         this.autoSaveInterval = null;
         
         this.setupEventListeners();
-        this.checkFirstTimeUser();
-        this.setupTutorialEventListeners();
         this.loadAutoSave();
         this.startAutoSave();
+        
+        // Initialize tutorial system
+        this.tutorialManager = new TutorialManager(this);
+        this.checkFirstTimeUser();
+        
         this.gameLoop();
     }
     
-    createTutorialSteps() {
-        return [
-            {
-                step: 1,
-                title: "Welcome! 🌸",
-                text: "Cultivate quantum particles to create beautiful patterns. Let's learn the basics!",
-                position: { top: '80px', right: '20px' },
-                highlightElement: null,
-                arrow: null,
-                hasTask: false,
-                canSkip: false
-            },
-            {
-                step: 2,
-                title: "Plant Your First Seed 🌱",
-                text: "Photon is selected. Click the canvas to place your first quantum particle!",
-                position: { top: '80px', right: '320px' },
-                highlightElement: '#garden-canvas',
-                arrow: { direction: 'left', offset: { x: -30, y: 0 } },
-                hasTask: true,
-                taskTitle: "Place a Photon",
-                taskCheck: () => this.tutorialTasks.step2,
-                canSkip: false
-            },
-            {
-                step: 3,
-                title: "Quantum Superposition 👻",
-                text: "See the ghostly effect? That's quantum physics! Click Play (▶️) to start time.",
-                position: { top: '200px', right: '20px' },
-                highlightElement: '#btn-play',
-                arrow: { direction: 'left', offset: { x: -20, y: 0 } },
-                hasTask: true,
-                taskTitle: "Click Play",
-                taskCheck: () => this.tutorialTasks.step3,
-                canSkip: false
-            },
-            {
-                step: 4,
-                title: "Add Variety ✨",
-                text: "Your Photon spreads energy! Now select Electron (blue) and place it.",
-                position: { top: '200px', left: '20px' },
-                highlightElement: '.particle-btn[data-type="electron"]',
-                arrow: { direction: 'right', offset: { x: 20, y: 0 } },
-                hasTask: true,
-                taskTitle: "Place an Electron",
-                taskCheck: () => this.tutorialTasks.step4,
-                canSkip: false
-            },
-            {
-                step: 5,
-                title: "Observe & Lock 🔍",
-                text: "Electrons orbit! Use Observe (👁️) to collapse their quantum state.",
-                position: { top: '400px', left: '20px' },
-                highlightElement: '.particle-btn[data-type="observe"]',
-                arrow: { direction: 'right', offset: { x: 20, y: 0 } },
-                hasTask: true,
-                taskTitle: "Use Observe tool",
-                taskCheck: () => this.tutorialTasks.step5,
-                canSkip: false
-            },
-            {
-                step: 6,
-                title: "Control Time ⏱️",
-                text: "Master time! Try Pause, Slow, and Fast to control your garden.",
-                position: { top: '200px', right: '20px' },
-                highlightElement: '.controls-section',
-                arrow: { direction: 'left', offset: { x: -20, y: 0 } },
-                hasTask: true,
-                taskTitle: "Try all time controls",
-                taskCheck: () => this.tutorialTasks.step6.pause && this.tutorialTasks.step6.slow && this.tutorialTasks.step6.fast,
-                canSkip: false
-            },
-            {
-                step: 7,
-                title: "Build Your Garden 🌿",
-                text: "Experiment! Place 3 more particles and watch how they interact.",
-                position: { top: '80px', left: '20px' },
-                highlightElement: '.particle-palette',
-                arrow: { direction: 'right', offset: { x: 20, y: 0 } },
-                hasTask: true,
-                taskTitle: "Place 3 more particles",
-                taskCheck: () => this.tutorialTasks.step7 >= 3,
-                canSkip: false
-            },
-            {
-                step: 8,
-                title: "You're Ready! 🎉",
-                text: "Great job! Now create, explore, and find your zen. There's no winning or losing - just beautiful patterns!",
-                position: { top: '80px', right: '20px' },
-                highlightElement: null,
-                arrow: null,
-                hasTask: false,
-                canSkip: false
-            }
-        ];
+    checkFirstTimeUser() {
+        const hasCompletedTutorial = localStorage.getItem('quantumGardenTutorialCompleted');
+        if (!hasCompletedTutorial) {
+            // Show tutorial prompt modal after slight delay
+            setTimeout(() => this.showTutorialPrompt(), 500);
+        }
     }
     
-    setupTutorialEventListeners() {
-        // Tutorial navigation
-        document.getElementById('tutorial-prev-btn').addEventListener('click', () => {
-            this.previousTutorial();
-        });
-        
-        document.getElementById('tutorial-finish-btn').addEventListener('click', () => {
-            this.endTutorial();
-        });
-        
-        document.getElementById('tutorial-skip').addEventListener('click', () => {
-            this.showSkipTutorialModal();
-        });
-        
-        // Make tutorial progress dots clickable to navigate to completed steps
-        document.querySelectorAll('.tutorial-progress-dots .progress-dot').forEach((dot, index) => {
-            dot.addEventListener('click', () => {
-                const targetStep = index + 1;
-                // Only allow navigating to step 1 or previously completed steps
-                if (targetStep === 1 || targetStep < this.currentTutorialStep) {
-                    this.currentTutorialStep = targetStep;
-                    this.showTutorialStep(targetStep);
-                }
-            });
-        });
+    showTutorialPrompt() {
+        const modal = document.getElementById('tutorial-prompt-modal');
+        const startBtn = document.getElementById('tutorial-start-btn');
+        const skipBtn = document.getElementById('tutorial-skip-btn');
+
+        // Show modal with animation
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        // Handle start tutorial
+        const handleStart = () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                this.tutorialManager.start();
+            }, 300);
+            cleanup();
+        };
+
+        // Handle skip tutorial
+        const handleSkip = () => {
+            modal.classList.remove('show');
+            // Mark tutorial as completed so prompt doesn't show again
+            localStorage.setItem('quantumGardenTutorialCompleted', 'true');
+            cleanup();
+        };
+
+        // Cleanup function to remove event listeners
+        const cleanup = () => {
+            startBtn.removeEventListener('click', handleStart);
+            skipBtn.removeEventListener('click', handleSkip);
+        };
+
+        startBtn.addEventListener('click', handleStart);
+        skipBtn.addEventListener('click', handleSkip);
     }
     
     initWorker() {
@@ -266,23 +173,11 @@ class QuantumGarden {
         document.getElementById('btn-play').addEventListener('click', () => {
             this.isPaused = false;
             this.updateControlButtons();
-            
-            // Tutorial task tracking
-            if (this.tutorialMode && this.currentTutorialStep === 3 && !this.tutorialTasks.step3) {
-                this.tutorialTasks.step3 = true;
-                this.updateTaskStatus(3);
-            }
         });
         
         document.getElementById('btn-pause').addEventListener('click', () => {
             this.isPaused = true;
             this.updateControlButtons();
-            
-            // Tutorial task tracking
-            if (this.tutorialMode && this.currentTutorialStep === 6) {
-                this.tutorialTasks.step6.pause = true;
-                this.updateTaskStatus(6);
-            }
         });
         
         document.getElementById('btn-next-cycle').addEventListener('click', () => {
@@ -297,30 +192,21 @@ class QuantumGarden {
             
             // Restore paused state
             this.isPaused = wasPaused;
+            
+            // Track for tutorial
+            this.nextCycleCount = (this.nextCycleCount || 0) + 1;
         });
         
         document.getElementById('btn-slow').addEventListener('click', () => {
             this.timeSpeed = 0.5;
             this.isPaused = false;
             this.updateControlButtons();
-            
-            // Tutorial task tracking
-            if (this.tutorialMode && this.currentTutorialStep === 6) {
-                this.tutorialTasks.step6.slow = true;
-                this.updateTaskStatus(6);
-            }
         });
         
         document.getElementById('btn-fast').addEventListener('click', () => {
             this.timeSpeed = 2;
             this.isPaused = false;
             this.updateControlButtons();
-            
-            // Tutorial task tracking
-            if (this.tutorialMode && this.currentTutorialStep === 6) {
-                this.tutorialTasks.step6.fast = true;
-                this.updateTaskStatus(6);
-            }
         });
         
         document.getElementById('btn-clear').addEventListener('click', () => {
@@ -336,7 +222,7 @@ class QuantumGarden {
         
         // Tutorial button
         document.getElementById('btn-tutorial').addEventListener('click', () => {
-            this.showTutorial();
+            this.tutorialManager.start();
         });
         
         // Save/Load buttons
@@ -378,30 +264,6 @@ class QuantumGarden {
         // Window resize
         window.addEventListener('resize', () => {
             this.setupCanvas();
-            // Update tutorial positions on resize
-            if (this.tutorialActive && this.currentTutorialStep) {
-                const step = this.tutorialSteps[this.currentTutorialStep - 1];
-                if (step) {
-                    this.highlightElement(step.highlightElement);
-                    this.positionArrow(step.highlightElement, step.arrow);
-                }
-            }
-        });
-        
-        // Scroll event - update tutorial highlight positions
-        let scrollTimeout;
-        window.addEventListener('scroll', () => {
-            if (this.tutorialActive && this.currentTutorialStep) {
-                // Debounce for performance
-                clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(() => {
-                    const step = this.tutorialSteps[this.currentTutorialStep - 1];
-                    if (step) {
-                        this.highlightElement(step.highlightElement);
-                        this.positionArrow(step.highlightElement, step.arrow);
-                    }
-                }, 10);
-            }
         });
     }
     
@@ -465,33 +327,6 @@ class QuantumGarden {
 
         restoreBtn.addEventListener('click', handleRestore);
         discardBtn.addEventListener('click', handleDiscard);
-    }
-
-    showSkipTutorialModal() {
-        const modal = document.getElementById('skip-tutorial-modal');
-        const skipBtn = document.getElementById('skip-tutorial-confirm-btn');
-        const cancelBtn = document.getElementById('skip-tutorial-cancel-btn');
-
-        // Show modal with animation
-        setTimeout(() => modal.classList.add('show'), 10);
-
-        // Skip button handler
-        const handleSkip = () => {
-            this.endTutorial();
-            modal.classList.remove('show');
-            skipBtn.removeEventListener('click', handleSkip);
-            cancelBtn.removeEventListener('click', handleCancel);
-        };
-
-        // Cancel button handler
-        const handleCancel = () => {
-            modal.classList.remove('show');
-            skipBtn.removeEventListener('click', handleSkip);
-            cancelBtn.removeEventListener('click', handleCancel);
-        };
-
-        skipBtn.addEventListener('click', handleSkip);
-        cancelBtn.addEventListener('click', handleCancel);
     }
     
     createSaveData() {
@@ -681,473 +516,10 @@ class QuantumGarden {
     }
     
     checkFirstTimeUser() {
-        const hasVisited = localStorage.getItem('quantumGardenVisited');
-        if (!hasVisited) {
-            localStorage.setItem('quantumGardenVisited', 'true');
-            // Start overlay tutorial instead of modal
-            setTimeout(() => this.startOverlayTutorial(), 500);
-        }
-    }
-    
-    startOverlayTutorial() {
-        this.tutorialActive = true;
-        this.tutorialMode = true;
-        this.currentTutorialStep = 1;
-        this.particleCountAtTutorialStart = this.particles.length;
-        
-        // Reset tutorial tasks
-        this.tutorialTasks = {
-            step2: false,
-            step3: false,
-            step4: false,
-            step5: false,
-            step6: { pause: false, slow: false, fast: false },
-            step7: 0
-        };
-        
-        // Show overlay
-        const overlay = document.getElementById('tutorial-overlay');
-        overlay.classList.remove('hidden');
-        
-        // Show first step
-        this.showTutorialStep(1);
-    }
-    
-    showTutorialStep(stepNumber) {
-        const step = this.tutorialSteps[stepNumber - 1];
-        if (!step) return;
-        
-        // Clear any pending auto-advance from previous step
-        if (this.tutorialAdvanceTimeout) {
-            clearTimeout(this.tutorialAdvanceTimeout);
-            this.tutorialAdvanceTimeout = null;
-        }
-        
-        // Update step indicator
-        document.getElementById('tutorial-step-num').textContent = stepNumber;
-        
-        // Update content
-        document.getElementById('tutorial-title').textContent = step.title;
-        document.getElementById('tutorial-text').textContent = step.text;
-        
-        // Update progress dots
-        document.querySelectorAll('.tutorial-progress-dots .progress-dot').forEach((dot, index) => {
-            dot.classList.remove('active', 'completed');
-            if (index + 1 === stepNumber) {
-                dot.classList.add('active');
-            } else if (index + 1 < stepNumber) {
-                dot.classList.add('completed');
-            }
-        });
-        
-        // Update task
-        const taskBox = document.getElementById('tutorial-task');
-        if (step.hasTask) {
-            taskBox.classList.remove('hidden', 'completed');
-            document.getElementById('task-text').textContent = step.taskTitle;
-            document.querySelector('.task-status-text').textContent = 'In Progress...';
-            this.updateTaskStatus(stepNumber);
-        } else {
-            taskBox.classList.add('hidden');
-            
-            // Auto-advance welcome screen after 3 seconds
-            if (stepNumber === 1) {
-                this.tutorialAdvanceTimeout = setTimeout(() => {
-                    this.tutorialAdvanceTimeout = null;
-                    this.advanceTutorial();
-                }, 3000);
-            }
-        }
-        
-        // Update navigation buttons
-        const prevBtn = document.getElementById('tutorial-prev-btn');
-        const finishBtn = document.getElementById('tutorial-finish-btn');
-        
-        prevBtn.disabled = stepNumber === 1;
-        
-        // Show finish button only on last step
-        if (stepNumber === this.totalTutorialSteps) {
-            finishBtn.classList.remove('hidden');
-        } else {
-            finishBtn.classList.add('hidden');
-        }
-        
-        // Position card
-        const card = document.getElementById('tutorial-card');
-        Object.assign(card.style, step.position);
-        
-        // Highlight element
-        this.highlightElement(step.highlightElement);
-        
-        // Show/position arrow
-        this.positionArrow(step.highlightElement, step.arrow);
-    }
-    
-    highlightElement(selector) {
-        // Remove previous highlights
-        document.querySelectorAll('.tutorial-highlight').forEach(el => {
-            el.classList.remove('tutorial-highlight');
-        });
-        
-        const spotlight = document.getElementById('tutorial-spotlight');
-        
-        if (!selector) {
-            spotlight.style.opacity = '0';
-            return;
-        }
-        
-        const element = document.querySelector(selector);
-        if (!element) {
-            spotlight.style.opacity = '0';
-            return;
-        }
-        
-        // Add highlight class
-        element.classList.add('tutorial-highlight');
-        
-        // Scroll element into view if needed
-        element.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-        });
-        
-        // Wait for scroll to complete before positioning
-        setTimeout(() => {
-            // Position spotlight accounting for scroll
-            const rect = element.getBoundingClientRect();
-            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-            
-            spotlight.style.left = `${rect.left + scrollX - 10}px`;
-            spotlight.style.top = `${rect.top + scrollY - 10}px`;
-            spotlight.style.width = `${rect.width + 20}px`;
-            spotlight.style.height = `${rect.height + 20}px`;
-            spotlight.style.opacity = '1';
-        }, 300);
-    }
-    
-    positionArrow(elementSelector, arrowConfig) {
-        const arrow = document.getElementById('tutorial-arrow');
-        
-        if (!elementSelector || !arrowConfig) {
-            arrow.classList.add('hidden');
-            return;
-        }
-        
-        const element = document.querySelector(elementSelector);
-        if (!element) {
-            arrow.classList.add('hidden');
-            return;
-        }
-        
-        // Wait for scroll to complete before positioning
-        setTimeout(() => {
-            const rect = element.getBoundingClientRect();
-            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-            
-            arrow.className = `tutorial-arrow ${arrowConfig.direction}`;
-            
-            // Calculate arrow position based on direction, accounting for scroll
-            let left, top;
-            switch (arrowConfig.direction) {
-                case 'top':
-                    left = rect.left + scrollX + rect.width / 2;
-                    top = rect.top + scrollY + arrowConfig.offset.y;
-                    break;
-                case 'bottom':
-                    left = rect.left + scrollX + rect.width / 2;
-                    top = rect.bottom + scrollY + arrowConfig.offset.y;
-                    break;
-                case 'left':
-                    left = rect.left + scrollX + arrowConfig.offset.x;
-                    top = rect.top + scrollY + rect.height / 2;
-                    break;
-                case 'right':
-                    left = rect.right + scrollX + arrowConfig.offset.x;
-                    top = rect.top + scrollY + rect.height / 2;
-                    break;
-            }
-            
-            arrow.style.left = `${left}px`;
-            arrow.style.top = `${top}px`;
-        }, 300);
-    }
-    
-    advanceTutorial() {
-        const step = this.tutorialSteps[this.currentTutorialStep - 1];
-        
-        // Check if task is completed
-        if (step.hasTask && !step.taskCheck()) {
-            this.shakeTutorialMessage();
-            return;
-        }
-        
-        if (this.currentTutorialStep < this.totalTutorialSteps) {
-            this.currentTutorialStep++;
-            
-            // Update particle count for step 7
-            if (this.currentTutorialStep === 7) {
-                this.particleCountAtTutorialStart = this.particles.length;
-                this.tutorialTasks.step7 = 0;
-            }
-            
-            this.showTutorialStep(this.currentTutorialStep);
-        } else {
-            this.endTutorial();
-        }
-    }
-    
-    previousTutorial() {
-        if (this.currentTutorialStep > 1) {
-            this.currentTutorialStep--;
-            this.showTutorialStep(this.currentTutorialStep);
-        }
-    }
-    
-    endTutorial() {
-        this.tutorialActive = false;
-        this.tutorialMode = false;
-        
-        // Clear any pending auto-advance
-        if (this.tutorialAdvanceTimeout) {
-            clearTimeout(this.tutorialAdvanceTimeout);
-            this.tutorialAdvanceTimeout = null;
-        }
-        
-        const overlay = document.getElementById('tutorial-overlay');
-        overlay.classList.add('hidden');
-        
-        // Remove all highlights
-        document.querySelectorAll('.tutorial-highlight').forEach(el => {
-            el.classList.remove('tutorial-highlight');
-        });
-    }
-    
-    shakeTutorialMessage() {
-        const card = document.getElementById('tutorial-card');
-        if (card) {
-            card.style.animation = 'shake 0.5s';
-            setTimeout(() => {
-                card.style.animation = '';
-            }, 500);
-        }
-    }
-    
-    updateTaskStatus(stepNumber) {
-        const step = this.tutorialSteps[stepNumber - 1];
-        if (!step.hasTask) return;
-        
-        const taskBox = document.getElementById('tutorial-task');
-        const taskCheck = document.getElementById('task-check');
-        const statusText = document.querySelector('.task-status-text');
-        
-        const isCompleted = step.taskCheck();
-        
-        if (isCompleted) {
-            taskBox.classList.add('completed');
-            taskCheck.textContent = '✓';
-            taskCheck.classList.remove('pending');
-            taskCheck.classList.add('completed');
-            statusText.textContent = 'Completed!';
-            
-            // Auto-advance to next step after 1 second
-            if (!this.tutorialAdvanceTimeout) {
-                this.tutorialAdvanceTimeout = setTimeout(() => {
-                    this.tutorialAdvanceTimeout = null;
-                    this.advanceTutorial();
-                }, 1000);
-            }
-        } else {
-            taskBox.classList.remove('completed');
-            taskCheck.textContent = '⏳';
-            taskCheck.classList.add('pending');
-            taskCheck.classList.remove('completed');
-            statusText.textContent = 'In Progress...';
-            
-            // Clear any pending auto-advance
-            if (this.tutorialAdvanceTimeout) {
-                clearTimeout(this.tutorialAdvanceTimeout);
-                this.tutorialAdvanceTimeout = null;
-            }
-        }
-    }
-    
-    showTutorial() {
-        // Start the overlay tutorial
-        this.startOverlayTutorial();
-    }
-    
-    closeTutorial() {
-        const modal = document.getElementById('tutorial-modal');
-        modal.classList.remove('show');
-        this.tutorialMode = false;
-    }
-    
-    navigateTutorial(direction) {
-        const newStep = this.currentTutorialStep + direction;
-        
-        // Check if current step task is completed before advancing
-        if (direction === 1 && !this.isTaskCompleted(this.currentTutorialStep)) {
-            this.showTaskIncompleteMessage();
-            return;
-        }
-        
-        if (newStep >= 1 && newStep <= this.totalTutorialSteps) {
-            this.currentTutorialStep = newStep;
-            
-            // Update particle count for step 7
-            if (this.currentTutorialStep === 7) {
-                this.particleCountAtTutorialStart = this.particles.length;
-                this.tutorialTasks.step7 = 0;
-            }
-            
-            this.updateTutorialStep();
-        }
-        
-        // Close on last step's next button
-        if (this.currentTutorialStep === this.totalTutorialSteps && direction === 1) {
-            this.closeTutorial();
-        }
-    }
-    
-    isTaskCompleted(step) {
-        // Step 1 has no task, always allow progression
-        if (step === 1) return true;
-        
-        switch(step) {
-            case 2:
-                return this.tutorialTasks.step2;
-            case 3:
-                return this.tutorialTasks.step3;
-            case 4:
-                return this.tutorialTasks.step4;
-            case 5:
-                return this.tutorialTasks.step5;
-            case 6:
-                return this.tutorialTasks.step6.pause && 
-                       this.tutorialTasks.step6.slow && 
-                       this.tutorialTasks.step6.fast;
-            case 7:
-                return this.tutorialTasks.step7 >= 3;
-            case 8:
-                return true; // Final step, always allow
-            default:
-                return true;
-        }
-    }
-    
-    showTaskIncompleteMessage() {
-        // Flash the task box
-        const taskBox = document.querySelector('.tutorial-step.active .tutorial-task');
-        if (taskBox) {
-            taskBox.style.animation = 'shake 0.5s';
-            setTimeout(() => {
-                taskBox.style.animation = '';
-            }, 500);
-        }
-    }
-    
-    updateTutorialTaskStatus(step) {
-        let statusElement, isCompleted;
-        
-        switch(step) {
-            case 2:
-                statusElement = document.getElementById('task-2-status');
-                isCompleted = this.tutorialTasks.step2;
-                if (statusElement) {
-                    statusElement.textContent = isCompleted ? '✅ Completed!' : '❌ Not completed';
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-                
-            case 3:
-                statusElement = document.getElementById('task-3-status');
-                isCompleted = this.tutorialTasks.step3;
-                if (statusElement) {
-                    statusElement.textContent = isCompleted ? '✅ Completed!' : '❌ Not completed';
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-                
-            case 4:
-                statusElement = document.getElementById('task-4-status');
-                isCompleted = this.tutorialTasks.step4;
-                if (statusElement) {
-                    statusElement.textContent = isCompleted ? '✅ Completed!' : '❌ Not completed';
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-                
-            case 5:
-                statusElement = document.getElementById('task-5-status');
-                isCompleted = this.tutorialTasks.step5;
-                if (statusElement) {
-                    statusElement.textContent = isCompleted ? '✅ Completed!' : '❌ Not completed';
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-                
-            case 6:
-                const pauseEl = document.getElementById('task-6-pause');
-                const slowEl = document.getElementById('task-6-slow');
-                const fastEl = document.getElementById('task-6-fast');
-                statusElement = document.getElementById('task-6-status');
-                
-                if (pauseEl) pauseEl.innerHTML = this.tutorialTasks.step6.pause ? '⏸️ Pause - ✅' : '⏸️ Pause - ❌';
-                if (slowEl) slowEl.innerHTML = this.tutorialTasks.step6.slow ? '🐌 Slow - ✅' : '🐌 Slow - ❌';
-                if (fastEl) fastEl.innerHTML = this.tutorialTasks.step6.fast ? '⚡ Fast - ✅' : '⚡ Fast - ❌';
-                
-                isCompleted = this.tutorialTasks.step6.pause && this.tutorialTasks.step6.slow && this.tutorialTasks.step6.fast;
-                if (statusElement) {
-                    statusElement.textContent = isCompleted ? '✅ All controls tested!' : '❌ Try all controls';
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-                
-            case 7:
-                const countEl = document.getElementById('task-7-count');
-                statusElement = document.getElementById('task-7-status');
-                if (countEl) countEl.textContent = this.tutorialTasks.step7;
-                
-                isCompleted = this.tutorialTasks.step7 >= 3;
-                if (statusElement) {
-                    statusElement.innerHTML = `Particles: <span id="task-7-count">${this.tutorialTasks.step7}</span>/3 ${isCompleted ? '✅' : '❌'}`;
-                    if (isCompleted) statusElement.classList.add('task-completed');
-                }
-                break;
-        }
-    }
-    
-    goToTutorialStep(step) {
-        this.currentTutorialStep = step;
-        this.updateTutorialStep();
-    }
-    
-    updateTutorialStep() {
-        // Update step visibility
-        document.querySelectorAll('.tutorial-step').forEach(step => {
-            step.classList.remove('active');
-        });
-        document.querySelector(`.tutorial-step[data-step="${this.currentTutorialStep}"]`).classList.add('active');
-        
-        // Update dots
-        document.querySelectorAll('.dot').forEach(dot => {
-            dot.classList.remove('active');
-        });
-        document.querySelector(`.dot[data-step="${this.currentTutorialStep}"]`).classList.add('active');
-        
-        // Update navigation buttons
-        const prevBtn = document.getElementById('tutorial-prev');
-        const nextBtn = document.getElementById('tutorial-next');
-        
-        prevBtn.disabled = this.currentTutorialStep === 1;
-        
-        if (this.currentTutorialStep === this.totalTutorialSteps) {
-            nextBtn.textContent = 'Start Gardening! 🌸';
-        } else {
-            nextBtn.textContent = 'Next →';
+        const hasCompletedTutorial = localStorage.getItem('quantumGardenTutorialCompleted');
+        if (!hasCompletedTutorial) {
+            // Show tutorial prompt modal
+            setTimeout(() => this.showTutorialPrompt(), 500);
         }
     }
     
@@ -1158,11 +530,9 @@ class QuantumGarden {
             // Observe collapses nearby particles
             this.observeParticles(x, y);
             
-            // Tutorial task tracking
-            if (this.tutorialMode && this.currentTutorialStep === 5 && !this.tutorialTasks.step5) {
-                this.tutorialTasks.step5 = true;
-                this.updateTaskStatus(5);
-            }
+            // Track observations for tutorial
+            this.observationsCount = (this.observationsCount || 0) + 1;
+            
             return;
         }
         
@@ -1197,25 +567,6 @@ class QuantumGarden {
         this.energy -= cost;
         this.updateUI();
         this.checkAchievement('first-seed');
-        
-        // Tutorial task tracking
-        if (this.tutorialMode) {
-            if (this.currentTutorialStep === 2 && !this.tutorialTasks.step2) {
-                this.tutorialTasks.step2 = true;
-                this.updateTaskStatus(2);
-            }
-            
-            if (this.currentTutorialStep === 4 && this.selectedType === 'electron' && !this.tutorialTasks.step4) {
-                this.tutorialTasks.step4 = true;
-                this.updateTaskStatus(4);
-            }
-            
-            if (this.currentTutorialStep === 7) {
-                const newParticles = this.particles.length - this.particleCountAtTutorialStart;
-                this.tutorialTasks.step7 = newParticles;
-                this.updateTaskStatus(7);
-            }
-        }
     }
     
     observeParticles(x, y) {
@@ -1675,6 +1026,388 @@ class QuantumGarden {
         }
         
         requestAnimationFrame(() => this.gameLoop());
+    }
+}
+
+// Tutorial Manager Class
+class TutorialManager {
+    constructor(game) {
+        this.game = game;
+        this.currentStep = 0;
+        this.steps = this.defineSteps();
+        this.system = document.getElementById('tutorial-system');
+        this.tooltip = document.getElementById('tutorial-tooltip');
+        this.highlight = document.getElementById('tutorial-highlight');
+        this.backdrop = document.querySelector('.tutorial-backdrop');
+        this.setupEventListeners();
+    }
+    
+    defineSteps() {
+        return [
+            {
+                title: "Welcome to Quantum Garden! 🌸",
+                content: "Create a beautiful quantum garden where particles interact and evolve. Let's learn the basics!",
+                target: null,
+                position: 'bottom',
+                task: null
+            },
+            {
+                title: "Select a Particle ✨",
+                content: "Start by selecting Photon from the particle palette. Photons spread energy through your garden.",
+                target: '.particle-btn[data-type="photon"]',
+                position: 'right',
+                task: {
+                    description: "Select the Photon particle",
+                    validation: () => this.game.selectedType === 'photon'
+                }
+            },
+            {
+                title: "Plant Your First Seed 🌱",
+                content: "Click anywhere on the canvas to place your Photon particle and watch it bloom!",
+                target: '#garden-canvas',
+                position: 'top',
+                task: {
+                    description: "Place a particle on the canvas",
+                    validation: () => this.game.particles.length > 0
+                }
+            },
+            {
+                title: "Advance Time ⏭️",
+                content: "Use the Next Cycle button to advance your garden one step at a time and watch how particles evolve!",
+                target: '#btn-next-cycle',
+                position: 'left',
+                task: {
+                    description: "Click the Next Cycle button",
+                    validation: () => this.game.nextCycleCount > 0
+                }
+            },
+            {
+                title: "Observe the Quantum 🔍",
+                content: "Select the Observe tool and click particles to collapse their quantum state. Experiment and have fun!",
+                target: '.particle-btn[data-type="observe"]',
+                position: 'right',
+                task: {
+                    description: "Use the Observe tool",
+                    validation: () => this.game.observationsCount > 0
+                }
+            }
+        ];
+    }
+    
+    start() {
+        this.system.classList.remove('hidden');
+        this.currentStep = 0;
+        this.showStep(0);
+    }
+    
+    showStep(index) {
+        const step = this.steps[index];
+        if (!step) return;
+        
+        this.currentStep = index;
+        
+        // Clean up previous step
+        this.highlight.classList.remove('active');
+        this.backdrop.classList.remove('active');
+        
+        // Update tooltip content
+        const badge = this.tooltip.querySelector('.tutorial-badge');
+        badge.textContent = `${index + 1}/${this.steps.length}`;
+        
+        const title = this.tooltip.querySelector('.tutorial-tooltip-title');
+        title.textContent = step.title;
+        
+        const content = this.tooltip.querySelector('.tutorial-tooltip-content');
+        content.textContent = step.content;
+        
+        // Update task indicator
+        const taskContainer = this.tooltip.querySelector('.tutorial-task');
+        if (step.task) {
+            taskContainer.style.display = 'flex';
+            const taskText = taskContainer.querySelector('.tutorial-task-text');
+            taskText.textContent = step.task.description;
+            const taskStatus = taskContainer.querySelector('.tutorial-task-status');
+            taskStatus.textContent = '⏳';
+            taskStatus.classList.remove('completed');
+            this.startTaskValidation(step);
+        } else {
+            taskContainer.style.display = 'none';
+        }
+        
+        // Update next button
+        const nextBtn = this.tooltip.querySelector('.tutorial-next-btn');
+        const nextBtnText = nextBtn.querySelector('span:first-child');
+        const nextBtnIcon = nextBtn.querySelector('.btn-icon');
+        if (index === this.steps.length - 1) {
+            nextBtnText.textContent = "Start Gardening!";
+            nextBtnIcon.textContent = "🌸";
+        } else {
+            nextBtnText.textContent = "Next";
+            nextBtnIcon.textContent = "→";
+        }
+        
+        // Show/hide based on task
+        if (step.task) {
+            nextBtn.style.display = 'none';
+        } else {
+            nextBtn.style.display = 'block';
+        }
+        
+        // Position tooltip and highlight element
+        if (step.target) {
+            const targetElement = document.querySelector(step.target);
+            if (targetElement) {
+                this.highlightElement(targetElement);
+                // Delay tooltip positioning to allow scroll to complete
+                setTimeout(() => {
+                    this.positionTooltip(targetElement, step.position);
+                }, 150);
+                this.backdrop.classList.add('active');
+            }
+        } else {
+            this.highlight.classList.remove('active');
+            this.backdrop.classList.remove('active');
+            this.positionTooltip(null, step.position);
+        }
+    }
+    
+    highlightElement(element) {
+        if (!element) {
+            this.highlight.classList.remove('active');
+            return;
+        }
+        
+        // Scroll element into view first (before getting rect)
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        
+        // Small delay to let scroll complete, then get position
+        setTimeout(() => {
+            const rect = element.getBoundingClientRect();
+            this.highlight.style.left = `${rect.left}px`;
+            this.highlight.style.top = `${rect.top}px`;
+            this.highlight.style.width = `${rect.width}px`;
+            this.highlight.style.height = `${rect.height}px`;
+            this.highlight.classList.add('active');
+        }, 100);
+    }
+    
+    positionTooltip(targetElement, position) {
+        if (!targetElement) {
+            // Center tooltip when no target
+            this.tooltip.style.position = 'fixed';
+            this.tooltip.style.left = '50%';
+            this.tooltip.style.top = '50%';
+            this.tooltip.style.transform = 'translate(-50%, -50%)';
+            this.tooltip.setAttribute('data-position', 'bottom');
+            return;
+        }
+        
+        const rect = targetElement.getBoundingClientRect();
+        const tooltipRect = this.tooltip.getBoundingClientRect();
+        const spacing = 20;
+        
+        let left, top, actualPosition = position;
+        
+        // For very large elements (like canvas), position tooltip in center instead
+        const isLargeElement = rect.height > window.innerHeight * 0.6 || rect.width > window.innerWidth * 0.6;
+        if (isLargeElement) {
+            // Position tooltip in the center-top area of the element
+            left = rect.left + (rect.width / 2);
+            top = rect.top + Math.min(100, rect.height * 0.2);
+            this.tooltip.style.position = 'fixed';
+            this.tooltip.style.left = `${left}px`;
+            this.tooltip.style.top = `${top}px`;
+            this.tooltip.style.transform = 'translate(-50%, 0)';
+            this.tooltip.setAttribute('data-position', 'bottom');
+            return;
+        }
+        
+        // For elements in the left sidebar, ensure tooltip doesn't go off right edge
+        const isInLeftSidebar = rect.left < window.innerWidth * 0.25;
+        if (isInLeftSidebar && position === 'right') {
+            // Check if tooltip would extend beyond viewport
+            const proposedLeft = rect.right + spacing;
+            if (proposedLeft + tooltipRect.width > window.innerWidth - 20) {
+                // Position tooltip below instead, centered on element
+                left = rect.left + (rect.width / 2);
+                top = rect.bottom + spacing;
+                this.tooltip.style.position = 'fixed';
+                this.tooltip.style.left = `${left}px`;
+                this.tooltip.style.top = `${top}px`;
+                this.tooltip.style.transform = 'translate(-50%, 0)';
+                this.tooltip.setAttribute('data-position', 'bottom');
+                return;
+            }
+        }
+        
+        // Calculate position with collision detection
+        switch (position) {
+            case 'top':
+                left = rect.left + (rect.width / 2);
+                top = rect.top - spacing;
+                if (top < tooltipRect.height) actualPosition = 'bottom';
+                break;
+            case 'bottom':
+                left = rect.left + (rect.width / 2);
+                top = rect.bottom + spacing;
+                if (top + tooltipRect.height > window.innerHeight) actualPosition = 'top';
+                break;
+            case 'left':
+                left = rect.left - spacing;
+                top = rect.top + (rect.height / 2);
+                if (left < tooltipRect.width) actualPosition = 'right';
+                break;
+            case 'right':
+                left = rect.right + spacing;
+                top = rect.top + (rect.height / 2);
+                if (left + tooltipRect.width > window.innerWidth) actualPosition = 'left';
+                break;
+        }
+        
+        // Recalculate if position changed
+        if (actualPosition !== position) {
+            switch (actualPosition) {
+                case 'top':
+                    left = rect.left + (rect.width / 2);
+                    top = rect.top - spacing;
+                    break;
+                case 'bottom':
+                    left = rect.left + (rect.width / 2);
+                    top = rect.bottom + spacing;
+                    break;
+                case 'left':
+                    left = rect.left - spacing;
+                    top = rect.top + (rect.height / 2);
+                    break;
+                case 'right':
+                    left = rect.right + spacing;
+                    top = rect.top + (rect.height / 2);
+                    break;
+            }
+        }
+        
+        this.tooltip.style.position = 'fixed';
+        this.tooltip.style.left = `${left}px`;
+        this.tooltip.style.top = `${top}px`;
+        
+        // Set transform based on position
+        const transforms = {
+            'top': 'translate(-50%, -100%)',
+            'bottom': 'translate(-50%, 0)',
+            'left': 'translate(-100%, -50%)',
+            'right': 'translate(0, -50%)'
+        };
+        this.tooltip.style.transform = transforms[actualPosition];
+        this.tooltip.setAttribute('data-position', actualPosition);
+        
+        // Ensure tooltip stays within viewport bounds
+        setTimeout(() => {
+            const tooltipBounds = this.tooltip.getBoundingClientRect();
+            const margin = 10; // Minimum margin from viewport edge
+            
+            let adjustedLeft = parseFloat(this.tooltip.style.left);
+            let adjustedTop = parseFloat(this.tooltip.style.top);
+            
+            // Check right edge
+            if (tooltipBounds.right > window.innerWidth - margin) {
+                adjustedLeft -= (tooltipBounds.right - window.innerWidth + margin);
+            }
+            
+            // Check left edge
+            if (tooltipBounds.left < margin) {
+                adjustedLeft += (margin - tooltipBounds.left);
+            }
+            
+            // Check bottom edge
+            if (tooltipBounds.bottom > window.innerHeight - margin) {
+                adjustedTop -= (tooltipBounds.bottom - window.innerHeight + margin);
+            }
+            
+            // Check top edge
+            if (tooltipBounds.top < margin) {
+                adjustedTop += (margin - tooltipBounds.top);
+            }
+            
+            // Apply adjustments if needed
+            this.tooltip.style.left = `${adjustedLeft}px`;
+            this.tooltip.style.top = `${adjustedTop}px`;
+        }, 10);
+    }
+    
+    startTaskValidation(step) {
+        if (!step.task) return;
+        
+        const checkInterval = setInterval(() => {
+            if (step.task.validation()) {
+                clearInterval(checkInterval);
+                this.completeTask();
+            }
+        }, 100);
+        
+        // Store interval ID to clear if tutorial ends
+        this.currentValidation = checkInterval;
+    }
+    
+    completeTask() {
+        const taskStatus = this.tooltip.querySelector('.tutorial-task-status');
+        taskStatus.textContent = '✓';
+        taskStatus.classList.add('completed');
+        
+        // Auto-advance after 1.5 seconds
+        setTimeout(() => {
+            this.next();
+        }, 1500);
+    }
+    
+    next() {
+        if (this.currentValidation) {
+            clearInterval(this.currentValidation);
+            this.currentValidation = null;
+        }
+        
+        if (this.currentStep < this.steps.length - 1) {
+            this.showStep(this.currentStep + 1);
+        } else {
+            this.end();
+        }
+    }
+    
+    end() {
+        if (this.currentValidation) {
+            clearInterval(this.currentValidation);
+            this.currentValidation = null;
+        }
+        
+        this.system.classList.add('hidden');
+        this.highlight.classList.remove('active');
+        this.backdrop.classList.remove('active');
+        
+        // Mark tutorial as completed
+        localStorage.setItem('quantumGardenTutorialCompleted', 'true');
+    }
+    
+    setupEventListeners() {
+        // Next button
+        const nextBtn = this.tooltip.querySelector('.tutorial-next-btn');
+        nextBtn.addEventListener('click', () => this.next());
+        
+        // Close button
+        const closeBtn = this.tooltip.querySelector('.tutorial-close-btn');
+        closeBtn.addEventListener('click', () => this.end());
+        
+        // Reposition on window resize
+        window.addEventListener('resize', () => {
+            if (!this.system.classList.contains('hidden')) {
+                const step = this.steps[this.currentStep];
+                if (step && step.target) {
+                    const targetElement = document.querySelector(step.target);
+                    if (targetElement) {
+                        this.highlightElement(targetElement);
+                        this.positionTooltip(targetElement, step.position);
+                    }
+                }
+            }
+        });
     }
 }
 

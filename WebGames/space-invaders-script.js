@@ -15,7 +15,8 @@ let gameState = {
     prestigePoints: 0,
     rebirths: 0,
     keys: {},
-    lastShot: 0
+    lastShot: 0,
+    shiftHeld: false
 };
 
 // Upgrades
@@ -578,6 +579,27 @@ function updateAllUI() {
     updateUpgradeUI();
 }
 
+// Update bulk button labels based on shift key
+function updateBulkButtonLabels() {
+    const bulkButtons = document.querySelectorAll('.upgrade-btn-bulk');
+    const multiplier = gameState.shiftHeld ? 100 : 10;
+    bulkButtons.forEach(btn => {
+        btn.textContent = `x${multiplier}`;
+        if (gameState.shiftHeld) {
+            btn.classList.add('shift-active');
+        } else {
+            btn.classList.remove('shift-active');
+        }
+    });
+    // Update button states to reflect new affordability requirements
+    updateButtonStates();
+}
+
+// Get current bulk buy multiplier
+function getBulkMultiplier() {
+    return gameState.shiftHeld ? 100 : 10;
+}
+
 function updateUpgradeUI() {
     // Combat upgrades
     document.getElementById('fireRateLevel').textContent = formatNumber(upgrades.fireRate);
@@ -662,11 +684,11 @@ function updateButtonStates() {
     document.getElementById('waveBonusBtn').disabled = gameState.money < upgradeCosts.waveBonus;
     document.getElementById('criticalBtn').disabled = gameState.money < upgradeCosts.critical;
     
-    // Bulk buy buttons - only enable if can afford the full amount
+    // Bulk buy buttons - check affordability based on current multiplier (10 or 100)
     ['fireRate', 'damage', 'speed', 'multiShot', 'bulletSpeed', 'moneyPerKill', 'bonusMultiplier', 'waveBonus', 'critical'].forEach(type => {
-        // x10 button - only enable if can afford all 10
-        const canAfford10 = canAffordBulk(type, 10) >= 10;
-        document.getElementById(type + 'Btn10').disabled = !canAfford10;
+        const multiplier = getBulkMultiplier();
+        const canAfford = canAffordBulk(type, multiplier) >= multiplier;
+        document.getElementById(type + 'Btn10').disabled = !canAfford;
     });
     
     // Prestige upgrades - single buy
@@ -676,10 +698,11 @@ function updateButtonStates() {
     document.getElementById('prestigeLivesBtn').disabled = gameState.prestigePoints < prestigeCosts.lives;
     document.getElementById('startingMoneyBtn').disabled = gameState.prestigePoints < prestigeCosts.startingMoney;
     
-    // Prestige bulk buy buttons (x10 only) - only enable if can afford all 10
+    // Prestige bulk buy buttons - check affordability based on current multiplier (10 or 100)
     ['damage', 'money', 'speed'].forEach(type => {
-        const canAfford10 = canAffordPrestigeBulk(type, 10) >= 10;
-        document.getElementById('prestige' + type.charAt(0).toUpperCase() + type.slice(1) + 'Btn10').disabled = !canAfford10;
+        const multiplier = getBulkMultiplier();
+        const canAfford = canAffordPrestigeBulk(type, multiplier) >= multiplier;
+        document.getElementById('prestige' + type.charAt(0).toUpperCase() + type.slice(1) + 'Btn10').disabled = !canAfford;
     });
     
     // Rebirth button
@@ -1127,6 +1150,12 @@ function loadGameState() {
 document.addEventListener('keydown', (e) => {
     gameState.keys[e.key] = true;
     
+    // Track shift key for bulk buy modifier
+    if (e.key === 'Shift') {
+        gameState.shiftHeld = true;
+        updateBulkButtonLabels();
+    }
+    
     if (e.key === 'p' || e.key === 'P') {
         if (!gameState.isGameOver) {
             togglePause();
@@ -1136,6 +1165,12 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('keyup', (e) => {
     gameState.keys[e.key] = false;
+    
+    // Track shift key release
+    if (e.key === 'Shift') {
+        gameState.shiftHeld = false;
+        updateBulkButtonLabels();
+    }
 });
 
 // Tab switching - refactored to work per panel
@@ -1162,33 +1197,33 @@ document.querySelectorAll('.upgrade-panel').forEach(panel => {
 
 // Upgrade buttons
 document.getElementById('fireRateBtn').addEventListener('click', () => buyUpgrade('fireRate'));
-document.getElementById('fireRateBtn10').addEventListener('click', () => buyUpgrade('fireRate', 10));
+document.getElementById('fireRateBtn10').addEventListener('click', () => buyUpgrade('fireRate', getBulkMultiplier()));
 
 document.getElementById('damageBtn').addEventListener('click', () => buyUpgrade('damage'));
-document.getElementById('damageBtn10').addEventListener('click', () => buyUpgrade('damage', 10));
+document.getElementById('damageBtn10').addEventListener('click', () => buyUpgrade('damage', getBulkMultiplier()));
 
 document.getElementById('speedBtn').addEventListener('click', () => buyUpgrade('speed'));
-document.getElementById('speedBtn10').addEventListener('click', () => buyUpgrade('speed', 10));
+document.getElementById('speedBtn10').addEventListener('click', () => buyUpgrade('speed', getBulkMultiplier()));
 
 document.getElementById('multiShotBtn').addEventListener('click', () => buyUpgrade('multiShot'));
-document.getElementById('multiShotBtn10').addEventListener('click', () => buyUpgrade('multiShot', 10));
+document.getElementById('multiShotBtn10').addEventListener('click', () => buyUpgrade('multiShot', getBulkMultiplier()));
 
 document.getElementById('bulletSpeedBtn').addEventListener('click', () => buyUpgrade('bulletSpeed'));
-document.getElementById('bulletSpeedBtn10').addEventListener('click', () => buyUpgrade('bulletSpeed', 10));
+document.getElementById('bulletSpeedBtn10').addEventListener('click', () => buyUpgrade('bulletSpeed', getBulkMultiplier()));
 
 document.getElementById('extraLifeBtn').addEventListener('click', () => buyExtraLife());
 
 document.getElementById('moneyPerKillBtn').addEventListener('click', () => buyUpgrade('moneyPerKill'));
-document.getElementById('moneyPerKillBtn10').addEventListener('click', () => buyUpgrade('moneyPerKill', 10));
+document.getElementById('moneyPerKillBtn10').addEventListener('click', () => buyUpgrade('moneyPerKill', getBulkMultiplier()));
 
 document.getElementById('bonusMultiplierBtn').addEventListener('click', () => buyUpgrade('bonusMultiplier'));
-document.getElementById('bonusMultiplierBtn10').addEventListener('click', () => buyUpgrade('bonusMultiplier', 10));
+document.getElementById('bonusMultiplierBtn10').addEventListener('click', () => buyUpgrade('bonusMultiplier', getBulkMultiplier()));
 
 document.getElementById('waveBonusBtn').addEventListener('click', () => buyUpgrade('waveBonus'));
-document.getElementById('waveBonusBtn10').addEventListener('click', () => buyUpgrade('waveBonus', 10));
+document.getElementById('waveBonusBtn10').addEventListener('click', () => buyUpgrade('waveBonus', getBulkMultiplier()));
 
 document.getElementById('criticalBtn').addEventListener('click', () => buyUpgrade('critical'));
-document.getElementById('criticalBtn10').addEventListener('click', () => buyUpgrade('critical', 10));
+document.getElementById('criticalBtn10').addEventListener('click', () => buyUpgrade('critical', getBulkMultiplier()));
 
 // Prestige buttons - single buy
 document.getElementById('prestigeDamageBtn').addEventListener('click', () => buyPrestigeUpgrade('damage'));
@@ -1197,10 +1232,10 @@ document.getElementById('prestigeSpeedBtn').addEventListener('click', () => buyP
 document.getElementById('prestigeLivesBtn').addEventListener('click', () => buyPrestigeUpgrade('lives'));
 document.getElementById('startingMoneyBtn').addEventListener('click', () => buyPrestigeUpgrade('startingMoney'));
 
-// Prestige bulk buy buttons (x10)
-document.getElementById('prestigeDamageBtn10').addEventListener('click', () => buyPrestigeUpgrade('damage', 10));
-document.getElementById('prestigeMoneyBtn10').addEventListener('click', () => buyPrestigeUpgrade('money', 10));
-document.getElementById('prestigeSpeedBtn10').addEventListener('click', () => buyPrestigeUpgrade('speed', 10));
+// Prestige bulk buy buttons (x10 or x100 with shift)
+document.getElementById('prestigeDamageBtn10').addEventListener('click', () => buyPrestigeUpgrade('damage', getBulkMultiplier()));
+document.getElementById('prestigeMoneyBtn10').addEventListener('click', () => buyPrestigeUpgrade('money', getBulkMultiplier()));
+document.getElementById('prestigeSpeedBtn10').addEventListener('click', () => buyPrestigeUpgrade('speed', getBulkMultiplier()));
 
 // Rebirth button
 document.getElementById('rebirthBtn').addEventListener('click', performRebirth);
@@ -1326,6 +1361,15 @@ touchPauseBtn.addEventListener('click', (e) => {
     if (!gameState.isGameOver) {
         togglePause();
     }
+});
+
+// Drawer toggle functionality
+const drawerToggle = document.getElementById('drawerToggle');
+const controlBar = document.querySelector('.control-bar');
+
+drawerToggle.addEventListener('click', () => {
+    controlBar.classList.toggle('open');
+    drawerToggle.classList.toggle('open');
 });
 
 // Auto-update button states
