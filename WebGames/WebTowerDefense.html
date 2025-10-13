@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tower Defense: Grid Command</title>
+    <link rel="stylesheet" href="tower-defense-style.css">
+</head>
+<body class="booting">
+    <!-- Boot Sequence Overlay -->
+    <div id="bootSequence" class="boot-sequence">
+        <div class="boot-content">
+            <pre id="bootText" class="boot-text"></pre>
+            <div class="boot-cursor">█</div>
+        </div>
+    </div>
+
+    <!-- Terminal Header -->
+    <header class="terminal-header">
+        <div class="header-left">
+            <a href="../projects.html" class="terminal-btn exit-btn" title="Exit to DOS">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text">EXIT</span>
+                <span class="btn-bracket">]</span>
+            </a>
+            <button id="themeToggle" class="terminal-btn" title="Change Color Scheme">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text" id="themeText">GREEN</span>
+                <span class="btn-bracket">]</span>
+            </button>
+            <button id="crtToggle" class="terminal-btn" title="Toggle CRT Effect">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text">CRT</span>
+                <span class="btn-bracket">]</span>
+            </button>
+        </div>
+        
+        <div class="header-center">
+            <div class="title-box">
+                <div class="title-line">╔════════════════════════════════════════╗</div>
+                <div class="title-text">║  TOWER DEFENSE: GRID COMMAND v1.0.1  ║</div>
+                <div class="title-line">╚════════════════════════════════════════╝</div>
+            </div>
+        </div>
+        
+        <div class="header-right">
+            <button id="drawerToggle" class="drawer-toggle">
+                <span class="drawer-icon">☰</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <div class="game-container">
+        <!-- Left Panel - Tower Build Menu -->
+        <aside class="side-panel left-panel">
+            <div class="panel-header">
+                <div class="panel-title">┌─ BUILD MENU ─┐</div>
+            </div>
+            <div class="panel-content">
+                <div class="tower-menu">
+                    <div class="menu-section">
+                        <div class="section-title">╔═══ OFFENSIVE ═══╗</div>
+                        <button class="tower-btn" data-tower="shooter" data-cost="50" title="TRANSISTOR: Basic single-target damage tower. Cheap and reliable starter unit. Works well with RAM Bank for damage boost.">
+                            <div class="tower-icon">▲</div>
+                            <div class="tower-info">
+                                <div class="tower-name">TRANSISTOR</div>
+                                <div class="tower-desc">Basic signal pulse</div>
+                                <div class="tower-stats">DMG: 10 | RNG: 3</div>
+                                <div class="tower-cost">Cost: 50G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="pulse" data-cost="100" title="EMP COIL: Multi-target AOE tower. Hits all enemies in range simultaneously. Excellent crowd control. Boosted by RAM Bank and Heat Sink.">
+                            <div class="tower-icon">◎</div>
+                            <div class="tower-info">
+                                <div class="tower-name">EMP COIL</div>
+                                <div class="tower-desc">Magnetic pulse</div>
+                                <div class="tower-stats">DMG: 15 | RNG: 2.5</div>
+                                <div class="tower-cost">Cost: 100G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="sniper" data-cost="120" title="DIODE ARRAY: High damage, long range sniper tower. Slow fire rate but devastating single shots. Enhanced by RAM Bank, Overclock, and Heat Sink.">
+                            <div class="tower-icon">⊗</div>
+                            <div class="tower-info">
+                                <div class="tower-name">DIODE ARRAY</div>
+                                <div class="tower-desc">Focused discharge</div>
+                                <div class="tower-stats">DMG: 50 | RNG: 5</div>
+                                <div class="tower-cost">Cost: 120G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="artillery" data-cost="150" title="CAPACITOR: Area of effect explosive tower. Damages primary target and nearby enemies. Pairs well with RAM Bank for increased AOE damage.">
+                            <div class="tower-icon">⊕</div>
+                            <div class="tower-info">
+                                <div class="tower-name">CAPACITOR</div>
+                                <div class="tower-desc">Voltage burst</div>
+                                <div class="tower-stats">DMG: 30 | AOE: 2</div>
+                                <div class="tower-cost">Cost: 150G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="cpu" data-cost="180" title="CPU CORE: Targets up to 3 enemies simultaneously with multi-threaded attacks. Great for handling multiple threats. Synergizes with RAM Bank and Heat Sink.">
+                            <div class="tower-icon">▣</div>
+                            <div class="tower-info">
+                                <div class="tower-name">CPU CORE</div>
+                                <div class="tower-desc">Multi-thread attack</div>
+                                <div class="tower-stats">DMG: 20 | TGTS: 3</div>
+                                <div class="tower-cost">Cost: 180G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="laser" data-cost="200" title="LASER DIODE: Continuous beam damage over time. Locks onto a single target and melts it. Highly effective with RAM Bank damage boost and Heat Sink.">
+                            <div class="tower-icon">═►</div>
+                            <div class="tower-info">
+                                <div class="tower-name">LASER DIODE</div>
+                                <div class="tower-desc">Optical beam</div>
+                                <div class="tower-stats">DMG: 5/tick</div>
+                                <div class="tower-cost">Cost: 200G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="voltage" data-cost="220" title="VOLTAGE REGULATOR: Chain lightning damage jumps between up to 3 targets. Extremely powerful against groups. Enhanced by RAM Bank, Heat Sink, and ESPECIALLY Conductor Coil for more chains!">
+                            <div class="tower-icon">⚡</div>
+                            <div class="tower-info">
+                                <div class="tower-name">VOLTAGE REGULATOR</div>
+                                <div class="tower-desc">Chain lightning</div>
+                                <div class="tower-stats">DMG: 35 | CHAIN: 3</div>
+                                <div class="tower-cost">Cost: 220G</div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <div class="menu-section">
+                        <div class="section-title">╔═══ SUPPORT ═══╗</div>
+                        <button class="tower-btn" data-tower="slower" data-cost="80" title="RESISTOR: Slows enemy movement by 50%. Essential for giving your offensive towers more time to damage enemies. Works with all damage towers.">
+                            <div class="tower-icon">◊</div>
+                            <div class="tower-info">
+                                <div class="tower-name">RESISTOR</div>
+                                <div class="tower-desc">Current limiter</div>
+                                <div class="tower-stats">SLOW: 50%</div>
+                                <div class="tower-cost">Cost: 80G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="battery" data-cost="90" title="BATTERY ARRAY: Increases gold earned from kills by +50% per level. Place near high-traffic areas to maximize economy. Essential for resource management!">
+                            <div class="tower-icon">▥</div>
+                            <div class="tower-info">
+                                <div class="tower-name">BATTERY ARRAY</div>
+                                <div class="tower-desc">Gold generator</div>
+                                <div class="tower-stats">+50% GOLD</div>
+                                <div class="tower-cost">Cost: 90G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="shield" data-cost="110" title="SHIELD GENERATOR: Reduces damage enemies take by 25% while in range. WARNING: Makes enemies harder to kill but can protect valuable chokepoints. Use strategically!">
+                            <div class="tower-icon">◘</div>
+                            <div class="tower-info">
+                                <div class="tower-name">SHIELD GENERATOR</div>
+                                <div class="tower-desc">Armor plating</div>
+                                <div class="tower-stats">-25% ENEMY DMG</div>
+                                <div class="tower-cost">Cost: 110G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="ram" data-cost="130" title="RAM BANK: Boosts damage of all nearby towers by +25% per level. Stacks with multiple RAM Banks! Affects: Transistor, Diode Array, Capacitor, CPU Core, Laser Diode, Voltage Regulator, EMP Coil.">
+                            <div class="tower-icon">≡</div>
+                            <div class="tower-info">
+                                <div class="tower-name">RAM BANK</div>
+                                <div class="tower-desc">Cache boost</div>
+                                <div class="tower-stats">BOOST: +25% DMG</div>
+                                <div class="tower-cost">Cost: 130G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="overclock" data-cost="140" title="OVERCLOCK MODULE: Extends range of nearby towers by +2 cells per level. Stacks with multiple Overclocks! Helps snipers reach further and lasers cover more area. Affects: ALL offensive towers.">
+                            <div class="tower-icon">⟳</div>
+                            <div class="tower-info">
+                                <div class="tower-name">OVERCLOCK MODULE</div>
+                                <div class="tower-desc">Range amplifier</div>
+                                <div class="tower-stats">+2 RANGE BOOST</div>
+                                <div class="tower-cost">Cost: 140G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="heatsink" data-cost="160" title="HEAT SINK: Reduces fire rate cooldown by 30% per level (towers shoot FASTER). Stacks with multiple Heat Sinks! Maximum 80% reduction. Affects: ALL offensive towers.">
+                            <div class="tower-icon">▦</div>
+                            <div class="tower-info">
+                                <div class="tower-name">HEAT SINK</div>
+                                <div class="tower-desc">Cooldown boost</div>
+                                <div class="tower-stats">-30% FIRE RATE</div>
+                                <div class="tower-cost">Cost: 160G</div>
+                            </div>
+                        </button>
+                        
+                        <button class="tower-btn" data-tower="conductor" data-cost="175" title="CONDUCTOR COIL: Increases chain lightning targets by +1 per level. Stacks with multiple Conductor Coils! Makes Voltage Regulator devastatingly powerful. Affects: ONLY Voltage Regulator.">
+                            <div class="tower-icon">⊚</div>
+                            <div class="tower-info">
+                                <div class="tower-name">CONDUCTOR COIL</div>
+                                <div class="tower-desc">Chain amplifier</div>
+                                <div class="tower-stats">+1 CHAIN TARGET</div>
+                                <div class="tower-cost">Cost: 175G</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Central Game Area -->
+        <main class="game-area">
+            <div class="canvas-container">
+                <canvas id="gameCanvas"></canvas>
+                
+                <!-- Stats Box (repurposed minimap area) -->
+                <div id="statsBox" class="stats-box">
+                    <div class="stats-box-header">╔═══ STATUS ═══╗</div>
+                    <div class="stat-group">
+                        <div class="stat-item">
+                            <span class="stat-label">WAVE:</span>
+                            <span class="stat-value" id="waveDisplay">01</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">LIVES:</span>
+                            <span class="stat-value" id="livesDisplay">♥♥♥</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">GOLD:</span>
+                            <span class="stat-value" id="goldDisplay">500</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">SCORE:</span>
+                            <span class="stat-value" id="scoreDisplay">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Zoom Controls -->
+                <div class="zoom-controls">
+                    <button id="zoomIn" class="zoom-btn">+</button>
+                    <span id="zoomLevel" class="zoom-display">100%</span>
+                    <button id="zoomOut" class="zoom-btn">-</button>
+                    <button id="centerView" class="zoom-btn">⊙</button>
+                </div>
+                
+                <!-- Stats Drawer Toggle (mobile only) -->
+                <button id="statsDrawerToggle" class="stats-drawer-toggle">
+                    <span id="statsDrawerArrow">&lt;&lt;</span>
+                </button>
+                
+                <!-- Touch Controls Overlay -->
+                <div id="touchOverlay" class="touch-overlay">
+                    <div class="touch-hint">
+                        <div>Pinch to Zoom</div>
+                        <div>Drag to Pan</div>
+                        <div>Tap Cell to Select</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Control Bar -->
+            <div class="control-bar">
+                <button id="startWaveBtn" class="control-btn primary">
+                    <span class="btn-bracket">[</span>
+                    <span>START WAVE</span>
+                    <span class="btn-bracket">]</span>
+                </button>
+                <button id="pauseBtn" class="control-btn">
+                    <span class="btn-bracket">[</span>
+                    <span id="pauseText">PAUSE</span>
+                    <span class="btn-bracket">]</span>
+                </button>
+                <button id="speedBtn" class="control-btn">
+                    <span class="btn-bracket">[</span>
+                    <span id="speedText">SPEED: x1</span>
+                    <span class="btn-bracket">]</span>
+                </button>
+                <div class="wave-timer">
+                    <span>Next wave in: </span>
+                    <span id="waveTimer">--</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel - Info & Stats -->
+        <aside class="side-panel right-panel">
+            <div class="panel-header">
+                <button id="drawerClose" class="drawer-close">×</button>
+                <div class="panel-tabs">
+                    <button id="intelTab" class="panel-tab active">INTEL</button>
+                    <button id="saveLoadTab" class="panel-tab">SAVE/LOAD</button>
+                </div>
+            </div>
+            <div class="panel-content">
+                <!-- Intel Panel -->
+                <div id="intelPanel" class="tab-panel active">
+                    <div class="info-section">
+                        <div class="section-title">╔═══ WAVE INFO ═══╗</div>
+                        <div class="wave-info">
+                            <div class="info-row">
+                                <span>Current:</span>
+                                <span id="currentWave">1</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Enemies:</span>
+                                <span id="enemiesLeft">0</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Spawned:</span>
+                                <span id="enemiesSpawned">0</span>
+                            </div>
+                            <div class="info-row">
+                                <span>Killed:</span>
+                                <span id="enemiesKilled">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ THREATS ═══╗</div>
+                        <div class="enemy-list">
+                            <div class="enemy-item">
+                                <span class="enemy-icon">●</span>
+                                <span>Bug: 60 HP</span>
+                            </div>
+                            <div class="enemy-item">
+                                <span class="enemy-icon">♦</span>
+                                <span>Virus: 100 HP</span>
+                            </div>
+                            <div class="enemy-item">
+                                <span class="enemy-icon">۞</span>
+                                <span>Malware: 250 HP</span>
+                            </div>
+                            <div class="enemy-item">
+                                <span class="enemy-icon">►</span>
+                                <span>Worm: 40 HP</span>
+                            </div>
+                            <div class="enemy-item">
+                                <span class="enemy-icon">★</span>
+                                <span>Trojan: 1000 HP</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ CONTROLS ═══╗</div>
+                        <div class="controls-list">
+                        <div class="control-item">
+                            <span class="key">CLICK</span>
+                            <span>Select Cell</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">DRAG</span>
+                            <span>Pan View</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">SCROLL</span>
+                            <span>Zoom</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">SPACE</span>
+                            <span>Pause</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">ESC</span>
+                            <span>Deselect</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <div class="section-title">╔═══ LEGEND ═══╗</div>
+                    <div class="legend-list">
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffff;">⊙</span>
+                            <span>Entry Port</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffff;">⊙</span>
+                            <span>Exit Port</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol path" style="color: #00ffff;">──</span>
+                            <span>Circuit Path</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffff;">◦</span>
+                            <span>Energy Pulse</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol">▓▓</span>
+                            <span>Motherboard</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol buildable">░░</span>
+                            <span>Build Area</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <div class="section-title">╔═══ DEFENSES ═══╗</div>
+                    <div class="legend-list">
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffff;">▲</span>
+                            <span>Transistor</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ff00ff;">◎</span>
+                            <span>EMP Coil</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ffffff;">⊗</span>
+                            <span>Diode Array</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ff0000;">⊕</span>
+                            <span>Capacitor</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ff8800;">▣</span>
+                            <span>CPU Core</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ffff00;">═►</span>
+                            <span>Laser Diode</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ddff;">⚡</span>
+                            <span>Voltage Regulator</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffff;">◊</span>
+                            <span>Resistor</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ffaa00;">▥</span>
+                            <span>Battery Array</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #44ddff;">◘</span>
+                            <span>Shield Generator</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ff00;">≡</span>
+                            <span>RAM Bank</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #ff44ff;">⟳</span>
+                            <span>Overclock Module</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #88ccff;">▦</span>
+                            <span>Heat Sink</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-symbol" style="color: #00ffaa;">⊚</span>
+                            <span>Conductor Coil</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save/Load Panel -->
+            <div id="saveLoadPanel" class="tab-panel">
+                    <div class="info-section">
+                        <div class="section-title">╔═══ SAVE GAME ═══╗</div>
+                        <div class="save-section">
+                            <input type="text" id="saveName" class="save-input" placeholder="Save Name..." maxlength="20">
+                            <button id="saveGameBtn" class="action-btn full-width">
+                                <span class="btn-bracket">[</span>SAVE GAME<span class="btn-bracket">]</span>
+                            </button>
+                            <div id="saveMessage" class="save-message"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ LOAD GAME ═══╗</div>
+                        <div class="save-list" id="saveList">
+                            <div class="info-text dim">No saved games</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ QUICK SAVE ═══╗</div>
+                        <div class="quick-save-buttons">
+                            <button id="quickSaveBtn" class="action-btn full-width">
+                                <span class="btn-bracket">[</span>QUICK SAVE<span class="btn-bracket">]</span>
+                            </button>
+                            <button id="quickLoadBtn" class="action-btn full-width">
+                                <span class="btn-bracket">[</span>QUICK LOAD<span class="btn-bracket">]</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ IMPORT/EXPORT ═══╗</div>
+                        <div class="import-export-section">
+                            <button id="exportSaveBtn" class="action-btn full-width">
+                                <span class="btn-bracket">[</span>EXPORT ALL SAVES<span class="btn-bracket">]</span>
+                            </button>
+                            <button id="importSaveBtn" class="action-btn full-width">
+                                <span class="btn-bracket">[</span>IMPORT SAVES<span class="btn-bracket">]</span>
+                            </button>
+                            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">╔═══ DANGER ZONE ═══╗</div>
+                        <div class="danger-section">
+                            <button id="wipeProgressBtn" class="action-btn full-width danger-btn">
+                                <span class="btn-bracket">[</span>WIPE ALL PROGRESS<span class="btn-bracket">]</span>
+                            </button>
+                            <div class="info-text dim" style="font-size: 11px; text-align: center; margin-top: 4px;">
+                                Deletes all saves and resets difficulty
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+    
+    <!-- Drawer Overlay (for small screens) -->
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="modal hidden">
+        <div class="modal-content">
+            <pre class="modal-ascii" id="gameOverArt"></pre>
+            <div class="modal-stats">
+                <div class="modal-stat">Wave Reached: <span id="finalWave">0</span></div>
+                <div class="modal-stat">Score: <span id="finalScore">0</span></div>
+                <div class="modal-stat">Enemies Killed: <span id="finalKills">0</span></div>
+            </div>
+            <div class="modal-buttons">
+                <button id="restartBtn" class="modal-btn">
+                    <span class="btn-bracket">[</span>RESTART<span class="btn-bracket">]</span>
+                </button>
+                <button id="menuBtn" class="modal-btn">
+                    <span class="btn-bracket">[</span>MAIN MENU<span class="btn-bracket">]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm/Alert Modal -->
+    <div id="customModal" class="modal hidden">
+        <div class="modal-content custom-dialog">
+            <div class="dialog-header">
+                <div class="dialog-title">╔════════════════════════════╗</div>
+                <div class="dialog-title-text" id="dialogTitle">║   SYSTEM MESSAGE   ║</div>
+                <div class="dialog-title">╚════════════════════════════╝</div>
+            </div>
+            <div class="dialog-body">
+                <div class="dialog-message" id="dialogMessage"></div>
+                <div class="dialog-stats" id="dialogStats" style="display: none;">
+                    <!-- Dynamic stats will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-buttons" id="dialogButtons">
+                <button id="dialogConfirm" class="modal-btn">
+                    <span class="btn-bracket">[</span>YES<span class="btn-bracket">]</span>
+                </button>
+                <button id="dialogCancel" class="modal-btn">
+                    <span class="btn-bracket">[</span>NO<span class="btn-bracket">]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="tower-defense-script.js"></script>
+</body>
+</html>
