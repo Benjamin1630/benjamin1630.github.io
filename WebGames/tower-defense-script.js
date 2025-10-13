@@ -14,42 +14,42 @@ const CONFIG = {
         shooter: {
             name: 'Transistor',
             icon: '▲',
-            cost: 50,
+            cost: 60,
             damage: 10,
             range: 3,
             fireRate: 500,
-            projectileSpeed: 5,
+            projectileSpeed: 15,
             color: '#00ffff'
         },
         sniper: {
             name: 'Diode Array',
             icon: '⊗',
             cost: 120,
-            damage: 50,
+            damage: 40,
             range: 5,
             fireRate: 2000,
-            projectileSpeed: 10,
+            projectileSpeed: 25,
             color: '#ffffff'
         },
         artillery: {
             name: 'Capacitor',
             icon: '⊕',
             cost: 150,
-            damage: 30,
+            damage: 25,
             range: 4,
             fireRate: 1500,
             aoe: 1.5,
-            projectileSpeed: 3,
+            projectileSpeed: 10,
             color: '#ff0000'
         },
         cpu: {
             name: 'CPU Core',
             icon: '▣',
             cost: 180,
-            damage: 20,
+            damage: 18,
             range: 3.5,
             fireRate: 800,
-            projectileSpeed: 6,
+            projectileSpeed: 18,
             multiTarget: true,
             maxTargets: 3,
             color: '#ff8800'
@@ -57,7 +57,7 @@ const CONFIG = {
         slower: {
             name: 'Resistor',
             icon: '◊',
-            cost: 80,
+            cost: 100,
             damage: 0,
             range: 3,
             fireRate: 100,
@@ -76,12 +76,12 @@ const CONFIG = {
         pulse: {
             name: 'EMP Coil',
             icon: '◎',
-            cost: 100,
+            cost: 120,
             damage: 15,
             range: 2.5,
             fireRate: 1200,
             aoe: 2.5,
-            projectileSpeed: 8,
+            projectileSpeed: 20,
             multiTarget: true,
             color: '#ff00ff'
         },
@@ -98,10 +98,10 @@ const CONFIG = {
             name: 'Voltage Regulator',
             icon: '⚡',
             cost: 220,
-            damage: 35,
+            damage: 30,
             range: 3,
             fireRate: 600,
-            projectileSpeed: 12,
+            projectileSpeed: 30,
             chain: true,
             chainRange: 2,
             chainTargets: 3,
@@ -128,7 +128,7 @@ const CONFIG = {
         shield: {
             name: 'Shield Generator',
             icon: '◘',
-            cost: 110,
+            cost: 130,
             damage: 0,
             range: 2.5,
             armor: 0.25,
@@ -137,7 +137,7 @@ const CONFIG = {
         battery: {
             name: 'Battery Array',
             icon: '▥',
-            cost: 90,
+            cost: 110,
             damage: 0,
             range: 2,
             goldBoost: 0.5,
@@ -159,7 +159,7 @@ const CONFIG = {
             icon: '●',
             hp: 60,
             speed: 0.7,
-            reward: 10,
+            reward: 8,
             color: '#ff0000'
         },
         soldier: {
@@ -167,7 +167,7 @@ const CONFIG = {
             icon: '♦',
             hp: 100,
             speed: 0.55,
-            reward: 20,
+            reward: 15,
             color: '#ff3333'
         },
         tank: {
@@ -175,7 +175,7 @@ const CONFIG = {
             icon: '۞',
             hp: 250,
             speed: 0.35,
-            reward: 50,
+            reward: 35,
             color: '#ff6666'
         },
         runner: {
@@ -183,7 +183,7 @@ const CONFIG = {
             icon: '►',
             hp: 40,
             speed: 1.1,
-            reward: 15,
+            reward: 12,
             color: '#ff9999'
         },
         boss: {
@@ -191,7 +191,7 @@ const CONFIG = {
             icon: '★',
             hp: 1000,
             speed: 0.2,
-            reward: 200,
+            reward: 150,
             color: '#ffff00'
         }
     }
@@ -204,7 +204,7 @@ const CONFIG = {
 let gameState = {
     wave: 1,
     lives: 3,
-    gold: 500,
+    gold: 250,
     score: 0,
     isPaused: true,  // Start paused until boot sequence completes
     isGameOver: false,
@@ -1634,7 +1634,7 @@ function updateSelectionInfo() {
     if (tower) {
         const config = CONFIG.TOWER_TYPES[tower.type];
         const sellValue = Math.floor(tower.totalCost * 0.7);
-        const upgradeCost = tower.level >= 3 ? null : Math.floor(config.cost * Math.pow(1.5, tower.level));
+        const upgradeCost = tower.level >= 3 ? null : Math.floor(config.cost * Math.pow(2, tower.level)); // Increased from 1.5 to 2.0 for balance
         
         if (infoDiv) {
             let infoHTML = `
@@ -1720,7 +1720,7 @@ function upgradeTower() {
     if (!tower || tower.level >= 3) return;
     
     const config = CONFIG.TOWER_TYPES[tower.type];
-    const upgradeCost = Math.floor(config.cost * Math.pow(1.5, tower.level));
+    const upgradeCost = Math.floor(config.cost * Math.pow(2, tower.level)); // Increased from 1.5 to 2.0 for balance
     
     if (gameState.gold < upgradeCost) {
         console.log('Not enough gold');
@@ -1795,23 +1795,25 @@ function getWaveConfig(wave) {
         total: 0
     };
     
-    // Progressive difficulty
+    // Progressive difficulty - rebalanced for more challenge
     if (wave <= 3) {
-        config.enemies.push({type: 'scout', count: 5 + wave * 2});
+        config.enemies.push({type: 'scout', count: 8 + wave * 3});
     } else if (wave <= 7) {
-        config.enemies.push({type: 'scout', count: 5});
-        config.enemies.push({type: 'soldier', count: 3 + wave});
+        config.enemies.push({type: 'scout', count: 8 + wave});
+        config.enemies.push({type: 'soldier', count: 5 + wave * 2});
+        config.enemies.push({type: 'runner', count: 2});
     } else if (wave <= 10) {
-        config.enemies.push({type: 'soldier', count: 5});
-        config.enemies.push({type: 'tank', count: 2 + wave});
-        config.enemies.push({type: 'runner', count: 3});
+        config.enemies.push({type: 'scout', count: 5});
+        config.enemies.push({type: 'soldier', count: 8 + wave});
+        config.enemies.push({type: 'tank', count: 3 + wave});
+        config.enemies.push({type: 'runner', count: 5 + wave});
     } else {
-        config.enemies.push({type: 'soldier', count: 10});
-        config.enemies.push({type: 'tank', count: 5});
-        config.enemies.push({type: 'runner', count: 5});
+        config.enemies.push({type: 'soldier', count: 15 + wave});
+        config.enemies.push({type: 'tank', count: 8 + Math.floor(wave / 2)});
+        config.enemies.push({type: 'runner', count: 10 + wave});
         
         if (wave % 5 === 0) {
-            config.enemies.push({type: 'boss', count: 1});
+            config.enemies.push({type: 'boss', count: 1 + Math.floor((wave - 10) / 5)});
         }
     }
     
@@ -1848,8 +1850,8 @@ function createEnemy(type) {
         gridY: grid.entry.y,
         x: grid.entry.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2,
         y: grid.entry.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2,
-        hp: config.hp * (1 + gameState.wave * 0.1), // Scale HP with wave
-        maxHp: config.hp * (1 + gameState.wave * 0.1),
+        hp: config.hp * (1 + gameState.wave * 0.15), // Scale HP with wave (increased from 0.1 to 0.15)
+        maxHp: config.hp * (1 + gameState.wave * 0.15),
         speed: config.speed,
         reward: config.reward,
         path: [...grid.path],
@@ -2248,7 +2250,7 @@ function shootProjectile(tower, target) {
         targetY: target.y,
         target: target,
         damage: config.damage * tower.level * damageMultiplier,
-        speed: config.projectileSpeed || 5,
+        speed: config.projectileSpeed || 15,
         aoe: config.aoe,
         color: config.color,
         tower: tower
@@ -2298,7 +2300,7 @@ function shootChainProjectile(tower, target, enemiesInRange) {
         targetY: target.y,
         target: target,
         damage: config.damage * tower.level * damageMultiplier,
-        speed: config.projectileSpeed || 5,
+        speed: config.projectileSpeed || 30,
         color: config.color,
         tower: tower,
         isChain: true,
@@ -2397,7 +2399,7 @@ function completeWave() {
     
     gameState.wave++;
     gameState.waveTimer = 0;
-    gameState.gold += 50 + gameState.wave * 10; // Wave completion bonus
+    gameState.gold += 30 + gameState.wave * 5; // Wave completion bonus (reduced for balance)
     gameState.score += 100 * gameState.wave;
     
     updateUI();
@@ -2847,11 +2849,77 @@ function drawEnemies() {
 
 function drawProjectiles() {
     for (let proj of projectiles) {
-        ctx.fillStyle = proj.color;
-        ctx.beginPath();
-        ctx.arc(proj.x, proj.y, 3, 0, Math.PI * 2);
-        ctx.fill();
+        if (proj.isChain) {
+            // Draw lightning bolt effect for chain lightning
+            drawLightningBolt(proj.x, proj.y, proj.targetX, proj.targetY, proj.color);
+        } else {
+            // Regular projectile
+            ctx.fillStyle = proj.color;
+            ctx.beginPath();
+            ctx.arc(proj.x, proj.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
+}
+
+function drawLightningBolt(startX, startY, endX, endY, color) {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance < 1) return;
+    
+    // Create jagged lightning path
+    const segments = Math.max(3, Math.floor(distance / 15));
+    const points = [{x: startX, y: startY}];
+    
+    for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const baseX = startX + dx * t;
+        const baseY = startY + dy * t;
+        
+        // Perpendicular offset for zigzag effect
+        const perpX = -dy / distance;
+        const perpY = dx / distance;
+        const offset = (Math.random() - 0.5) * 20;
+        
+        points.push({
+            x: baseX + perpX * offset,
+            y: baseY + perpY * offset
+        });
+    }
+    
+    points.push({x: endX, y: endY});
+    
+    // Draw main lightning bolt
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = color;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    
+    for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+    }
+    
+    ctx.stroke();
+    
+    // Draw inner glow
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    
+    for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+    }
+    
+    ctx.stroke();
+    
+    // Reset shadow
+    ctx.shadowBlur = 0;
 }
 
 function drawSelection() {
@@ -2880,7 +2948,7 @@ function drawSelection() {
         if (tower) {
             const config = CONFIG.TOWER_TYPES[tower.type];
             const sellValue = Math.floor(tower.totalCost * 0.7);
-            const upgradeCost = tower.level >= 3 ? null : Math.floor(config.cost * Math.pow(1.5, tower.level));
+            const upgradeCost = tower.level >= 3 ? null : Math.floor(config.cost * Math.pow(2, tower.level)); // Increased from 1.5 to 2.0 for balance
             
             // Calculate box dimensions
             const fontSize = 14;
