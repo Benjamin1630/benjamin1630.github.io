@@ -28,17 +28,12 @@
                 <span class="btn-text" id="themeText">GREEN</span>
                 <span class="btn-bracket">]</span>
             </button>
-            <button id="crtToggle" class="terminal-btn" title="Toggle CRT Effect">
-                <span class="btn-bracket">[</span>
-                <span class="btn-text">CRT</span>
-                <span class="btn-bracket">]</span>
-            </button>
         </div>
         
         <div class="header-center">
             <div class="title-box">
                 <div class="title-line">╔════════════════════════════════════════╗</div>
-                <div class="title-text">║  TOWER DEFENSE: GRID COMMAND v1.0.1  ║</div>
+                <div class="title-text">║   TOWER DEFENSE: GRID COMMAND v1.0.1   ║</div>
                 <div class="title-line">╚════════════════════════════════════════╝</div>
             </div>
         </div>
@@ -222,6 +217,10 @@
                             <span class="stat-value" id="waveDisplay">01</span>
                         </div>
                         <div class="stat-item">
+                            <span class="stat-label">RUNS:</span>
+                            <span class="stat-value" id="runsDisplay">0</span>
+                        </div>
+                        <div class="stat-item">
                             <span class="stat-label">LIVES:</span>
                             <span class="stat-value" id="livesDisplay">♥♥♥</span>
                         </div>
@@ -266,9 +265,14 @@
                     <span>START WAVE</span>
                     <span class="btn-bracket">]</span>
                 </button>
+                <button id="newLevelBtn" class="control-btn" style="display: none;">
+                    <span class="btn-bracket">[</span>
+                    <span>NEW LEVEL</span>
+                    <span class="btn-bracket">]</span>
+                </button>
                 <button id="pauseBtn" class="control-btn">
                     <span class="btn-bracket">[</span>
-                    <span id="pauseText">PAUSE</span>
+                    <span id="pauseText">RESUME</span>
                     <span class="btn-bracket">]</span>
                 </button>
                 <button id="speedBtn" class="control-btn">
@@ -277,7 +281,7 @@
                     <span class="btn-bracket">]</span>
                 </button>
                 <div class="wave-timer">
-                    <span>Next wave in: </span>
+                    <span id="waveTimerLabel">Next wave in: </span>
                     <span id="waveTimer">--</span>
                 </div>
             </div>
@@ -373,27 +377,27 @@
                     <div class="section-title">╔═══ LEGEND ═══╗</div>
                     <div class="legend-list">
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #00ffff;">⊙</span>
+                            <span class="legend-symbol legend-entry">⊙</span>
                             <span>Entry Port</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #00ffff;">⊙</span>
+                            <span class="legend-symbol legend-exit">⊙</span>
                             <span>Exit Port</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol path" style="color: #00ffff;">──</span>
+                            <span class="legend-symbol legend-path">──</span>
                             <span>Circuit Path</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #00ffff;">◦</span>
+                            <span class="legend-symbol legend-enemy">◦</span>
                             <span>Energy Pulse</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol">▓▓</span>
+                            <span class="legend-symbol legend-invalid">▓▓</span>
                             <span>Motherboard</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol buildable">░░</span>
+                            <span class="legend-symbol legend-buildable">░░</span>
                             <span>Build Area</span>
                         </div>
                     </div>
@@ -403,19 +407,19 @@
                     <div class="section-title">╔═══ DEFENSES ═══╗</div>
                     <div class="legend-list">
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #00ffff;">▲</span>
+                            <span class="legend-symbol legend-tower">▲</span>
                             <span>Transistor</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #ff00ff;">◎</span>
+                            <span class="legend-symbol legend-tower">◎</span>
                             <span>EMP Coil</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #ffffff;">⊗</span>
+                            <span class="legend-symbol legend-tower">⊗</span>
                             <span>Diode Array</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-symbol" style="color: #ff0000;">⊕</span>
+                            <span class="legend-symbol legend-enemy">⊕</span>
                             <span>Capacitor</span>
                         </div>
                         <div class="legend-item">
@@ -551,7 +555,7 @@
         <div class="modal-content custom-dialog">
             <div class="dialog-header">
                 <div class="dialog-title">╔════════════════════════════╗</div>
-                <div class="dialog-title-text" id="dialogTitle">║   SYSTEM MESSAGE   ║</div>
+                <div class="dialog-title-text" id="dialogTitle">║       SYSTEM MESSAGE       ║</div>
                 <div class="dialog-title">╚════════════════════════════╝</div>
             </div>
             <div class="dialog-body">
@@ -568,6 +572,21 @@
                     <span class="btn-bracket">[</span>NO<span class="btn-bracket">]</span>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Custom Tooltip -->
+    <div id="customTooltip" class="custom-tooltip">
+        <div class="tooltip-header">
+            <div class="tooltip-border-top">╔════════════════════════════════════╗</div>
+            <div class="tooltip-title" id="tooltipTitle">UNIT INFORMATION</div>
+            <div class="tooltip-border-bottom">╠════════════════════════════════════╣</div>
+        </div>
+        <div class="tooltip-content" id="tooltipContent">
+            <!-- Tooltip content will be dynamically inserted here -->
+        </div>
+        <div class="tooltip-footer">
+            <div class="tooltip-border-footer">╚════════════════════════════════════╝</div>
         </div>
     </div>
 

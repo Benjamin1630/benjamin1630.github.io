@@ -206,7 +206,7 @@ let gameState = {
     lives: 3,
     gold: 500,
     score: 0,
-    isPaused: false,
+    isPaused: true,  // Start paused until boot sequence completes
     isGameOver: false,
     speed: 1,
     waveInProgress: false,
@@ -214,11 +214,15 @@ let gameState = {
     enemiesSpawned: 0,
     waveTimer: 0,
     waveDelay: 30000,
-    maxPathTurns: 12  // Start with 12 turns, increases with each completed wave
+    maxPathTurns: 16,  // Start with 16 turns for more complex paths, increases with difficulty
+    runsCompleted: 0  // Track number of times wave 15 has been completed
 };
 
 // Track if pause was initiated by user vs automatically (for modals)
 let wasUserPaused = false;
+
+// Track if new level modal has been shown after completing wave 15
+let newLevelModalShown = false;
 
 let grid = {
     cols: 0,
@@ -434,6 +438,8 @@ function runBootSequence() {
                         setTimeout(() => {
                             bootSeq.classList.add('hidden');
                             document.body.classList.remove('booting');
+                            // Unpause game now that boot sequence is complete
+                            startGameAfterBoot();
                         }, 1000);
                     }, 1000);
                 }, 1000);
@@ -448,7 +454,15 @@ function runBootSequence() {
 document.getElementById('bootSequence').addEventListener('click', () => {
     document.getElementById('bootSequence').classList.add('hidden');
     document.body.classList.remove('booting');
+    // Unpause game immediately when boot is skipped
+    startGameAfterBoot();
 });
+
+// Function to start the game after boot sequence
+function startGameAfterBoot() {
+    gameState.isPaused = false;
+    document.getElementById('pauseText').textContent = 'PAUSE';
+}
 
 runBootSequence();
 
@@ -621,7 +635,7 @@ function generateLevel() {
     const centerOffsetX = Math.floor((PLAYABLE_SIZE - pathWidth) / 2) - minPathX;
     const centerOffsetY = Math.floor((PLAYABLE_SIZE - pathHeight) / 2) - minPathY;
     
-    // Apply centering offset and decorative padding to path
+    // Apply centering offset and decorative padding to path FIRST
     grid.path = generatedPath.map(cell => ({
         x: cell.x + centerOffsetX + HORIZONTAL_PADDING,
         y: cell.y + centerOffsetY + VERTICAL_PADDING
@@ -641,24 +655,26 @@ function generateLevel() {
     const pathCenterX = (PLAYABLE_SIZE / 2) + HORIZONTAL_PADDING;
     const pathCenterY = (PLAYABLE_SIZE / 2) + VERTICAL_PADDING;
     
-    // Mark path cells
-    grid.path.forEach(cell => {
-        if (cell.x >= 0 && cell.x < grid.cols && cell.y >= 0 && cell.y < grid.rows) {
-            grid.cells[cell.y][cell.x] = 2;
-        }
-    });
-    
-    // Mark buildable cells (within 2 cells of path, only in playable area)
+    // NOW mark buildable cells BEFORE marking path cells
+    // This ensures buildable cells are calculated based on the centered path position
     for (let y = grid.playableBounds.minY; y <= grid.playableBounds.maxY; y++) {
         for (let x = grid.playableBounds.minX; x <= grid.playableBounds.maxX; x++) {
             if (grid.cells[y][x] === 0) {
                 const dist = minDistanceToPath(x, y);
                 if (dist <= CONFIG.MAX_PATH_DISTANCE) {
-                    grid.cells[y][x] = 1;
+                    grid.cells[y][x] = 1; // Mark as buildable
                 }
             }
         }
     }
+    
+    // Mark path cells AFTER buildable cells are determined
+    // This ensures path cells overwrite buildable cells where they overlap
+    grid.path.forEach(cell => {
+        if (cell.x >= 0 && cell.x < grid.cols && cell.y >= 0 && cell.y < grid.rows) {
+            grid.cells[cell.y][cell.x] = 2; // Mark as path
+        }
+    });
     
     // Center viewport on the path center
     viewport.x = pathCenterX * CONFIG.CELL_SIZE - canvas.width / (2 * viewport.zoom);
@@ -671,15 +687,46 @@ function generateLevel() {
 
 
 function generateSerpentinePath() {
-    // Clean, reliable path generation algorithm
+    // Enhanced path generation algorithm with complexity and variation
     // Rules:
     // 1. Path can only make 90-degree turns
-    // 2. Path segments can cross each other at right angles (perpendicular)
-    // 3. Path segments CANNOT overlap (run parallel on the same cells)
-    // 4. Path stays within grid bounds
+    // 2. Path segments can cross each other ONLY at right angles (perpendicular crossing)
+    // 3. Path segments CANNOT overlap (run parallel on the same cells) - prevents obscuring
+    // 4. Minimum number of turns must be met
+    // 5. Path has variation in segment lengths and patterns
+    // 6. Minimum 4 straight cells after each turn (with one exception for entrance/exit)
     
+    const maxPathTurns = gameState.maxPathTurns || 12;
+    const minPathTurns = Math.max(6, Math.floor(maxPathTurns * 0.6)); // Minimum 60% of max turns
+    
+    let bestPath = null;
+    let bestScore = -Infinity;
+    const MAX_GENERATION_ATTEMPTS = 10;
+    
+    // Try multiple path generations and pick the best one
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+        const result = generateSinglePath(minPathTurns, maxPathTurns);
+        
+        if (result && result.turnCount >= minPathTurns) {
+            // Score based on: turn count, path length, and variation
+            const score = result.turnCount * 10 + result.path.length + result.variation * 5;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestPath = result.path;
+            }
+        }
+    }
+    
+    return bestPath || generateSinglePath(minPathTurns, maxPathTurns).path;
+}
+
+function generateSinglePath(minTurns, maxTurns) {
     const path = [];
-    const occupiedCells = new Map(); // Track cells and their direction (H=horizontal, V=vertical)
+    const occupiedCells = new Map(); // Track cells and their direction
+    let crossoverUsed = false; // Track if we've used our one crossover
+    let shortSegmentUsed = false; // Track if we've used our one short segment (<3 cells)
+    let turnCount = 0;
     
     let currentX = grid.entry.x;
     let currentY = grid.entry.y;
@@ -688,29 +735,37 @@ function generateSerpentinePath() {
     path.push({x: currentX, y: currentY});
     occupiedCells.set(`${currentX},${currentY}`, 'START');
     
-    // Helper: Check if we can place a segment from current position to target
-    const canPlaceSegment = (x1, y1, x2, y2, segmentDir) => {
-        // Determine if horizontal or vertical
+    // Pattern types for complex path generation
+    const PATTERN_TYPES = {
+        STRAIGHT: 'straight',      // Simple straight line
+        STAIRCASE: 'staircase',    // Staircase/zigzag pattern
+        WIDE_TURN: 'wide_turn',    // Multi-cell wide turn
+        SPIRAL: 'spiral'           // Small spiral pattern
+    };
+    
+    // Helper: Check if we can place a segment
+    const canPlaceSegment = (x1, y1, x2, y2, allowCrossover) => {
+        let wouldCrossover = false;
+        
         if (x1 === x2) {
             // Vertical segment
             const startY = Math.min(y1, y2);
             const endY = Math.max(y1, y2);
             
             for (let y = startY; y <= endY; y++) {
-                // Skip starting cell
                 if (y === y1) continue;
                 
                 const key = `${x1},${y}`;
                 const existing = occupiedCells.get(key);
                 
                 if (existing) {
-                    // Allow perpendicular crossing
                     if (existing === 'H') {
-                        continue; // Perpendicular crossing is OK
-                    } else if (existing === 'V' || existing === 'CROSS') {
-                        return false; // Same direction overlap
+                        continue; // Perpendicular crossing is always OK
+                    } else if (existing === 'V' || existing === 'CROSS' || existing === 'BRIDGE') {
+                        // Same direction overlap - NEVER allow this to prevent path obscuring
+                        return {canPlace: false, crossover: false};
                     } else if (existing === 'START' || existing === 'END') {
-                        return false; // Can't cross entry/exit
+                        return {canPlace: false, crossover: false};
                     }
                 }
             }
@@ -720,30 +775,29 @@ function generateSerpentinePath() {
             const endX = Math.max(x1, x2);
             
             for (let x = startX; x <= endX; x++) {
-                // Skip starting cell
                 if (x === x1) continue;
                 
                 const key = `${x},${y1}`;
                 const existing = occupiedCells.get(key);
                 
                 if (existing) {
-                    // Allow perpendicular crossing
                     if (existing === 'V') {
-                        continue; // Perpendicular crossing is OK
-                    } else if (existing === 'H' || existing === 'CROSS') {
-                        return false; // Same direction overlap
+                        continue; // Perpendicular crossing is always OK
+                    } else if (existing === 'H' || existing === 'CROSS' || existing === 'BRIDGE') {
+                        // Same direction overlap - NEVER allow this to prevent path obscuring
+                        return {canPlace: false, crossover: false};
                     } else if (existing === 'START' || existing === 'END') {
-                        return false; // Can't cross entry/exit
+                        return {canPlace: false, crossover: false};
                     }
                 }
             }
         }
         
-        return true;
+        return {canPlace: true, crossover: wouldCrossover};
     };
     
     // Helper: Place a segment and mark cells
-    const placeSegment = (x1, y1, x2, y2, segmentDir) => {
+    const placeSegment = (x1, y1, x2, y2, usedCrossover) => {
         if (x1 === x2) {
             // Vertical segment
             const startY = y1;
@@ -756,12 +810,14 @@ function generateSerpentinePath() {
                 const key = `${x1},${y}`;
                 const existing = occupiedCells.get(key);
                 
-                // Mark as crossing if perpendicular directions meet
+                // Only allow perpendicular crossings (H crossing V)
                 if (existing && existing === 'H') {
                     occupiedCells.set(key, 'CROSS');
                 } else if (!existing) {
                     occupiedCells.set(key, 'V');
                 }
+                // If existing is 'V', 'CROSS', or 'BRIDGE', this shouldn't happen
+                // since canPlaceSegment should have rejected it
             }
         } else {
             // Horizontal segment
@@ -775,87 +831,336 @@ function generateSerpentinePath() {
                 const key = `${x},${y1}`;
                 const existing = occupiedCells.get(key);
                 
-                // Mark as crossing if perpendicular directions meet
+                // Only allow perpendicular crossings (V crossing H)
                 if (existing && existing === 'V') {
                     occupiedCells.set(key, 'CROSS');
                 } else if (!existing) {
                     occupiedCells.set(key, 'H');
                 }
+                // If existing is 'H', 'CROSS', or 'BRIDGE', this shouldn't happen
+                // since canPlaceSegment should have rejected it
             }
+        }
+        
+        if (usedCrossover) {
+            crossoverUsed = true;
         }
     };
     
-    // Generate path using alternating horizontal and vertical segments
-    let turnsRemaining = gameState.maxPathTurns || 12;
-    let lastMoveDirection = null; // 'H' or 'V'
+    // Helper: Try to create a staircase/zigzag pattern
+    const tryStaircasePattern = (startX, startY, targetDist, horizontal, allowCrossover) => {
+        const steps = Math.min(Math.floor(targetDist / 2), 4); // 2-4 steps in staircase
+        const stepSize = Math.floor(targetDist / steps);
+        
+        // Ensure minimum of 4 cells per segment
+        if (stepSize < 4) return null;
+        
+        let testX = startX;
+        let testY = startY;
+        const testPath = [];
+        
+        for (let i = 0; i < steps; i++) {
+            // Move in primary direction
+            const primaryMove = horizontal ? stepSize : stepSize;
+            const newX = horizontal ? testX + (Math.sign(targetDist) * stepSize) : testX;
+            const newY = horizontal ? testY : testY + (Math.sign(targetDist) * stepSize);
+            
+            const result1 = canPlaceSegment(testX, testY, newX, newY, allowCrossover);
+            if (!result1.canPlace) return null;
+            
+            testX = newX;
+            testY = newY;
+            testPath.push({x: testX, y: testY, result: result1});
+            
+            // Move perpendicular (minimum 4 cells)
+            if (i < steps - 1) {
+                const perpSize = Math.floor(Math.random() * 3) + 4; // 4-6 cells perpendicular
+                const perpX = horizontal ? testX : testX + (Math.random() > 0.5 ? perpSize : -perpSize);
+                const perpY = horizontal ? testY + (Math.random() > 0.5 ? perpSize : -perpSize) : testY;
+                
+                // Check bounds
+                if (perpX < 0 || perpX >= grid.cols || perpY < 0 || perpY >= grid.rows) return null;
+                
+                const result2 = canPlaceSegment(testX, testY, perpX, perpY, allowCrossover);
+                if (!result2.canPlace) return null;
+                
+                testX = perpX;
+                testY = perpY;
+                testPath.push({x: testX, y: testY, result: result2});
+            }
+        }
+        
+        return testPath;
+    };
+    
+    // Helper: Try to create a wide turn (L-shape with thickness)
+    const tryWideTurn = (startX, startY, goRight, goDown, allowCrossover) => {
+        // Ensure minimum of 4 cells per segment
+        const width = Math.floor(Math.random() * 4) + 4; // 4-7 cells wide
+        const height = Math.floor(Math.random() * 4) + 4; // 4-7 cells high
+        
+        let testX = startX;
+        let testY = startY;
+        const testPath = [];
+        
+        // First leg
+        const newX1 = goRight ? testX + width : testX - width;
+        if (newX1 < 0 || newX1 >= grid.cols) return null;
+        
+        const result1 = canPlaceSegment(testX, testY, newX1, testY, allowCrossover);
+        if (!result1.canPlace) return null;
+        
+        testX = newX1;
+        testPath.push({x: testX, y: testY, result: result1});
+        
+        // Corner piece - move minimum 4 cells perpendicular
+        const cornerSize = Math.floor(Math.random() * 2) + 4; // 4-5 cells
+        const newY1 = goDown ? testY + cornerSize : testY - cornerSize;
+        if (newY1 < 0 || newY1 >= grid.rows) return null;
+        
+        const result2 = canPlaceSegment(testX, testY, testX, newY1, allowCrossover);
+        if (!result2.canPlace) return null;
+        
+        testY = newY1;
+        testPath.push({x: testX, y: testY, result: result2});
+        
+        // Parallel return leg (minimum 4 cells)
+        const returnWidth = Math.max(4, width - 1);
+        const newX2 = goRight ? testX - returnWidth : testX + returnWidth;
+        if (newX2 < 0 || newX2 >= grid.cols) return null;
+        
+        const result3 = canPlaceSegment(testX, testY, newX2, testY, allowCrossover);
+        if (!result3.canPlace) return null;
+        
+        testX = newX2;
+        testPath.push({x: testX, y: testY, result: result3});
+        
+        // Final leg down/up
+        const newY2 = goDown ? testY + height : testY - height;
+        if (newY2 < 0 || newY2 >= grid.rows) return null;
+        
+        const result4 = canPlaceSegment(testX, testY, testX, newY2, allowCrossover);
+        if (!result4.canPlace) return null;
+        
+        testY = newY2;
+        testPath.push({x: testX, y: testY, result: result4});
+        
+        return testPath;
+    };
+    
+    // Generate path with variation in segment lengths and complex patterns
+    let turnsRemaining = maxTurns;
+    let lastMoveDirection = null;
+    let segmentLengths = []; // Track for variation calculation
+    let consecutiveSameLength = 0;
+    let lastSegmentLength = 0;
+    let patternsSinceComplex = 0; // Track patterns since last complex pattern
     
     while ((currentX !== grid.exit.x || currentY !== grid.exit.y) && turnsRemaining > 0) {
         const deltaX = grid.exit.x - currentX;
         const deltaY = grid.exit.y - currentY;
         
-        // If we've reached the exit, stop
         if (deltaX === 0 && deltaY === 0) break;
         
-        // Determine which direction to try first
-        let tryHorizontalFirst = Math.abs(deltaX) > Math.abs(deltaY);
-        
-        // Alternate if possible to create winding path
-        if (lastMoveDirection === 'H' && deltaY !== 0) {
-            tryHorizontalFirst = false;
-        } else if (lastMoveDirection === 'V' && deltaX !== 0) {
-            tryHorizontalFirst = true;
-        }
+        // Decide if we should try a complex pattern
+        const distanceToExit = Math.abs(deltaX) + Math.abs(deltaY);
+        const canUseComplexPattern = turnsRemaining >= 4 && distanceToExit > 12 && patternsSinceComplex >= 2;
+        const shouldTryComplexPattern = canUseComplexPattern && Math.random() > 0.5;
         
         let moved = false;
-        const directions = tryHorizontalFirst ? ['H', 'V'] : ['V', 'H'];
+        const allowCrossover = turnsRemaining > 2;
         
-        for (const dir of directions) {
-            if (dir === 'H' && deltaX !== 0) {
-                // Try horizontal movement
-                const segmentLength = Math.min(
-                    Math.abs(deltaX),
-                    Math.floor(Math.random() * 8) + 3 // Random length 3-10
-                );
-                const targetX = currentX + (deltaX > 0 ? segmentLength : -segmentLength);
+        // Try complex patterns first if conditions are right
+        if (shouldTryComplexPattern) {
+            const patternChoice = Math.random();
+            
+            // Try staircase pattern (40% chance)
+            if (patternChoice < 0.4) {
+                const horizontal = Math.abs(deltaX) > Math.abs(deltaY);
+                const distance = horizontal ? Math.abs(deltaX) : Math.abs(deltaY);
+                const staircase = tryStaircasePattern(currentX, currentY, distance, horizontal, allowCrossover);
                 
-                // Ensure in bounds
-                if (targetX < 0 || targetX >= grid.cols) continue;
-                
-                if (canPlaceSegment(currentX, currentY, targetX, currentY, 'H')) {
-                    placeSegment(currentX, currentY, targetX, currentY, 'H');
-                    currentX = targetX;
-                    lastMoveDirection = 'H';
-                    turnsRemaining--;
+                if (staircase && staircase.length > 0) {
+                    // Apply the staircase pattern
+                    for (const step of staircase) {
+                        placeSegment(currentX, currentY, step.x, step.y, step.result.crossover);
+                        currentX = step.x;
+                        currentY = step.y;
+                        turnsRemaining--;
+                        turnCount++;
+                        segmentLengths.push(Math.abs(step.x - currentX) + Math.abs(step.y - currentY));
+                    }
+                    lastMoveDirection = horizontal ? 'H' : 'V';
+                    patternsSinceComplex = 0;
                     moved = true;
-                    break;
                 }
-            } else if (dir === 'V' && deltaY !== 0) {
-                // Try vertical movement
-                const segmentLength = Math.min(
-                    Math.abs(deltaY),
-                    Math.floor(Math.random() * 8) + 3 // Random length 3-10
-                );
-                const targetY = currentY + (deltaY > 0 ? segmentLength : -segmentLength);
+            }
+            // Try wide turn pattern (60% chance or fallback)
+            else {
+                const goRight = deltaX > 0;
+                const goDown = deltaY > 0;
+                const wideTurn = tryWideTurn(currentX, currentY, goRight, goDown, allowCrossover);
                 
-                // Ensure in bounds
-                if (targetY < 0 || targetY >= grid.rows) continue;
-                
-                if (canPlaceSegment(currentX, currentY, currentX, targetY, 'V')) {
-                    placeSegment(currentX, currentY, currentX, targetY, 'V');
-                    currentY = targetY;
-                    lastMoveDirection = 'V';
-                    turnsRemaining--;
+                if (wideTurn && wideTurn.length > 0) {
+                    // Apply the wide turn pattern
+                    for (const step of wideTurn) {
+                        placeSegment(currentX, currentY, step.x, step.y, step.result.crossover);
+                        currentX = step.x;
+                        currentY = step.y;
+                        turnsRemaining--;
+                        turnCount++;
+                        segmentLengths.push(Math.abs(step.x - currentX) + Math.abs(step.y - currentY));
+                    }
+                    lastMoveDirection = goRight ? 'H' : 'V';
+                    patternsSinceComplex = 0;
                     moved = true;
-                    break;
                 }
             }
         }
         
-        // If stuck or out of turns, make direct path to exit
-        if (!moved || turnsRemaining <= 1) {
-            // Final approach - go directly to exit
+        // If complex pattern didn't work or wasn't tried, use standard movement
+        if (!moved) {
+            patternsSinceComplex++;
+            
+            // Add some randomness to create more interesting paths
+            const addComplexity = turnsRemaining > (maxTurns * 0.3) && Math.random() > 0.6;
+            
+            // Determine direction priority
+            let tryHorizontalFirst = Math.abs(deltaX) > Math.abs(deltaY);
+            
+            // Alternate to create winding paths
+            if (lastMoveDirection === 'H' && deltaY !== 0) {
+                tryHorizontalFirst = false;
+            } else if (lastMoveDirection === 'V' && deltaX !== 0) {
+                tryHorizontalFirst = true;
+            }
+            
+            // Sometimes force alternation for complexity
+            if (addComplexity && Math.random() > 0.5) {
+                tryHorizontalFirst = !tryHorizontalFirst;
+            }
+            
+            const directions = tryHorizontalFirst ? ['H', 'V'] : ['V', 'H'];
+            
+            for (const dir of directions) {
+            if (dir === 'H' && deltaX !== 0) {
+                // Variable segment length with more variation
+                // Enforce minimum of 4 cells after each turn (with one exception allowed)
+                const distanceRemaining = Math.abs(grid.exit.x - currentX) + Math.abs(grid.exit.y - currentY);
+                const nearEnd = distanceRemaining < 10 || turnsRemaining <= 2;
+                
+                // Allow shorter segments only if:
+                // 1. We haven't used the short segment yet AND
+                // 2. We're near the end OR the distance available is less than 4
+                const canUseShortSegment = !shortSegmentUsed && (nearEnd || Math.abs(deltaX) < 4);
+                const minLength = canUseShortSegment && Math.abs(deltaX) < 4 ? Math.max(1, Math.abs(deltaX)) : 4;
+                const maxLength = Math.min(Math.abs(deltaX), 12);
+                
+                // Skip if not enough distance and can't use short segment
+                if (maxLength < minLength) continue;
+                
+                let segmentLength;
+                
+                // Vary segment length to avoid repetition
+                if (consecutiveSameLength >= 2) {
+                    segmentLength = lastSegmentLength + Math.floor(Math.random() * 4) - 2;
+                } else {
+                    segmentLength = Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
+                }
+                
+                segmentLength = Math.max(minLength, Math.min(maxLength, segmentLength));
+                
+                const targetX = currentX + (deltaX > 0 ? segmentLength : -segmentLength);
+                
+                if (targetX < 0 || targetX >= grid.cols) continue;
+                
+                const allowCrossover = turnsRemaining > 2; // Don't use crossover near the end
+                const result = canPlaceSegment(currentX, currentY, targetX, currentY, allowCrossover);
+                
+                if (result.canPlace) {
+                    placeSegment(currentX, currentY, targetX, currentY, result.crossover);
+                    currentX = targetX;
+                    lastMoveDirection = 'H';
+                    turnsRemaining--;
+                    turnCount++;
+                    moved = true;
+                    
+                    // Mark if we used a short segment
+                    if (segmentLength < 4) {
+                        shortSegmentUsed = true;
+                    }
+                    
+                    // Track segment lengths
+                    segmentLengths.push(segmentLength);
+                    if (segmentLength === lastSegmentLength) {
+                        consecutiveSameLength++;
+                    } else {
+                        consecutiveSameLength = 0;
+                    }
+                    lastSegmentLength = segmentLength;
+                    
+                    break;
+                }
+            } else if (dir === 'V' && deltaY !== 0) {
+                // Enforce minimum of 4 cells after each turn (with one exception allowed)
+                const distanceRemaining = Math.abs(grid.exit.x - currentX) + Math.abs(grid.exit.y - currentY);
+                const nearEnd = distanceRemaining < 10 || turnsRemaining <= 2;
+                
+                const canUseShortSegment = !shortSegmentUsed && (nearEnd || Math.abs(deltaY) < 4);
+                const minLength = canUseShortSegment && Math.abs(deltaY) < 4 ? Math.max(1, Math.abs(deltaY)) : 4;
+                const maxLength = Math.min(Math.abs(deltaY), 12);
+                
+                // Skip if not enough distance and can't use short segment
+                if (maxLength < minLength) continue;
+                
+                let segmentLength;
+                
+                if (consecutiveSameLength >= 2) {
+                    segmentLength = lastSegmentLength + Math.floor(Math.random() * 4) - 2;
+                } else {
+                    segmentLength = Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
+                }
+                
+                segmentLength = Math.max(minLength, Math.min(maxLength, segmentLength));
+                
+                const targetY = currentY + (deltaY > 0 ? segmentLength : -segmentLength);
+                
+                if (targetY < 0 || targetY >= grid.rows) continue;
+                
+                const allowCrossover = turnsRemaining > 2;
+                const result = canPlaceSegment(currentX, currentY, currentX, targetY, allowCrossover);
+                
+                if (result.canPlace) {
+                    placeSegment(currentX, currentY, currentX, targetY, result.crossover);
+                    currentY = targetY;
+                    lastMoveDirection = 'V';
+                    turnsRemaining--;
+                    turnCount++;
+                    moved = true;
+                    
+                    // Mark if we used a short segment
+                    if (segmentLength < 4) {
+                        shortSegmentUsed = true;
+                    }
+                    
+                    segmentLengths.push(segmentLength);
+                    if (segmentLength === lastSegmentLength) {
+                        consecutiveSameLength++;
+                    } else {
+                        consecutiveSameLength = 0;
+                    }
+                    lastSegmentLength = segmentLength;
+                    
+                    break;
+                }
+            }
+            }
+        }
+        
+        // If stuck or minimum turns not met but close to exit
+        if (!moved || (turnsRemaining <= 1 && turnCount >= minTurns)) {
+            // Final approach - direct path to exit
             if (currentX !== grid.exit.x) {
-                // Move horizontally to exit
                 const step = grid.exit.x > currentX ? 1 : -1;
                 while (currentX !== grid.exit.x) {
                     currentX += step;
@@ -868,7 +1173,6 @@ function generateSerpentinePath() {
             }
             
             if (currentY !== grid.exit.y) {
-                // Move vertically to exit
                 const step = grid.exit.y > currentY ? 1 : -1;
                 while (currentY !== grid.exit.y) {
                     currentY += step;
@@ -882,12 +1186,29 @@ function generateSerpentinePath() {
             
             break;
         }
+        
+        // If stuck and minimum turns not met, restart
+        if (!moved && turnCount < minTurns) {
+            return null;
+        }
     }
     
-    // Mark exit
+    // Calculate variation score (higher is more varied)
+    const variation = segmentLengths.length > 0 
+        ? segmentLengths.reduce((sum, len, i, arr) => {
+            if (i === 0) return 0;
+            return sum + Math.abs(len - arr[i - 1]);
+        }, 0) / segmentLengths.length
+        : 0;
+    
     occupiedCells.set(`${grid.exit.x},${grid.exit.y}`, 'END');
     
-    return path;
+    return {
+        path,
+        turnCount,
+        variation,
+        usedCrossover: crossoverUsed
+    };
 }
 
 function minDistanceToPath(x, y) {
@@ -2068,45 +2389,31 @@ function completeWave() {
     }
     
     gameState.waveInProgress = false;
+    
+    // Track completed runs (finishing wave 15)
+    if (gameState.wave === 15) {
+        gameState.runsCompleted++;
+    }
+    
     gameState.wave++;
     gameState.waveTimer = 0;
     gameState.gold += 50 + gameState.wave * 10; // Wave completion bonus
     gameState.score += 100 * gameState.wave;
     
-    // Every 15 waves, increase path complexity
-    if (gameState.wave % 15 === 0) {
-        gameState.maxPathTurns += 4; // Increase by 4 turns
-        console.log(`Path complexity increased! Max turns: ${gameState.maxPathTurns}`);
-        
-        // Ask user if they want a new level with increased complexity
-        customConfirm(
-            `Wave ${gameState.wave} Complete!\n\n` +
-            `Path complexity increased to ${gameState.maxPathTurns} turns.\n\n` +
-            `Generate a new level with more complex layout?\n\n` +
-            `(Game will restart from Wave 1 with the new difficulty)`,
-            'NEW LEVEL'
-        ).then(confirmNewLevel => {
-            if (confirmNewLevel) {
-                // Save the current max turns before reset
-                const currentMaxTurns = gameState.maxPathTurns;
-                
-                // Reset game to initial state
-                resetGame();
-                
-                // Restore the increased turn complexity
-                gameState.maxPathTurns = currentMaxTurns;
-                
-                // Generate new level with increased complexity
-                generateLevel();
-            }
-        });
-    }
-    
     updateUI();
     
-    // Check for victory (optional milestone)
-    if (gameState.wave > 20) {
-        showVictory();
+    // After wave 15, show the New Level button and modal (first time only)
+    if (gameState.wave > 15) {
+        const newLevelBtn = document.getElementById('newLevelBtn');
+        if (newLevelBtn) {
+            newLevelBtn.style.display = 'block';
+        }
+        
+        // Show the modal automatically the first time
+        if (!newLevelModalShown) {
+            newLevelModalShown = true;
+            showNewLevelModal();
+        }
     }
 }
 
@@ -2176,10 +2483,10 @@ function drawGrid() {
     
     // Draw circuit board style path
     if (grid.path && grid.path.length > 1) {
-        const termColor = getComputedStyle(document.body).getPropertyValue('--term-text');
+        const pathColor = getComputedStyle(document.body).getPropertyValue('--color-path');
         
         // Draw circuit traces (the copper lines)
-        ctx.strokeStyle = termColor;
+        ctx.strokeStyle = pathColor;
         ctx.lineWidth = 6;
         ctx.globalAlpha = 0.3;
         ctx.lineCap = 'square';
@@ -2203,7 +2510,7 @@ function drawGrid() {
         ctx.stroke();
         
         // Draw inner trace (brighter center line)
-        ctx.strokeStyle = termColor;
+        ctx.strokeStyle = pathColor;
         ctx.lineWidth = 3;
         ctx.globalAlpha = 0.6;
         
@@ -2225,7 +2532,7 @@ function drawGrid() {
         ctx.globalAlpha = 1.0;
         
         // Draw circuit pads at corners/turns
-        ctx.fillStyle = termColor;
+        ctx.fillStyle = pathColor;
         ctx.globalAlpha = 0.5;
         
         for (let i = 0; i < grid.path.length; i++) {
@@ -2285,7 +2592,7 @@ function drawGrid() {
             const pulse = Math.sin(Date.now() * 0.003 + n * 1.5) * 0.3 + 0.7; // Pulsing alpha (slowed down)
             
             // Outer glow (smaller)
-            ctx.shadowColor = termColor;
+            ctx.shadowColor = getComputedStyle(document.body).getPropertyValue('--term-glow');
             ctx.shadowBlur = 15;
             ctx.fillStyle = `rgba(0, 255, 255, ${pulse * 0.35})`;
             ctx.beginPath();
@@ -2725,6 +3032,7 @@ function drawSelection() {
 
 function updateUI() {
     document.getElementById('waveDisplay').textContent = String(gameState.wave).padStart(2, '0');
+    document.getElementById('runsDisplay').textContent = gameState.runsCompleted;
     document.getElementById('livesDisplay').textContent = '♥'.repeat(gameState.lives);
     document.getElementById('goldDisplay').textContent = gameState.gold;
     document.getElementById('scoreDisplay').textContent = gameState.score;
@@ -2763,10 +3071,13 @@ function updateZoomDisplay() {
 
 function updateWaveTimerDisplay() {
     const timerElement = document.getElementById('waveTimer');
+    const labelElement = document.getElementById('waveTimerLabel');
     
     if (gameState.waveInProgress) {
+        labelElement.textContent = 'WAVE ';
         timerElement.textContent = 'IN PROGRESS';
     } else {
+        labelElement.textContent = 'Next wave in: ';
         const remaining = Math.ceil((gameState.waveDelay - gameState.waveTimer) / 1000);
         timerElement.textContent = remaining + 's';
     }
@@ -2812,6 +3123,10 @@ document.getElementById('startWaveBtn').addEventListener('click', () => {
     if (!gameState.waveInProgress) {
         startWave();
     }
+});
+
+document.getElementById('newLevelBtn').addEventListener('click', () => {
+    showNewLevelModal();
 });
 
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
@@ -2907,20 +3222,68 @@ document.getElementById('zoomOut').addEventListener('click', () => {
 
 document.getElementById('centerView').addEventListener('click', centerView);
 
+// ========================================
+// PREFERENCES SYSTEM (separate from game saves)
+// ========================================
+const PREFS_KEY = 'towerDefensePreferences';
+
+function savePreferences() {
+    const prefs = {
+        theme: currentTheme
+    };
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+        console.error('Failed to save preferences:', e);
+    }
+}
+
+function loadPreferences() {
+    try {
+        const saved = localStorage.getItem(PREFS_KEY);
+        if (saved) {
+            const prefs = JSON.parse(saved);
+            
+            // Restore theme
+            if (typeof prefs.theme === 'number' && prefs.theme >= 0 && prefs.theme < themes.length) {
+                currentTheme = prefs.theme;
+                document.body.classList.add(`theme-${themes[currentTheme]}`);
+                document.getElementById('themeText').textContent = themeDisplayNames[themes[currentTheme]];
+            }
+            
+            return true;
+        }
+    } catch (e) {
+        console.error('Failed to load preferences:', e);
+    }
+    
+    return false;
+}
+
 // Theme toggle
 let currentTheme = 0;
-const themes = ['green', 'amber', 'c64', 'red'];
+const themes = [
+    'green', 
+    'tron', 
+    'sark', 
+    'clu', 
+    'flynn'
+];
+
+const themeDisplayNames = {
+    'green': 'GREEN',
+    'tron': 'TRON',
+    'sark': 'SARK',
+    'clu': 'CLU',
+    'flynn': 'FLYNN'
+};
 
 document.getElementById('themeToggle').addEventListener('click', () => {
     document.body.classList.remove(`theme-${themes[currentTheme]}`);
     currentTheme = (currentTheme + 1) % themes.length;
     document.body.classList.add(`theme-${themes[currentTheme]}`);
-    document.getElementById('themeText').textContent = themes[currentTheme].toUpperCase();
-});
-
-// CRT toggle
-document.getElementById('crtToggle').addEventListener('click', () => {
-    document.body.classList.toggle('crt-mode');
+    document.getElementById('themeText').textContent = themeDisplayNames[themes[currentTheme]];
+    savePreferences();
 });
 
 // Modal buttons
@@ -2967,11 +3330,15 @@ function resetGame() {
         enemiesSpawned: 0,
         waveTimer: 0,
         waveDelay: 30000,
-        maxPathTurns: 12  // Reset to initial value
+        maxPathTurns: 16,  // Reset to initial value
+        runsCompleted: 0  // Reset to 0
     };
     
     // Reset pause tracking
     wasUserPaused = false;
+    
+    // Reset new level modal flag
+    newLevelModalShown = false;
     
     towers = [];
     enemies = [];
@@ -2990,6 +3357,12 @@ function resetGame() {
                 grid.cells[y][x] = 1;
             }
         }
+    }
+    
+    // Hide the New Level button
+    const newLevelBtn = document.getElementById('newLevelBtn');
+    if (newLevelBtn) {
+        newLevelBtn.style.display = 'none';
     }
     
     // Update UI including speed display
@@ -3025,37 +3398,66 @@ function gameOver() {
     document.getElementById('gameOverModal').classList.remove('hidden');
 }
 
-function showVictory() {
+function showNewLevelModal() {
     const perfectRun = gameState.lives === 3;
+    const wavesCompleted = gameState.wave;
+    
+    // Increase path complexity
+    gameState.maxPathTurns += 4;
     
     showCustomModal(
         `╔════════════════════════════════════╗
 ║                                    ║
-║        VICTORY!                    ║
-║                                    ║
-║    SECTOR SECURED                  ║
+║    GENERATE NEW LEVEL              ║
 ║                                    ║
 ╚════════════════════════════════════╝
 
-Continue playing or start a new game?`,
-        'VICTORY',
-        {
-            showCancel: true,
-            confirmText: 'CONTINUE',
-            cancelText: 'NEW GAME',
-            stats: {
-                'Waves Completed': gameState.wave,
-                'Final Score': gameState.score,
-                'Perfect Run': perfectRun ? 'YES ✓' : 'NO'
-            }
-        }
-    ).then(continueGame => {
-        if (!continueGame) {
-            // User chose NEW GAME
+Path complexity increased to ${gameState.maxPathTurns} turns.
+
+Generate a new level with more complex layout?
+
+(Game will restart from Wave 1 with increased difficulty)
+
+Current Stats:
+• Waves Completed: ${wavesCompleted}
+• Score: ${gameState.score}
+• Perfect Run: ${perfectRun ? 'YES ✓' : 'NO'}`,
+        'NEW LEVEL',
+        { showCancel: true, confirmText: 'NEW LEVEL', cancelText: 'CONTINUE' }
+    ).then(confirmNewLevel => {
+        if (confirmNewLevel) {
+            // Save the current max turns and runs completed before reset
+            const currentMaxTurns = gameState.maxPathTurns;
+            const currentRunsCompleted = gameState.runsCompleted;
+            
+            // Reset game to initial state
             resetGame();
+            
+            // Restore the increased turn complexity and runs completed
+            gameState.maxPathTurns = currentMaxTurns;
+            gameState.runsCompleted = currentRunsCompleted;
+            
+            // Reset the modal shown flag
+            newLevelModalShown = false;
+            
+            // Hide the New Level button
+            const newLevelBtn = document.getElementById('newLevelBtn');
+            if (newLevelBtn) {
+                newLevelBtn.style.display = 'none';
+            }
+            
+            // Generate new level with increased complexity
             generateLevel();
+        } else {
+            // User declined, restore the previous max turns
+            gameState.maxPathTurns -= 4;
+            
+            // Show a helpful message about the New Level button
+            customAlert(
+                `You can access the New Level option at any time by clicking the [NEW LEVEL] button next to the Start Wave button.`,
+                'CONTINUE'
+            );
         }
-        // If continue, just close the modal and keep playing
     });
 }
 
@@ -3080,24 +3482,71 @@ document.getElementById('saveLoadTab').addEventListener('click', () => {
 });
 
 function saveGame(saveName) {
+    // Extract only the playable grid data without device-specific padding
+    const playableBounds = grid.playableBounds;
+    const PLAYABLE_SIZE = playableBounds.maxX - playableBounds.minX + 1;
+    
+    // Extract only playable cells (without padding)
+    const playableCells = [];
+    for (let y = playableBounds.minY; y <= playableBounds.maxY; y++) {
+        const row = [];
+        for (let x = playableBounds.minX; x <= playableBounds.maxX; x++) {
+            row.push(grid.cells[y][x]);
+        }
+        playableCells.push(row);
+    }
+    
+    // Convert path, entry, exit to relative coordinates (without padding offset)
+    const pathRelative = grid.path.map(cell => ({
+        x: cell.x - playableBounds.minX,
+        y: cell.y - playableBounds.minY
+    }));
+    
+    const entryRelative = {
+        x: grid.entry.x - playableBounds.minX,
+        y: grid.entry.y - playableBounds.minY
+    };
+    
+    const exitRelative = {
+        x: grid.exit.x - playableBounds.minX,
+        y: grid.exit.y - playableBounds.minY
+    };
+    
+    // Convert tower positions to relative coordinates and save only persistent data
+    const towersRelative = towers.map(t => ({
+        type: t.type,
+        x: t.x - playableBounds.minX,
+        y: t.y - playableBounds.minY,
+        level: t.level,
+        kills: t.kills,
+        totalCost: t.totalCost
+        // Don't save runtime properties: lastShot, target
+    }));
+    
     const saveData = {
-        version: '1.0',
+        version: '2.0', // Updated version to handle padding-free saves
         timestamp: Date.now(),
-        gameState: {...gameState},
-        grid: {
-            cols: grid.cols,
-            rows: grid.rows,
-            cells: grid.cells.map(row => [...row]),
-            path: [...grid.path],
-            entry: {...grid.entry},
-            exit: {...grid.exit},
-            playableBounds: grid.playableBounds ? {...grid.playableBounds} : null
+        gameState: {
+            // Only save persistent data, not runtime/UI state
+            wave: gameState.wave,
+            lives: gameState.lives,
+            gold: gameState.gold,
+            score: gameState.score,
+            enemiesKilled: gameState.enemiesKilled,
+            maxPathTurns: gameState.maxPathTurns,
+            runsCompleted: gameState.runsCompleted
         },
-        towers: towers.map(t => ({...t})),
+        grid: {
+            playableSize: PLAYABLE_SIZE,
+            cells: playableCells, // Only playable cells
+            path: pathRelative,
+            entry: entryRelative,
+            exit: exitRelative
+        },
+        towers: towersRelative,
         viewport: {
-            x: viewport.x,
-            y: viewport.y,
             zoom: viewport.zoom
+            // Don't save x/y as they need to be recalculated for new padding
         }
     };
     
@@ -3121,57 +3570,184 @@ function loadGame(saveName) {
             return false;
         }
         
-        // Restore game state
-        gameState = {...saveData.gameState};
+        // Temporarily pause game to ensure clean state restoration
+        gameState.isPaused = true;
         
-        // Restore grid
-        grid.cols = saveData.grid.cols;
-        grid.rows = saveData.grid.rows;
-        grid.cells = saveData.grid.cells.map(row => [...row]);
-        grid.path = [...saveData.grid.path];
-        grid.entry = {...saveData.grid.entry};
-        grid.exit = {...saveData.grid.exit};
-        grid.playableBounds = saveData.grid.playableBounds ? {...saveData.grid.playableBounds} : null;
-        
-        // Restore towers
-        towers = saveData.towers.map(t => ({...t}));
-        
-        // Restore viewport
-        viewport.x = saveData.viewport.x;
-        viewport.y = saveData.viewport.y;
-        viewport.zoom = saveData.viewport.zoom;
-        
-        // Clear runtime state that shouldn't persist
+        // Clear all runtime entities FIRST before restoring state
+        // This prevents any race conditions with the game loop
         enemies = [];
         projectiles = [];
-        selectedCell = null;
-        selectedTowerType = null;
-        
-        // Clear tower targets and reset lastShot since enemies are cleared and gameTime will reset
-        towers.forEach(tower => {
-            tower.target = null;
-            tower.lastShot = 0; // Reset to allow immediate firing when wave starts
-        });
-        
-        // Reset game time and spawn queue
-        gameTime = 0;
         enemySpawnQueue = [];
+        gameTime = 0;
+        accumulator = 0;
+        lastTime = 0;
         
-        // Reset wave state - saved games always start with wave not in progress
-        // This ensures the player can properly start the wave after loading
+        // Restore persistent game state only (not runtime/UI state)
+        gameState.wave = saveData.gameState.wave;
+        gameState.lives = saveData.gameState.lives;
+        gameState.gold = saveData.gameState.gold;
+        gameState.score = saveData.gameState.score;
+        gameState.enemiesKilled = saveData.gameState.enemiesKilled || 0;
+        gameState.maxPathTurns = saveData.gameState.maxPathTurns || 16;
+        gameState.runsCompleted = saveData.gameState.runsCompleted || 0;
+        
+        // Reset runtime state (these should never be loaded from saves)
+        gameState.isGameOver = false;
+        gameState.speed = 1;
         gameState.waveInProgress = false;
         gameState.enemiesSpawned = 0;
         gameState.waveTimer = 0;
+        gameState.waveDelay = 30000;
+        // Note: isPaused will be set to false at the end
         
-        // Ensure game is unpaused and reset speed
+        // Handle both old (v1.0) and new (v2.0) save formats
+        if (saveData.version === '2.0') {
+            // New format: Reconstruct grid with device-appropriate padding
+            const PLAYABLE_SIZE = saveData.grid.playableSize;
+            
+            // Calculate padding for current device
+            const HORIZONTAL_PADDING = Math.ceil((canvas.width / 2) / CONFIG.CELL_SIZE) * 2 + 1;
+            const VERTICAL_PADDING = Math.ceil((canvas.height / 2) / CONFIG.CELL_SIZE) * 2 + 1;
+            
+            // Setup grid dimensions
+            grid.cols = PLAYABLE_SIZE + (HORIZONTAL_PADDING * 2);
+            grid.rows = PLAYABLE_SIZE + (VERTICAL_PADDING * 2);
+            
+            // Store playable bounds
+            grid.playableBounds = {
+                minX: HORIZONTAL_PADDING,
+                minY: VERTICAL_PADDING,
+                maxX: HORIZONTAL_PADDING + PLAYABLE_SIZE - 1,
+                maxY: VERTICAL_PADDING + PLAYABLE_SIZE - 1
+            };
+            
+            // Initialize full grid with padding
+            grid.cells = Array(grid.rows).fill(null).map((_, y) => 
+                Array(grid.cols).fill(null).map((_, x) => {
+                    // Cells outside playable bounds are decorative
+                    if (x < grid.playableBounds.minX || x > grid.playableBounds.maxX ||
+                        y < grid.playableBounds.minY || y > grid.playableBounds.maxY) {
+                        return 3; // Decorative wall area
+                    }
+                    
+                    // Insert saved playable cells
+                    const relX = x - HORIZONTAL_PADDING;
+                    const relY = y - VERTICAL_PADDING;
+                    return saveData.grid.cells[relY][relX];
+                })
+            );
+            
+            // Convert path back to absolute coordinates with new padding
+            grid.path = saveData.grid.path.map(cell => ({
+                x: cell.x + HORIZONTAL_PADDING,
+                y: cell.y + VERTICAL_PADDING
+            }));
+            
+            // Convert entry/exit back to absolute coordinates
+            grid.entry = {
+                x: saveData.grid.entry.x + HORIZONTAL_PADDING,
+                y: saveData.grid.entry.y + VERTICAL_PADDING
+            };
+            
+            grid.exit = {
+                x: saveData.grid.exit.x + HORIZONTAL_PADDING,
+                y: saveData.grid.exit.y + VERTICAL_PADDING
+            };
+            
+            // Convert towers back to absolute coordinates and initialize runtime properties
+            towers = saveData.towers.map(t => ({
+                type: t.type,
+                x: t.x + HORIZONTAL_PADDING,
+                y: t.y + VERTICAL_PADDING,
+                level: t.level,
+                kills: t.kills || 0,
+                totalCost: t.totalCost,
+                lastShot: 0,  // Initialize runtime property
+                target: null  // Initialize runtime property
+            }));
+            
+            // Recenter viewport on path
+            const pathCenterX = (PLAYABLE_SIZE / 2) + HORIZONTAL_PADDING;
+            const pathCenterY = (PLAYABLE_SIZE / 2) + VERTICAL_PADDING;
+            viewport.x = pathCenterX * CONFIG.CELL_SIZE - canvas.width / (2 * saveData.viewport.zoom);
+            viewport.y = pathCenterY * CONFIG.CELL_SIZE - canvas.height / (2 * saveData.viewport.zoom);
+            viewport.zoom = saveData.viewport.zoom;
+            
+        } else {
+            // Old format (v1.0): Load as-is (legacy support)
+            grid.cols = saveData.grid.cols;
+            grid.rows = saveData.grid.rows;
+            grid.cells = saveData.grid.cells.map(row => [...row]);
+            grid.path = [...saveData.grid.path];
+            grid.entry = {...saveData.grid.entry};
+            grid.exit = {...saveData.grid.exit};
+            
+            // If playableBounds exists, use it; otherwise calculate from grid
+            if (saveData.grid.playableBounds) {
+                grid.playableBounds = {...saveData.grid.playableBounds};
+            } else {
+                // Calculate playableBounds by finding the extent of non-decorative cells
+                // This is a fallback for very old saves
+                let minX = grid.cols, maxX = 0, minY = grid.rows, maxY = 0;
+                for (let y = 0; y < grid.rows; y++) {
+                    for (let x = 0; x < grid.cols; x++) {
+                        if (grid.cells[y][x] !== 3) {  // Not decorative wall
+                            minX = Math.min(minX, x);
+                            maxX = Math.max(maxX, x);
+                            minY = Math.min(minY, y);
+                            maxY = Math.max(maxY, y);
+                        }
+                    }
+                }
+                grid.playableBounds = { minX, minY, maxX, maxY };
+            }
+            
+            // Restore towers (legacy format may have extra properties, filter to essentials)
+            towers = saveData.towers.map(t => ({
+                type: t.type,
+                x: t.x,
+                y: t.y,
+                level: t.level || 1,
+                kills: t.kills || 0,
+                totalCost: t.totalCost || 0,
+                lastShot: 0,
+                target: null
+            }));
+            
+            // Restore viewport
+            viewport.x = saveData.viewport.x;
+            viewport.y = saveData.viewport.y;
+            viewport.zoom = saveData.viewport.zoom;
+        }
+        
+        // Clear remaining runtime state
+        selectedCell = null;
+        selectedTowerType = null;
+        wasUserPaused = false;
+        touchStartPositions = [];
+        
+        // Reset viewport drag state
+        viewport.isDragging = false;
+        viewport.dragStartX = 0;
+        viewport.dragStartY = 0;
+        viewport.lastTouchDist = 0;
+        
+        // CRITICAL: Reset lastTime to current timestamp to prevent huge deltaTime spike
+        // This must be done before unpausing to avoid wave timer jumping forward
+        lastTime = performance.now();
+        
+        // Unpause game - always unpause after load to allow wave to start
         gameState.isPaused = false;
-        gameState.speed = 1;
-        wasUserPaused = false; // Reset user pause tracking
+        
+        // Update UI to reflect runtime state
         document.getElementById('pauseText').textContent = 'PAUSE';
         document.getElementById('speedText').textContent = 'SPEED: x1';
         
-        // Reset time accumulator
-        accumulator = 0;
+        // Hide New Level button (only shown after completing wave 15)
+        const newLevelBtn = document.getElementById('newLevelBtn');
+        if (newLevelBtn) {
+            newLevelBtn.style.display = gameState.wave > 15 ? 'block' : 'none';
+        }
         
         // Update all UI elements
         updateUI();
@@ -3220,6 +3796,7 @@ function refreshSaveList() {
         const save = saves[name];
         const date = new Date(save.timestamp);
         const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        const runs = save.gameState.runsCompleted || 0;
         
         return `
             <div class="save-item">
@@ -3227,7 +3804,7 @@ function refreshSaveList() {
                     <span class="save-item-name">${name}</span>
                 </div>
                 <div class="save-item-details">
-                    Wave: ${save.gameState.wave} | Gold: ${save.gameState.gold} | Lives: ${save.gameState.lives}
+                    Wave: ${save.gameState.wave} | Runs: ${runs} | Gold: ${save.gameState.gold} | Lives: ${save.gameState.lives}
                 </div>
                 <div class="save-item-details">
                     ${dateStr}
@@ -3466,7 +4043,7 @@ document.getElementById('wipeProgressBtn').addEventListener('click', () => {
                         enemiesSpawned: 0,
                         waveTimer: 0,
                         waveDelay: 30000,
-                        maxPathTurns: 12  // Reset to default
+                        maxPathTurns: 16  // Reset to default
                     };
                     
                     towers = [];
@@ -3496,6 +4073,290 @@ document.getElementById('wipeProgressBtn').addEventListener('click', () => {
         });
     });
 });
+
+// ========================================
+// CUSTOM TOOLTIP SYSTEM
+// ========================================
+
+class TooltipManager {
+    constructor() {
+        this.tooltip = document.getElementById('customTooltip');
+        this.tooltipTitle = document.getElementById('tooltipTitle');
+        this.tooltipContent = document.getElementById('tooltipContent');
+        this.currentTarget = null;
+        this.hideTimeout = null;
+        
+        // Bind event handlers
+        this.handleMouseEnter = this.handleMouseEnter.bind(this);
+        this.handleMouseLeave = this.handleMouseLeave.bind(this);
+        this.handleMouseMove = this.handleMouseMove.bind(this);
+        
+        this.init();
+    }
+    
+    init() {
+        // Find all tower buttons and attach event listeners
+        const towerButtons = document.querySelectorAll('.tower-btn[data-tower]');
+        towerButtons.forEach(button => {
+            button.addEventListener('mouseenter', this.handleMouseEnter);
+            button.addEventListener('mouseleave', this.handleMouseLeave);
+            button.addEventListener('mousemove', this.handleMouseMove);
+            
+            // Remove default title attribute since we're using custom tooltips
+            button.removeAttribute('title');
+        });
+    }
+    
+    handleMouseEnter(event) {
+        clearTimeout(this.hideTimeout);
+        this.currentTarget = event.currentTarget;
+        
+        const towerType = this.currentTarget.getAttribute('data-tower');
+        const towerData = CONFIG.TOWER_TYPES[towerType];
+        
+        if (towerData) {
+            this.showTooltip(towerType, towerData, event);
+        }
+    }
+    
+    handleMouseLeave() {
+        this.hideTimeout = setTimeout(() => {
+            this.hideTooltip();
+        }, 100);
+    }
+    
+    handleMouseMove(event) {
+        if (this.tooltip.classList.contains('show')) {
+            this.positionTooltip(event);
+        }
+    }
+    
+    showTooltip(towerType, towerData, event) {
+        // Set tooltip title
+        this.tooltipTitle.textContent = towerData.name.toUpperCase();
+        
+        // Build tooltip content
+        const content = this.buildTooltipContent(towerType, towerData);
+        this.tooltipContent.innerHTML = content;
+        
+        // Position and show tooltip
+        this.positionTooltip(event);
+        this.tooltip.classList.add('show');
+    }
+    
+    hideTooltip() {
+        this.tooltip.classList.remove('show');
+        this.currentTarget = null;
+    }
+    
+    positionTooltip(event) {
+        const tooltipRect = this.tooltip.getBoundingClientRect();
+        const padding = 15;
+        
+        let left = event.clientX + padding;
+        let top = event.clientY + padding;
+        
+        // Check if tooltip would go off right edge
+        if (left + tooltipRect.width > window.innerWidth) {
+            left = event.clientX - tooltipRect.width - padding;
+        }
+        
+        // Check if tooltip would go off bottom edge
+        if (top + tooltipRect.height > window.innerHeight) {
+            top = event.clientY - tooltipRect.height - padding;
+        }
+        
+        // Ensure tooltip doesn't go off left or top edges
+        left = Math.max(padding, left);
+        top = Math.max(padding, top);
+        
+        this.tooltip.style.left = `${left}px`;
+        this.tooltip.style.top = `${top}px`;
+    }
+    
+    buildTooltipContent(towerType, towerData) {
+        let html = '';
+        
+        // Description section
+        const description = this.getTowerDescription(towerType);
+        if (description) {
+            html += `<div class="tooltip-section">
+                <div class="tooltip-description">${description}</div>
+            </div>`;
+        }
+        
+        // Stats section
+        html += '<div class="tooltip-section">';
+        html += '<div class="tooltip-stats-grid">';
+        
+        // Cost
+        html += `<div class="tooltip-stat-item">
+            <span class="tooltip-label">COST:</span>
+            <span class="tooltip-value">${towerData.cost}G</span>
+        </div>`;
+        
+        // Damage
+        if (towerData.damage > 0) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">DAMAGE:</span>
+                <span class="tooltip-value">${towerData.damage}</span>
+            </div>`;
+        }
+        
+        // Range
+        if (towerData.range) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">RANGE:</span>
+                <span class="tooltip-value">${towerData.range} cells</span>
+            </div>`;
+        }
+        
+        // Fire Rate
+        if (towerData.fireRate && !towerData.continuous) {
+            const fireRatePerSec = (1000 / towerData.fireRate).toFixed(1);
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">FIRE RATE:</span>
+                <span class="tooltip-value">${fireRatePerSec}/sec</span>
+            </div>`;
+        }
+        
+        // Special attributes
+        if (towerData.aoe) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">AOE RADIUS:</span>
+                <span class="tooltip-value">${towerData.aoe} cells</span>
+            </div>`;
+        }
+        
+        if (towerData.maxTargets) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">TARGETS:</span>
+                <span class="tooltip-value">${towerData.maxTargets}</span>
+            </div>`;
+        }
+        
+        if (towerData.slow) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">SLOW:</span>
+                <span class="tooltip-value">${(towerData.slow * 100)}%</span>
+            </div>`;
+        }
+        
+        if (towerData.boost) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">BOOST:</span>
+                <span class="tooltip-value">+${(towerData.boost * 100)}%</span>
+            </div>`;
+        }
+        
+        if (towerData.goldBoost) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">GOLD BOOST:</span>
+                <span class="tooltip-value">+${(towerData.goldBoost * 100)}%</span>
+            </div>`;
+        }
+        
+        if (towerData.rangeBoost) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">RANGE BOOST:</span>
+                <span class="tooltip-value">+${towerData.rangeBoost}</span>
+            </div>`;
+        }
+        
+        if (towerData.speedBoost) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">SPEED BOOST:</span>
+                <span class="tooltip-value">-${(towerData.speedBoost * 100)}%</span>
+            </div>`;
+        }
+        
+        if (towerData.chainBoost) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">CHAIN BOOST:</span>
+                <span class="tooltip-value">+${towerData.chainBoost}</span>
+            </div>`;
+        }
+        
+        if (towerData.chainTargets) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">CHAIN JUMPS:</span>
+                <span class="tooltip-value">${towerData.chainTargets}</span>
+            </div>`;
+        }
+        
+        if (towerData.continuous) {
+            html += `<div class="tooltip-stat-item">
+                <span class="tooltip-label">TYPE:</span>
+                <span class="tooltip-value">CONTINUOUS</span>
+            </div>`;
+        }
+        
+        html += '</div></div>';
+        
+        // Synergies section
+        const synergies = this.getTowerSynergies(towerType);
+        if (synergies) {
+            html += `<div class="tooltip-synergy">
+                <div class="tooltip-synergy-title">▸ SYNERGIES:</div>
+                <div class="tooltip-synergy-list">${synergies}</div>
+            </div>`;
+        }
+        
+        return html;
+    }
+    
+    getTowerDescription(towerType) {
+        const descriptions = {
+            shooter: 'Basic single-target damage tower. Cheap and reliable starter unit.',
+            pulse: 'Multi-target AOE tower. Hits all enemies in range simultaneously. Excellent crowd control.',
+            sniper: 'High damage, long range sniper tower. Slow fire rate but devastating single shots.',
+            artillery: 'Area of effect explosive tower. Damages primary target and nearby enemies.',
+            cpu: 'Targets up to 3 enemies simultaneously with multi-threaded attacks. Great for handling multiple threats.',
+            laser: 'Continuous beam damage over time. Locks onto a single target and melts it.',
+            voltage: 'Chain lightning damage jumps between targets. Extremely powerful against groups.',
+            slower: 'Slows enemy movement by 50%. Essential for giving your offensive towers more time.',
+            battery: 'Increases gold earned from kills. Place near high-traffic areas to maximize economy.',
+            shield: 'Reduces damage enemies take by 25% while in range. WARNING: Makes enemies harder to kill!',
+            ram: 'Boosts damage of all nearby towers. Stacks with multiple RAM Banks!',
+            overclock: 'Extends range of nearby towers. Stacks with multiple Overclocks!',
+            heatsink: 'Reduces fire rate cooldown (towers shoot FASTER). Stacks with multiple Heat Sinks! Max 80% reduction.',
+            conductor: 'Increases chain lightning targets. Makes Voltage Regulator devastatingly powerful!'
+        };
+        return descriptions[towerType] || '';
+    }
+    
+    getTowerSynergies(towerType) {
+        const synergies = {
+            shooter: 'Works well with RAM Bank for damage boost and Heat Sink for faster firing.',
+            pulse: 'Boosted by RAM Bank and Heat Sink. Overclock extends its already wide area.',
+            sniper: 'Enhanced by RAM Bank, Overclock, and Heat Sink. Overclock makes it cover massive areas.',
+            artillery: 'Pairs well with RAM Bank for increased AOE damage. Overclock extends range.',
+            cpu: 'Synergizes with RAM Bank and Heat Sink. Very effective with multiple support towers.',
+            laser: 'Highly effective with RAM Bank damage boost. Overclock extends beam reach.',
+            voltage: 'Enhanced by RAM Bank and Heat Sink. ESPECIALLY Conductor Coil for more chain jumps!',
+            slower: 'Works with all damage towers by giving them more time to attack enemies.',
+            battery: 'Affects all enemies killed in range. Stack multiple for massive gold generation.',
+            shield: 'Use strategically at chokepoints. Can protect specific paths while others deal damage.',
+            ram: 'Affects: Transistor, Diode Array, Capacitor, CPU Core, Laser Diode, Voltage Regulator, EMP Coil.',
+            overclock: 'Affects: ALL offensive towers. Stack multiple for massive range extension.',
+            heatsink: 'Affects: ALL offensive towers. Stack multiple for maximum fire rate (up to 80% reduction).',
+            conductor: 'Affects: ONLY Voltage Regulator. Stack multiple to create devastating chain reactions!'
+        };
+        return synergies[towerType] || '';
+    }
+}
+
+// Initialize tooltip manager after DOM is loaded
+let tooltipManager;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        tooltipManager = new TooltipManager();
+        loadPreferences(); // Load user preferences on startup
+    });
+} else {
+    tooltipManager = new TooltipManager();
+    loadPreferences(); // Load user preferences on startup
+}
 
 // ========================================
 // START GAME

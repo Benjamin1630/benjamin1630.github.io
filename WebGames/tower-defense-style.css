@@ -20,7 +20,7 @@
     --term-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
     
     /* UI Colors */
-    --color-path: #00ff00;
+    --color-path: #ffff00;
     --color-buildable: #005500;
     --color-invalid: #003300;
     --color-enemy: #ff0000;
@@ -43,47 +43,341 @@
 }
 
 /* Theme Variants */
-body.theme-amber {
-    --term-text: #ffb000;
-    --term-bright: #ffcc00;
-    --term-dim: #996600;
-    --term-accent: #ff9900;
-    --term-glow: 0 0 5px #ffb000;
-    --term-shadow: 0 0 10px rgba(255, 176, 0, 0.5);
-    --color-path: #ffb000;
-    --color-buildable: #664400;
-    --color-invalid: #332200;
-}
-
-body.theme-c64 {
-    --term-text: #aaffee;
-    --term-bright: #ffffff;
-    --term-dim: #5588aa;
-    --term-accent: #cc44cc;
-    --term-glow: 0 0 5px #aaffee;
-    --term-shadow: 0 0 10px rgba(170, 255, 238, 0.5);
-    --color-path: #aaffee;
-    --color-buildable: #003366;
-    --color-invalid: #001122;
-    --color-enemy: #880000;
-    --color-tower: #cc44cc;
-    --color-projectile: #eeee77;
-}
-
-body.theme-red {
+/* TRON (1982) - TRON: Blue Light Cycle User */
+body.theme-tron {
     --term-bg: #000000;
-    --term-text: #ff0000;
-    --term-bright: #ff3333;
-    --term-dim: #880000;
-    --term-accent: #ff6666;
-    --term-glow: 0 0 5px #ff0000;
-    --term-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-    --color-path: #ff0000;
-    --color-buildable: #330000;
-    --color-invalid: #110000;
-    --color-enemy: #ff6666;
-    --color-tower: #ff9999;
-    --color-projectile: #ffcc00;
+    --term-text: #55ddff;
+    --term-bright: #aaffff;
+    --term-dim: #2299cc;
+    --term-accent: #33ccff;
+    --term-glow: 0 0 12px #55ddff, 0 0 20px rgba(85, 221, 255, 0.5);
+    --term-shadow: 0 0 25px rgba(85, 221, 255, 0.9);
+    --color-path: #ffff00;
+    --color-buildable: #003344;
+    --color-invalid: #001a22;
+    --color-enemy: #ff6b35;
+    --color-tower: #33ccff;
+    --color-projectile: #aaffff;
+}
+
+/* TRON (1982) - SARK: Red Enemy Program - Multi-color Heat Gradient */
+body.theme-sark {
+    --term-bg: #000000;
+    
+    /* Red - Primary text and main UI elements */
+    --term-text: #ff0044;
+    --term-bright: #ff3366;
+    --term-glow: 0 0 10px #ff0044;
+    --term-shadow: 0 0 20px rgba(255, 0, 68, 0.8);
+    
+    /* Orange - Accents and highlights */
+    --term-accent: #ff6600;
+    --term-dim: #cc0033;
+    
+    /* Game grid colors */
+    --color-path: #ffff00;           /* Yellow - Path */
+    --color-buildable: #332200;      /* Orange (dark) - Buildable areas */
+    --color-invalid: #1a0008;        /* Dark - Invalid areas */
+    --color-enemy: #55ddff;          /* Light blue - Enemies */
+    --color-tower: #ff6600;          /* Orange - Towers */
+    --color-projectile: #ffcc00;     /* Yellow - Projectiles */
+}
+
+/* SARK theme - Multi-color overrides */
+body.theme-sark .btn {
+    border-color: #ff0044;  /* Red borders */
+}
+
+body.theme-sark .btn:hover {
+    background-color: rgba(255, 102, 0, 0.2);  /* Orange hover background */
+    border-color: #ff6600;  /* Orange on hover */
+}
+
+body.theme-sark .btn-bracket {
+    color: #ffcc00;  /* Yellow brackets */
+}
+
+body.theme-sark .game-container {
+    border-color: #ff0044;  /* Red container border */
+}
+
+body.theme-sark .drawer-content {
+    border-color: #ff6600;  /* Orange drawer border */
+}
+
+body.theme-sark .tower-btn {
+    border-color: #ff6600;  /* Orange tower button borders */
+}
+
+body.theme-sark .tower-btn.selected {
+    background-color: rgba(255, 102, 0, 0.3);  /* Orange selection */
+    border-color: #ff6600;
+    box-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+}
+
+body.theme-sark .info-panel {
+    border-color: #ff6600;  /* Orange info panel border */
+}
+
+body.theme-sark .stats-grid,
+body.theme-sark .stat-item {
+    color: #ffcc00;  /* Yellow stats text */
+}
+
+body.theme-sark .stat-value {
+    color: #ff6600;  /* Orange stat values */
+}
+
+body.theme-sark #themeText,
+body.theme-sark .btn-text {
+    color: #ffcc00;  /* Yellow for button text */
+}
+
+body.theme-sark .modal-content {
+    border-color: #ff0044;  /* Red modal border */
+}
+
+body.theme-sark .modal-title {
+    color: #ff0044;  /* Red modal titles */
+}
+
+body.theme-sark .tower-info {
+    border-color: #ff6600;  /* Orange tower info border */
+}
+
+body.theme-sark #goldDisplay,
+body.theme-sark #livesDisplay {
+    color: #ffcc00;  /* Yellow for resources */
+}
+
+body.theme-sark #waveDisplay {
+    color: #ff0044;  /* Red for wave */
+}
+
+body.theme-sark #startWaveBtn {
+    border-color: #ff0044;  /* Red border for start wave */
+    color: #ff0044;
+}
+
+body.theme-sark #pauseBtn,
+body.theme-sark #newLevelBtn {
+    border-color: #ff6600;  /* Orange for control buttons */
+    color: #ff6600;
+}
+
+body.theme-sark #speedBtn {
+    border-color: #ffcc00;  /* Yellow speed button */
+    color: #ffcc00;
+}
+
+body.theme-sark .drawer-title {
+    color: #ff6600;  /* Orange drawer titles */
+}
+
+/* TRON (1982) - CLU: Command Line User */
+body.theme-clu {
+    --term-bg: #000a1a;
+    --term-text: #ffeb3b;
+    --term-bright: #ffffff;
+    --term-dim: #b39d2b;
+    --term-accent: #ffd700;
+    --term-glow: 0 0 8px #ffeb3b;
+    --term-shadow: 0 0 15px rgba(255, 235, 59, 0.6);
+    --color-path: #ffff00;
+    --color-buildable: #1a1400;
+    --color-invalid: #0d0a00;
+    --color-enemy: #ff6b35;
+    --color-tower: #ffd700;
+    --color-projectile: #ffffff;
+}
+
+/* TRON (1982) - FLYNN: Liberation - Strategic Multi-color System */
+body.theme-flynn {
+    /* Dark blue background/base */
+    --term-bg: #000a1f;
+    
+    /* Light purple - Primary text and main UI elements */
+    --term-text: #bb88ff;
+    --term-bright: #ee99ff;
+    --term-glow: 0 0 10px #bb88ff;
+    --term-shadow: 0 0 18px rgba(187, 136, 255, 0.7);
+    
+    /* Magenta - Accents and highlights */
+    --term-accent: #dd55aa;
+    --term-dim: #884466;
+    
+    /* Game grid colors */
+    --color-path: #ffff00;           /* Yellow - Path */
+    --color-buildable: #339b30;      /* Green - Buildable areas */
+    --color-invalid: #0d0a00;        /* Dark - Invalid areas */
+    --color-enemy: #ff4466;          /* Coral red - Enemies */
+    --color-tower: #77ee33;          /* Bright lime - Towers */
+    --color-projectile: #00ddff;     /* Bright cyan - Projectiles */
+    --color-highlight: #ff66ff;      /* Hot pink - Highlights */
+}
+
+/* FLYNN theme - Button and container color overrides */
+body.theme-flynn .btn {
+    border-color: #dd55aa;  /* Magenta borders for general buttons */
+    color: #ee99ff;  /* Bright purple text */
+}
+
+body.theme-flynn .btn:hover {
+    background-color: rgba(238, 153, 255, 0.15);  /* Purple hover background */
+    border-color: #ff66ff;  /* Hot pink on hover */
+}
+
+body.theme-flynn .btn-bracket {
+    color: #00ddff;  /* Cyan brackets for contrast */
+}
+
+body.theme-flynn .game-container {
+    border-color: #ff66ff;  /* Hot pink main container border */
+}
+
+body.theme-flynn .drawer-content {
+    background-color: rgba(0, 10, 31, 0.95);  /* Dark blue background */
+    border-color: #77ee33;  /* Lime green drawer border */
+}
+
+body.theme-flynn .tower-btn {
+    border-color: #77ee33;  /* Lime green tower button borders */
+    color: #ffee44;  /* Bright yellow text */
+}
+
+body.theme-flynn .tower-btn:hover {
+    background-color: rgba(119, 238, 51, 0.15);
+    border-color: #99ff55;
+}
+
+body.theme-flynn .tower-btn.selected {
+    background-color: rgba(119, 238, 51, 0.3);  /* Lime green selection */
+    border-color: #99ff55;
+    box-shadow: 0 0 12px rgba(119, 238, 51, 0.6);
+}
+
+body.theme-flynn .info-panel {
+    border-color: #ff8844;  /* Orange info panel border */
+}
+
+body.theme-flynn .stats-grid {
+    color: #00ddff;  /* Cyan stats text */
+}
+
+body.theme-flynn .stat-item {
+    color: #88bbff;  /* Light blue stat labels */
+}
+
+body.theme-flynn .stat-value {
+    color: #ffee44;  /* Bright yellow stat values */
+}
+
+body.theme-flynn #themeText,
+body.theme-flynn .btn-text {
+    color: #ee99ff;  /* Bright purple for button text */
+}
+
+body.theme-flynn .modal-content {
+    background-color: rgba(0, 10, 31, 0.98);  /* Dark blue modal background */
+    border-color: #ff66ff;  /* Hot pink modal border */
+}
+
+body.theme-flynn .modal-title {
+    color: #ff5577;  /* Coral red modal titles */
+}
+
+body.theme-flynn .wave-number {
+    color: #ff6644;  /* Orange-red for wave number emphasis */
+}
+
+body.theme-flynn .terminal-header {
+    background-color: rgba(0, 10, 31, 0.9);  /* Dark blue header */
+    border-bottom-color: #dd55aa;  /* Magenta border */
+}
+
+body.theme-flynn .terminal-title {
+    color: #ee99ff;  /* Bright purple title */
+}
+
+body.theme-flynn #goldDisplay,
+body.theme-flynn #livesDisplay {
+    color: #ffee44;  /* Bright yellow for resources */
+}
+
+body.theme-flynn #waveDisplay {
+    color: #ff6644;  /* Orange-red for wave (urgency) */
+}
+
+body.theme-flynn #scoreDisplay {
+    color: #00ddff;  /* Bright cyan for score */
+}
+
+body.theme-flynn .tower-info {
+    border-color: #77ee33;  /* Bright lime green tower info border */
+}
+
+body.theme-flynn .info-text {
+    color: #cc99ff;  /* Medium purple info text */
+}
+
+body.theme-flynn .info-text.dim {
+    color: #884466;  /* Dimmed magenta for dim text */
+}
+
+body.theme-flynn #startWaveBtn {
+    border-color: #ff5577;  /* Coral red border for start wave (action) */
+    color: #ff5577;
+}
+
+body.theme-flynn #startWaveBtn:hover {
+    background-color: rgba(255, 85, 119, 0.25);
+    border-color: #ff7799;
+}
+
+body.theme-flynn #pauseBtn {
+    border-color: #ff8844;  /* Orange pause button */
+    color: #ff8844;
+}
+
+body.theme-flynn #pauseBtn:hover {
+    background-color: rgba(255, 136, 68, 0.2);
+    border-color: #ffaa66;
+}
+
+body.theme-flynn #speedBtn {
+    border-color: #00ddff;  /* Bright cyan speed button */
+    color: #00ddff;
+}
+
+body.theme-flynn #speedBtn:hover {
+    background-color: rgba(0, 221, 255, 0.2);
+    border-color: #33eeff;
+}
+
+body.theme-flynn #newLevelBtn {
+    border-color: #77ee33;  /* Bright lime green new level button */
+    color: #77ee33;
+}
+
+body.theme-flynn #newLevelBtn:hover {
+    background-color: rgba(119, 238, 51, 0.2);
+    border-color: #99ff55;
+}
+
+body.theme-flynn .drawer-title {
+    color: #ffee44;  /* Bright yellow drawer titles */
+}
+
+body.theme-flynn .stats-drawer .drawer-title {
+    color: #00ddff;  /* Bright cyan for stats drawer title */
+}
+
+body.theme-flynn .legend-item {
+    color: #88bbff;  /* Light blue for legend items */
+}
+
+body.theme-flynn canvas {
+    border-color: #dd55aa;  /* Magenta canvas border */
 }
 
 /* Base Styles */
@@ -140,38 +434,6 @@ body {
 @keyframes blink {
     0%, 50% { opacity: 1; }
     51%, 100% { opacity: 0; }
-}
-
-/* CRT Effect */
-body.crt-mode::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0) 0px,
-        rgba(0, 0, 0, 0.1) 1px,
-        rgba(0, 0, 0, 0) 2px
-    );
-    pointer-events: none;
-    z-index: 9999;
-}
-
-body.crt-mode::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(ellipse at center, 
-        rgba(0, 0, 0, 0) 0%, 
-        rgba(0, 0, 0, 0.3) 100%);
-    pointer-events: none;
-    z-index: 9998;
 }
 
 /* Terminal Header */
@@ -541,6 +803,33 @@ body.crt-mode::after {
     background-color: rgba(0, 0, 0, 0.5);
 }
 
+/* Legend color mappings to theme variables */
+.legend-symbol.legend-entry,
+.legend-symbol.legend-exit {
+    color: var(--term-text);
+}
+
+.legend-symbol.legend-path {
+    color: var(--color-path);
+}
+
+.legend-symbol.legend-enemy {
+    color: var(--color-enemy);
+}
+
+.legend-symbol.legend-tower {
+    color: var(--color-tower);
+}
+
+.legend-symbol.legend-buildable {
+    color: var(--color-buildable);
+}
+
+.legend-symbol.legend-invalid {
+    color: var(--color-invalid);
+}
+
+/* Legacy support */
 .legend-symbol.path {
     color: var(--color-path);
 }
@@ -564,6 +853,7 @@ body.crt-mode::after {
     border: 2px solid var(--term-text);
     background-color: var(--term-bg);
     overflow: hidden;
+    z-index: 10;
 }
 
 #gameCanvas {
@@ -1277,4 +1567,177 @@ body.crt-mode::after {
 .dialog-stat-value {
     color: var(--term-bright);
     font-weight: bold;
+}
+
+/* ================================
+   CUSTOM TOOLTIP SYSTEM
+   ================================ */
+
+.custom-tooltip {
+    position: fixed;
+    z-index: 10000;
+    background-color: var(--term-bg);
+    border: 2px solid var(--term-text);
+    color: var(--term-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5),
+                inset 0 0 10px rgba(0, 255, 0, 0.1);
+    max-width: 400px;
+    min-width: 300px;
+}
+
+.custom-tooltip.show {
+    opacity: 1;
+    visibility: visible;
+    animation: tooltipSlideIn 0.3s ease;
+}
+
+@keyframes tooltipSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tooltip Header */
+.tooltip-header {
+    background-color: rgba(0, 255, 0, 0.05);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.tooltip-border-top,
+.tooltip-border-bottom,
+.tooltip-border-footer {
+    font-size: var(--font-size-sm);
+    text-align: center;
+    color: var(--term-text);
+    text-shadow: var(--term-glow);
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.tooltip-title {
+    text-align: center;
+    font-weight: bold;
+    font-size: var(--font-size-md);
+    color: var(--term-bright);
+    text-shadow: var(--term-glow);
+    padding: 2px 0;
+    letter-spacing: 1px;
+}
+
+/* Tooltip Content */
+.tooltip-content {
+    padding: var(--space-sm) var(--space-md);
+    line-height: 1.6;
+    text-shadow: var(--term-glow);
+}
+
+.tooltip-section {
+    margin-bottom: var(--space-sm);
+}
+
+.tooltip-section:last-child {
+    margin-bottom: 0;
+}
+
+.tooltip-label {
+    color: var(--term-accent);
+    font-weight: bold;
+    display: inline-block;
+    min-width: 90px;
+}
+
+.tooltip-value {
+    color: var(--term-bright);
+}
+
+.tooltip-description {
+    margin-top: var(--space-xs);
+    color: var(--term-text);
+    line-height: 1.5;
+    padding-left: var(--space-sm);
+    border-left: 2px solid var(--term-dim);
+}
+
+.tooltip-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+
+.tooltip-stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px var(--space-xs);
+    background-color: rgba(0, 255, 0, 0.05);
+}
+
+.tooltip-synergy {
+    margin-top: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background-color: rgba(0, 255, 0, 0.1);
+    border-left: 3px solid var(--term-accent);
+}
+
+.tooltip-synergy-title {
+    color: var(--term-bright);
+    font-weight: bold;
+    margin-bottom: 4px;
+    font-size: var(--font-size-sm);
+}
+
+.tooltip-synergy-list {
+    color: var(--term-text);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
+/* Tooltip Footer */
+.tooltip-footer {
+    padding: 0 var(--space-sm) var(--space-xs);
+}
+
+/* Theme-specific tooltip styling */
+body.theme-amber .custom-tooltip {
+    box-shadow: 0 0 20px rgba(255, 176, 0, 0.5),
+                inset 0 0 10px rgba(255, 176, 0, 0.1);
+}
+
+body.theme-c64 .custom-tooltip {
+    box-shadow: 0 0 20px rgba(170, 255, 238, 0.5),
+                inset 0 0 10px rgba(170, 255, 238, 0.1);
+}
+
+body.theme-red .custom-tooltip {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.5),
+                inset 0 0 10px rgba(255, 0, 0, 0.1);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .custom-tooltip {
+        max-width: 280px;
+        min-width: 240px;
+        font-size: 11px;
+    }
+    
+    .tooltip-title {
+        font-size: var(--font-size-sm);
+    }
+    
+    .tooltip-content {
+        padding: var(--space-xs) var(--space-sm);
+    }
 }
