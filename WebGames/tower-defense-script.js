@@ -2,6 +2,177 @@
 // Retro Terminal ASCII Tower Defense
 
 // ========================================
+// WEB WORKER INITIALIZATION (Multithreading)
+// ========================================
+
+let pathfindingWorker = null;
+let workerAvailable = true;
+let pathfindingCallbacks = new Map();
+let pathRequestId = 0;
+
+// Initialize Web Worker for pathfinding
+try {
+    pathfindingWorker = new Worker('tower-defense-worker.js');
+    pathfindingWorker.onmessage = function(e) {
+        const { type, data } = e.data;
+        
+        if (type === 'PATH_RESULT' && data.requestId) {
+            const callback = pathfindingCallbacks.get(data.requestId);
+            if (callback) {
+                callback(data.path);
+                pathfindingCallbacks.delete(data.requestId);
+            }
+        } else if (type === 'SERPENTINE_PATH_RESULT' && data.requestId) {
+            const callback = pathfindingCallbacks.get(data.requestId);
+            if (callback) {
+                callback(data.path);
+                pathfindingCallbacks.delete(data.requestId);
+            }
+        } else if (type === 'BATCH_PATH_RESULT') {
+            // Handle batch pathfinding results
+            data.paths.forEach(result => {
+                const callback = pathfindingCallbacks.get(result.id);
+                if (callback) {
+                    callback(result.path);
+                    pathfindingCallbacks.delete(result.id);
+                }
+            });
+        }
+    };
+    
+    pathfindingWorker.onerror = function(error) {
+        console.warn('Pathfinding worker error, falling back to main thread:', error);
+        workerAvailable = false;
+    };
+} catch (error) {
+    console.warn('Web Worker not available, using main thread for pathfinding');
+    workerAvailable = false;
+}
+
+// ========================================
+// SPATIAL PARTITIONING (Performance Optimization)
+// ========================================
+
+class SpatialGrid {
+    constructor(cellSize, worldWidth, worldHeight) {
+        this.cellSize = cellSize;
+        this.cols = Math.ceil(worldWidth / cellSize);
+        this.rows = Math.ceil(worldHeight / cellSize);
+        this.cells = new Map();
+    }
+    
+    clear() {
+        this.cells.clear();
+    }
+    
+    getCellKey(x, y) {
+        const col = Math.floor(x / this.cellSize);
+        const row = Math.floor(y / this.cellSize);
+        return `${col},${row}`;
+    }
+    
+    insert(entity, x, y) {
+        const key = this.getCellKey(x, y);
+        if (!this.cells.has(key)) {
+            this.cells.set(key, []);
+        }
+        this.cells.get(key).push(entity);
+    }
+    
+    query(x, y, radius) {
+        const results = [];
+        const minCol = Math.floor((x - radius) / this.cellSize);
+        const maxCol = Math.floor((x + radius) / this.cellSize);
+        const minRow = Math.floor((y - radius) / this.cellSize);
+        const maxRow = Math.floor((y + radius) / this.cellSize);
+        
+        for (let col = minCol; col <= maxCol; col++) {
+            for (let row = minRow; row <= maxRow; row++) {
+                const key = `${col},${row}`;
+                const cellEntities = this.cells.get(key);
+                if (cellEntities) {
+                    results.push(...cellEntities);
+                }
+            }
+        }
+        
+        return results;
+    }
+}
+
+let enemySpatialGrid = null;
+let towerSpatialGrid = null;
+
+// ========================================
+// OBJECT POOLING (Memory Optimization)
+// ========================================
+
+class ObjectPool {
+    constructor(createFn, resetFn, initialSize = 50) {
+        this.createFn = createFn;
+        this.resetFn = resetFn;
+        this.pool = [];
+        this.active = [];
+        
+        // Pre-allocate objects
+        for (let i = 0; i < initialSize; i++) {
+            this.pool.push(createFn());
+        }
+    }
+    
+    acquire() {
+        let obj;
+        if (this.pool.length > 0) {
+            obj = this.pool.pop();
+        } else {
+            obj = this.createFn();
+        }
+        this.active.push(obj);
+        return obj;
+    }
+    
+    release(obj) {
+        const index = this.active.indexOf(obj);
+        if (index !== -1) {
+            this.active.splice(index, 1);
+            this.resetFn(obj);
+            this.pool.push(obj);
+        }
+    }
+    
+    releaseAll() {
+        while (this.active.length > 0) {
+            const obj = this.active.pop();
+            this.resetFn(obj);
+            this.pool.push(obj);
+        }
+    }
+}
+
+// Projectile pool
+const projectilePool = new ObjectPool(
+    () => ({ x: 0, y: 0, targetX: 0, targetY: 0, target: null, damage: 0, speed: 0, color: '', tower: null }),
+    (obj) => {
+        obj.x = 0;
+        obj.y = 0;
+        obj.targetX = 0;
+        obj.targetY = 0;
+        obj.target = null;
+        obj.damage = 0;
+        obj.speed = 0;
+        obj.aoe = undefined;
+        obj.color = '';
+        obj.tower = null;
+        obj.isChain = undefined;
+        obj.isInitialShot = undefined;
+        obj.lifetime = undefined;
+        obj.chainTargets = undefined;
+        obj.chainRange = undefined;
+        obj.hitTargets = undefined;
+    }
+);
+
+// ========================================
 // GAME CONFIGURATION
 // ========================================
 
@@ -1226,6 +1397,31 @@ function minDistanceToPath(x, y) {
 // A* PATHFINDING
 // ========================================
 
+// Async pathfinding using Web Worker (when available)
+function findPathAsync(start, end, callback) {
+    if (workerAvailable && pathfindingWorker) {
+        const requestId = ++pathRequestId;
+        pathfindingCallbacks.set(requestId, callback);
+        
+        pathfindingWorker.postMessage({
+            type: 'FIND_PATH',
+            data: {
+                start,
+                end,
+                grid: grid.cells,
+                cols: grid.cols,
+                rows: grid.rows,
+                requestId
+            }
+        });
+    } else {
+        // Fallback to synchronous pathfinding on main thread
+        const path = findPath(start, end);
+        callback(path);
+    }
+}
+
+// Synchronous pathfinding (fallback)
 function findPath(start, end) {
     const openSet = [start];
     const cameFrom = new Map();
@@ -1760,6 +1956,7 @@ function sellTower() {
 
 function updateEnemyPaths() {
     // Recalculate path for all enemies from their current grid position
+    // Use async pathfinding with Web Worker when available
     enemies.forEach(enemy => {
         // Use current grid position as starting point
         const currentGridPos = {
@@ -1767,9 +1964,22 @@ function updateEnemyPaths() {
             y: enemy.gridY || Math.floor(enemy.y / CONFIG.CELL_SIZE)
         };
         
-        enemy.path = findPath(currentGridPos, grid.exit);
-        enemy.pathIndex = 0;
-        enemy.moveProgress = 0;
+        // Try async pathfinding first (non-blocking)
+        if (workerAvailable && pathfindingWorker) {
+            findPathAsync(currentGridPos, grid.exit, (path) => {
+                // Only update if enemy still exists (might have been destroyed while calculating)
+                if (enemies.includes(enemy)) {
+                    enemy.path = path;
+                    enemy.pathIndex = 0;
+                    enemy.moveProgress = 0;
+                }
+            });
+        } else {
+            // Fallback to synchronous (blocking)
+            enemy.path = findPath(currentGridPos, grid.exit);
+            enemy.pathIndex = 0;
+            enemy.moveProgress = 0;
+        }
     });
 }
 
@@ -1945,6 +2155,15 @@ function update(dt) {
 }
 
 function updateEnemies(dt) {
+    // Clear and rebuild spatial grid for this frame
+    if (!enemySpatialGrid) {
+        const gridWidth = grid.cols * CONFIG.CELL_SIZE;
+        const gridHeight = grid.rows * CONFIG.CELL_SIZE;
+        enemySpatialGrid = new SpatialGrid(CONFIG.CELL_SIZE * 4, gridWidth, gridHeight);
+    }
+    enemySpatialGrid.clear();
+    
+    // Process enemies with optimized loop
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         
@@ -2000,13 +2219,20 @@ function updateEnemies(dt) {
             continue;
         }
         
+        // Insert into spatial grid for efficient tower targeting
+        enemySpatialGrid.insert(enemy, enemy.x, enemy.y);
+        
         // Check if dead
         if (enemy.hp <= 0) {
             enemies.splice(i, 1);
             
-            // Calculate gold bonus from nearby Battery Arrays
+            // Calculate gold bonus from nearby Battery Arrays (optimized check)
             let goldMultiplier = 1.0;
-            for (let tower of towers) {
+            const nearbyTowers = towerSpatialGrid ? 
+                towerSpatialGrid.query(enemy.x, enemy.y, CONFIG.CELL_SIZE * 3) : 
+                towers;
+            
+            for (let tower of nearbyTowers) {
                 if (tower.type === 'battery') {
                     const batteryConfig = CONFIG.TOWER_TYPES['battery'];
                     const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
@@ -2014,9 +2240,10 @@ function updateEnemies(dt) {
                     
                     const dx = enemy.x - towerX;
                     const dy = enemy.y - towerY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const distSq = dx * dx + dy * dy; // Use squared distance to avoid sqrt
+                    const rangeSq = (batteryConfig.range * CONFIG.CELL_SIZE) ** 2;
                     
-                    if (dist <= batteryConfig.range * CONFIG.CELL_SIZE) {
+                    if (distSq <= rangeSq) {
                         goldMultiplier += batteryConfig.goldBoost * tower.level;
                     }
                 }
@@ -2032,8 +2259,14 @@ function updateEnemies(dt) {
 function getEffectiveFireRate(tower, config) {
     let fireRateReduction = 1.0;
     
-    // Check for nearby Heat Sinks
-    for (let otherTower of towers) {
+    // Check for nearby Heat Sinks using spatial grid
+    const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+    const towerY = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+    const nearbyTowers = towerSpatialGrid ? 
+        towerSpatialGrid.query(towerX, towerY, CONFIG.CELL_SIZE * 4) : 
+        towers;
+    
+    for (let otherTower of nearbyTowers) {
         if (otherTower.type === 'heatsink') {
             const heatsinkConfig = CONFIG.TOWER_TYPES['heatsink'];
             const dx = Math.abs(tower.x - otherTower.x);
@@ -2055,15 +2288,25 @@ function getEffectiveFireRate(tower, config) {
 function getEffectiveRange(tower, config) {
     let baseRange = config.range;
     
-    // Calculate range boost from nearby Overclock Modules
-    for (let otherTower of towers) {
+    // Calculate range boost from nearby Overclock Modules using spatial grid
+    const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+    const towerY = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+    const nearbyTowers = towerSpatialGrid ? 
+        towerSpatialGrid.query(towerX, towerY, CONFIG.CELL_SIZE * 4) : 
+        towers;
+    
+    for (let otherTower of nearbyTowers) {
         if (otherTower.type === 'overclock') {
             const overclockConfig = CONFIG.TOWER_TYPES['overclock'];
             const dx = Math.abs(tower.x - otherTower.x);
             const dy = Math.abs(tower.y - otherTower.y);
             const distance = Math.max(dx, dy);
             
-            if (distance <= overclockConfig.range) {
+            // Overclock module's effective range increases with its level
+            // Base range + (rangeBoost * level) gives the overclock's own range
+            const overclockEffectiveRange = overclockConfig.range + (overclockConfig.rangeBoost * otherTower.level * 0.5);
+            
+            if (distance <= overclockEffectiveRange) {
                 baseRange += overclockConfig.rangeBoost * otherTower.level;
             }
         }
@@ -2075,8 +2318,12 @@ function getEffectiveRange(tower, config) {
 function getEnemyArmor(enemy) {
     let armorReduction = 1.0;
     
-    // Calculate armor from nearby Shield Generators
-    for (let tower of towers) {
+    // Calculate armor from nearby Shield Generators using spatial grid
+    const nearbyTowers = towerSpatialGrid ? 
+        towerSpatialGrid.query(enemy.x, enemy.y, CONFIG.CELL_SIZE * 4) : 
+        towers;
+    
+    for (let tower of nearbyTowers) {
         if (tower.type === 'shield') {
             const shieldConfig = CONFIG.TOWER_TYPES['shield'];
             const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
@@ -2084,9 +2331,10 @@ function getEnemyArmor(enemy) {
             
             const dx = enemy.x - towerX;
             const dy = enemy.y - towerY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            const distSq = dx * dx + dy * dy; // Use squared distance
+            const rangeSq = (shieldConfig.range * CONFIG.CELL_SIZE) ** 2;
             
-            if (dist <= shieldConfig.range * CONFIG.CELL_SIZE) {
+            if (distSq <= rangeSq) {
                 armorReduction -= shieldConfig.armor * tower.level;
             }
         }
@@ -2099,6 +2347,22 @@ function getEnemyArmor(enemy) {
 }
 
 function updateTowers(dt) {
+    // Build spatial grid for towers if not exists
+    if (!towerSpatialGrid) {
+        const gridWidth = grid.cols * CONFIG.CELL_SIZE;
+        const gridHeight = grid.rows * CONFIG.CELL_SIZE;
+        towerSpatialGrid = new SpatialGrid(CONFIG.CELL_SIZE * 3, gridWidth, gridHeight);
+    }
+    towerSpatialGrid.clear();
+    
+    // Insert all towers into spatial grid
+    for (let tower of towers) {
+        const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+        const towerY = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+        towerSpatialGrid.insert(tower, towerX, towerY);
+    }
+    
+    // Process each tower
     for (let tower of towers) {
         const config = CONFIG.TOWER_TYPES[tower.type];
         
@@ -2107,14 +2371,21 @@ function updateTowers(dt) {
         const effectiveRange = getEffectiveRange(tower, config);
         const rangeDist = effectiveRange * CONFIG.CELL_SIZE;
         
-        // Find all enemies in range
+        // Use spatial partitioning to find enemies in range (much faster than checking all enemies)
+        const nearbyEnemies = enemySpatialGrid ? 
+            enemySpatialGrid.query(towerX, towerY, rangeDist) : 
+            enemies;
+        
+        // Find all enemies in range with optimized distance check
         const enemiesInRange = [];
-        for (let enemy of enemies) {
+        const rangeSq = rangeDist * rangeDist; // Use squared distance to avoid sqrt
+        
+        for (let enemy of nearbyEnemies) {
             const dx = enemy.x - towerX;
             const dy = enemy.y - towerY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            const distSq = dx * dx + dy * dy;
             
-            if (dist <= rangeDist) {
+            if (distSq <= rangeSq) {
                 enemiesInRange.push(enemy);
             }
         }
@@ -2140,7 +2411,9 @@ function updateTowers(dt) {
             if (config.continuous) {
                 // Laser tower - continuous damage with RAM boost
                 let damageMultiplier = 1.0;
-                for (let otherTower of towers) {
+                const nearbyTowers = towerSpatialGrid.query(towerX, towerY, CONFIG.CELL_SIZE * 3);
+                
+                for (let otherTower of nearbyTowers) {
                     if (otherTower.type === 'ram') {
                         const ramConfig = CONFIG.TOWER_TYPES['ram'];
                         const dx = Math.abs(tower.x - otherTower.x);
@@ -2196,17 +2469,10 @@ function updateTowers(dt) {
                 }
             } else if (config.multiTarget) {
                 // Pulse tower - shoots at all enemies in range
-                // Use game time instead of Date.now()
                 const effectiveFireRate = getEffectiveFireRate(tower, config);
                 if (gameTime - tower.lastShot >= effectiveFireRate) {
-                    for (let enemy of enemies) {
-                        const dx = enemy.x - towerX;
-                        const dy = enemy.y - towerY;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        
-                        if (dist <= rangeDist) {
-                            shootProjectile(tower, enemy);
-                        }
+                    for (let enemy of enemiesInRange) {
+                        shootProjectile(tower, enemy);
                     }
                     tower.lastShot = gameTime;
                 }
@@ -2228,9 +2494,13 @@ function shootProjectile(tower, target) {
     const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
     const towerY = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
     
-    // Calculate damage boost from nearby RAM Banks
+    // Calculate damage boost from nearby RAM Banks using spatial grid
     let damageMultiplier = 1.0;
-    for (let otherTower of towers) {
+    const nearbyTowers = towerSpatialGrid ? 
+        towerSpatialGrid.query(towerX, towerY, CONFIG.CELL_SIZE * 3) : 
+        towers;
+    
+    for (let otherTower of nearbyTowers) {
         if (otherTower.type === 'ram') {
             const ramConfig = CONFIG.TOWER_TYPES['ram'];
             const dx = Math.abs(tower.x - otherTower.x);
@@ -2243,18 +2513,20 @@ function shootProjectile(tower, target) {
         }
     }
     
-    projectiles.push({
-        x: towerX,
-        y: towerY,
-        targetX: target.x,
-        targetY: target.y,
-        target: target,
-        damage: config.damage * tower.level * damageMultiplier,
-        speed: config.projectileSpeed || 15,
-        aoe: config.aoe,
-        color: config.color,
-        tower: tower
-    });
+    // Use object pool for projectiles
+    const proj = projectilePool.acquire();
+    proj.x = towerX;
+    proj.y = towerY;
+    proj.targetX = target.x;
+    proj.targetY = target.y;
+    proj.target = target;
+    proj.damage = config.damage * tower.level * damageMultiplier;
+    proj.speed = config.projectileSpeed || 15;
+    proj.aoe = config.aoe;
+    proj.color = config.color;
+    proj.tower = tower;
+    
+    projectiles.push(proj);
 }
 
 function shootChainProjectile(tower, target, enemiesInRange) {
@@ -2263,9 +2535,13 @@ function shootChainProjectile(tower, target, enemiesInRange) {
     const towerX = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
     const towerY = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
     
-    // Calculate damage boost from nearby RAM Banks
+    // Calculate damage boost from nearby RAM Banks using spatial grid
     let damageMultiplier = 1.0;
-    for (let otherTower of towers) {
+    const nearbyTowers = towerSpatialGrid ? 
+        towerSpatialGrid.query(towerX, towerY, CONFIG.CELL_SIZE * 3) : 
+        towers;
+    
+    for (let otherTower of nearbyTowers) {
         if (otherTower.type === 'ram') {
             const ramConfig = CONFIG.TOWER_TYPES['ram'];
             const dx = Math.abs(tower.x - otherTower.x);
@@ -2278,9 +2554,9 @@ function shootChainProjectile(tower, target, enemiesInRange) {
         }
     }
     
-    // Calculate chain target boost from nearby Conductor Coils
+    // Calculate chain target boost from nearby Conductor Coils using spatial grid
     let chainTargetsBoost = 0;
-    for (let otherTower of towers) {
+    for (let otherTower of nearbyTowers) {
         if (otherTower.type === 'conductor') {
             const conductorConfig = CONFIG.TOWER_TYPES['conductor'];
             const dx = Math.abs(tower.x - otherTower.x);
@@ -2293,32 +2569,171 @@ function shootChainProjectile(tower, target, enemiesInRange) {
         }
     }
     
-    projectiles.push({
-        x: towerX,
-        y: towerY,
-        targetX: target.x,
-        targetY: target.y,
-        target: target,
-        damage: config.damage * tower.level * damageMultiplier,
-        speed: config.projectileSpeed || 30,
-        color: config.color,
-        tower: tower,
-        isChain: true,
-        chainTargets: config.chainTargets + chainTargetsBoost,
-        chainRange: config.chainRange * CONFIG.CELL_SIZE,
-        hitTargets: [target] // Track which enemies were already hit
-    });
+    // Use object pool for projectiles
+    const proj = projectilePool.acquire();
+    proj.x = towerX;
+    proj.y = towerY;
+    proj.targetX = target.x;
+    proj.targetY = target.y;
+    proj.target = target;
+    proj.damage = config.damage * tower.level * damageMultiplier;
+    proj.speed = config.projectileSpeed || 30;
+    proj.color = config.color;
+    proj.tower = tower;
+    proj.isChain = true;
+    proj.isInitialShot = true; // Mark initial shot for quick travel time
+    proj.chainTargets = config.chainTargets + chainTargetsBoost;
+    proj.chainRange = config.chainRange * CONFIG.CELL_SIZE;
+    proj.hitTargets = [target]; // Track which enemies were already hit
+    
+    projectiles.push(proj);
 }
 
 function updateProjectiles(dt) {
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const proj = projectiles[i];
         
+        // Chain lightning projectiles
+        if (proj.isChain) {
+            // Initial shot has quick travel time, chain jumps are instant
+            if (proj.isInitialShot) {
+                // Quick travel for initial lightning bolt
+                const dx = proj.targetX - proj.x;
+                const dy = proj.targetY - proj.y;
+                const distSq = dx * dx + dy * dy;
+                
+                if (distSq < 25) { // Reached target (5^2 = 25)
+                    // Hit the target immediately and apply damage
+                    if (enemies.includes(proj.target)) {
+                        const armorMultiplier = getEnemyArmor(proj.target);
+                        proj.target.hp -= proj.damage * armorMultiplier;
+                        
+                        if (proj.target.hp <= 0 && proj.tower) {
+                            proj.tower.kills = (proj.tower.kills || 0) + 1;
+                        }
+                    }
+                    
+                    // Check for chain to next target
+                    if (proj.hitTargets.length < proj.chainTargets) {
+                        // Find next enemy to chain to using spatial grid
+                        let nextTarget = null;
+                        let closestDistSq = Infinity;
+                        const chainRangeSq = proj.chainRange * proj.chainRange;
+                        
+                        const nearbyEnemies = enemySpatialGrid ? 
+                            enemySpatialGrid.query(proj.targetX, proj.targetY, proj.chainRange) : 
+                            enemies;
+                        
+                        for (let enemy of nearbyEnemies) {
+                            if (proj.hitTargets.includes(enemy)) continue;
+                            
+                            const dx = enemy.x - proj.targetX;
+                            const dy = enemy.y - proj.targetY;
+                            const distSq = dx * dx + dy * dy;
+                            
+                            if (distSq <= chainRangeSq && distSq < closestDistSq) {
+                                closestDistSq = distSq;
+                                nextTarget = enemy;
+                            }
+                        }
+                        
+                        if (nextTarget) {
+                            // Chain to next target with reduced damage (instant jump)
+                            proj.hitTargets.push(nextTarget);
+                            proj.x = proj.targetX; // Start from previous target
+                            proj.y = proj.targetY;
+                            proj.target = nextTarget;
+                            proj.targetX = nextTarget.x;
+                            proj.targetY = nextTarget.y;
+                            proj.damage *= 0.7; // 30% damage reduction per chain
+                            proj.isInitialShot = false;
+                            proj.lifetime = 150; // Display chain for 150ms
+                            continue; // Don't remove projectile, show the chain
+                        }
+                    }
+                    
+                    // No chain available, remove projectile
+                    projectiles.splice(i, 1);
+                    projectilePool.release(proj);
+                } else {
+                    // Move very fast towards target
+                    const dist = Math.sqrt(distSq);
+                    const moveSpeed = (proj.speed * CONFIG.CELL_SIZE * dt) / 1000;
+                    proj.x += (dx / dist) * moveSpeed;
+                    proj.y += (dy / dist) * moveSpeed;
+                }
+                continue;
+            }
+            
+            // Decrement lifetime for visual effect (chain segments only)
+            if (!proj.lifetime) {
+                proj.lifetime = 150; // Display for 150ms
+            }
+            proj.lifetime -= dt;
+            
+            // Check if lightning chain should disappear
+            if (proj.lifetime <= 0) {
+                // Hit target if still alive
+                if (enemies.includes(proj.target)) {
+                    const armorMultiplier = getEnemyArmor(proj.target);
+                    proj.target.hp -= proj.damage * armorMultiplier;
+                    
+                    if (proj.target.hp <= 0 && proj.tower) {
+                        proj.tower.kills = (proj.tower.kills || 0) + 1;
+                    }
+                }
+                
+                // Check for chain to next target
+                if (proj.hitTargets.length < proj.chainTargets) {
+                    // Find next enemy to chain to using spatial grid
+                    let nextTarget = null;
+                    let closestDistSq = Infinity;
+                    const chainRangeSq = proj.chainRange * proj.chainRange;
+                    
+                    const nearbyEnemies = enemySpatialGrid ? 
+                        enemySpatialGrid.query(proj.targetX, proj.targetY, proj.chainRange) : 
+                        enemies;
+                    
+                    for (let enemy of nearbyEnemies) {
+                        if (proj.hitTargets.includes(enemy)) continue;
+                        
+                        const dx = enemy.x - proj.targetX;
+                        const dy = enemy.y - proj.targetY;
+                        const distSq = dx * dx + dy * dy;
+                        
+                        if (distSq <= chainRangeSq && distSq < closestDistSq) {
+                            closestDistSq = distSq;
+                            nextTarget = enemy;
+                        }
+                    }
+                    
+                    if (nextTarget) {
+                        // Chain to next target with reduced damage (instant jump)
+                        proj.hitTargets.push(nextTarget);
+                        proj.x = proj.targetX; // Start from previous target
+                        proj.y = proj.targetY;
+                        proj.target = nextTarget;
+                        proj.targetX = nextTarget.x;
+                        proj.targetY = nextTarget.y;
+                        proj.damage *= 0.7; // 30% damage reduction per chain
+                        proj.lifetime = 150; // Reset lifetime for next chain segment
+                        continue; // Don't remove projectile, let it continue to next chain
+                    }
+                }
+                
+                // Remove projectile and return to pool
+                projectiles.splice(i, 1);
+                projectilePool.release(proj);
+            }
+            continue;
+        }
+        
+        // Regular projectile movement
         const dx = proj.targetX - proj.x;
         const dy = proj.targetY - proj.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const distSq = dx * dx + dy * dy; // Use squared distance
         
-        if (dist < 5 || !enemies.includes(proj.target)) {
+        if (distSq < 25 || !enemies.includes(proj.target)) { // 5^2 = 25
             // Hit target or target is dead
             if (enemies.includes(proj.target)) {
                 const armorMultiplier = getEnemyArmor(proj.target);
@@ -2328,16 +2743,23 @@ function updateProjectiles(dt) {
                     proj.tower.kills = (proj.tower.kills || 0) + 1;
                 }
                 
-                // AOE damage
+                // AOE damage - use spatial grid for efficiency
                 if (proj.aoe) {
-                    for (let enemy of enemies) {
+                    const aoeRadius = proj.aoe * CONFIG.CELL_SIZE;
+                    const nearbyEnemies = enemySpatialGrid ? 
+                        enemySpatialGrid.query(proj.targetX, proj.targetY, aoeRadius) : 
+                        enemies;
+                    
+                    const aoeRadiusSq = aoeRadius * aoeRadius;
+                    
+                    for (let enemy of nearbyEnemies) {
                         if (enemy === proj.target) continue;
                         
                         const ex = enemy.x - proj.targetX;
                         const ey = enemy.y - proj.targetY;
-                        const edist = Math.sqrt(ex * ex + ey * ey);
+                        const edistSq = ex * ex + ey * ey;
                         
-                        if (edist <= proj.aoe * CONFIG.CELL_SIZE) {
+                        if (edistSq <= aoeRadiusSq) {
                             const aoeArmorMultiplier = getEnemyArmor(enemy);
                             enemy.hp -= proj.damage * 0.5 * aoeArmorMultiplier;
                         }
@@ -2345,39 +2767,13 @@ function updateProjectiles(dt) {
                 }
             }
             
-            // Chain lightning effect
-            if (proj.isChain && proj.hitTargets.length < proj.chainTargets) {
-                // Find next enemy to chain to
-                let nextTarget = null;
-                let closestDist = Infinity;
-                
-                for (let enemy of enemies) {
-                    if (proj.hitTargets.includes(enemy)) continue;
-                    
-                    const dx = enemy.x - proj.targetX;
-                    const dy = enemy.y - proj.targetY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist <= proj.chainRange && dist < closestDist) {
-                        closestDist = dist;
-                        nextTarget = enemy;
-                    }
-                }
-                
-                if (nextTarget) {
-                    // Chain to next target with reduced damage
-                    proj.hitTargets.push(nextTarget);
-                    proj.target = nextTarget;
-                    proj.targetX = nextTarget.x;
-                    proj.targetY = nextTarget.y;
-                    proj.damage *= 0.7; // 30% damage reduction per chain
-                    continue; // Don't remove projectile, let it continue
-                }
-            }
-            
+            // Remove projectile and return to pool
             projectiles.splice(i, 1);
+            projectilePool.release(proj);
         } else {
-            const moveSpeed = proj.speed * dt * 0.1;
+            // Move projectile towards target (speed is in pixels per second)
+            const dist = Math.sqrt(distSq);
+            const moveSpeed = (proj.speed * CONFIG.CELL_SIZE * dt) / 1000;
             proj.x += (dx / dist) * moveSpeed;
             proj.y += (dy / dist) * moveSpeed;
         }
@@ -2420,7 +2816,7 @@ function completeWave() {
 }
 
 // ========================================
-// RENDERING
+// RENDERING (with viewport culling for performance)
 // ========================================
 
 function render() {
@@ -2431,17 +2827,25 @@ function render() {
     ctx.translate(-viewport.x * viewport.zoom, -viewport.y * viewport.zoom);
     ctx.scale(viewport.zoom, viewport.zoom);
     
+    // Calculate visible bounds for culling
+    const visibleBounds = {
+        minX: viewport.x - CONFIG.CELL_SIZE,
+        minY: viewport.y - CONFIG.CELL_SIZE,
+        maxX: viewport.x + (canvas.width / viewport.zoom) + CONFIG.CELL_SIZE,
+        maxY: viewport.y + (canvas.height / viewport.zoom) + CONFIG.CELL_SIZE
+    };
+    
     // Draw grid
-    drawGrid();
+    drawGrid(visibleBounds);
     
     // Draw towers
-    drawTowers();
+    drawTowers(visibleBounds);
     
     // Draw enemies
-    drawEnemies();
+    drawEnemies(visibleBounds);
     
     // Draw projectiles
-    drawProjectiles();
+    drawProjectiles(visibleBounds);
     
     // Draw selection
     drawSelection();
@@ -2449,14 +2853,20 @@ function render() {
     ctx.restore();
 }
 
-function drawGrid() {
+function drawGrid(visibleBounds) {
     ctx.font = `${CONFIG.CELL_SIZE * 0.4}px ${getComputedStyle(document.body).getPropertyValue('--font-main')}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // First pass: Draw all cells
-    for (let y = 0; y < grid.rows; y++) {
-        for (let x = 0; x < grid.cols; x++) {
+    // Calculate visible cell range for culling
+    const startX = Math.max(0, Math.floor(visibleBounds.minX / CONFIG.CELL_SIZE));
+    const endX = Math.min(grid.cols - 1, Math.ceil(visibleBounds.maxX / CONFIG.CELL_SIZE));
+    const startY = Math.max(0, Math.floor(visibleBounds.minY / CONFIG.CELL_SIZE));
+    const endY = Math.min(grid.rows - 1, Math.ceil(visibleBounds.maxY / CONFIG.CELL_SIZE));
+    
+    // First pass: Draw all visible cells
+    for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
             const cellType = grid.cells[y][x];
             const px = x * CONFIG.CELL_SIZE;
             const py = y * CONFIG.CELL_SIZE;
@@ -2674,7 +3084,7 @@ function drawGrid() {
     }
 }
 
-function drawTowers() {
+function drawTowers(visibleBounds) {
     ctx.font = `${CONFIG.CELL_SIZE * 0.5}px ${getComputedStyle(document.body).getPropertyValue('--font-main')}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2683,6 +3093,12 @@ function drawTowers() {
         const config = CONFIG.TOWER_TYPES[tower.type];
         const x = tower.x * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
         const y = tower.y * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2;
+        
+        // Viewport culling - skip towers not in view
+        if (x < visibleBounds.minX || x > visibleBounds.maxX ||
+            y < visibleBounds.minY || y > visibleBounds.maxY) {
+            continue;
+        }
         
         // Draw grid-based range (Manhattan distance with corner extensions)
         if (selectedCell && selectedCell.x === tower.x && selectedCell.y === tower.y && config.range) {
@@ -2696,7 +3112,9 @@ function drawTowers() {
             ctx.lineWidth = 2;
             
             // Calculate all cells within range using Manhattan distance + corner cells
-            const range = Math.floor(config.range);
+            // Use effective range which includes boosts from Overclock Modules
+            const effectiveRange = getEffectiveRange(tower, config);
+            const range = Math.floor(effectiveRange);
             const rangeCells = new Set(); // All cells in range
             const edgeCells = new Set(); // Track edge cells for outline
             
@@ -2800,8 +3218,14 @@ function drawTowers() {
     }
 }
 
-function drawEnemies() {
+function drawEnemies(visibleBounds) {
     for (let enemy of enemies) {
+        // Viewport culling - skip enemies not in view
+        if (enemy.x < visibleBounds.minX || enemy.x > visibleBounds.maxX ||
+            enemy.y < visibleBounds.minY || enemy.y > visibleBounds.maxY) {
+            continue;
+        }
+        
         const config = CONFIG.ENEMY_TYPES[enemy.type];
         const healthPercent = enemy.hp / enemy.maxHp;
         
@@ -2847,8 +3271,14 @@ function drawEnemies() {
     }
 }
 
-function drawProjectiles() {
+function drawProjectiles(visibleBounds) {
     for (let proj of projectiles) {
+        // Viewport culling - skip projectiles not in view
+        if (proj.x < visibleBounds.minX || proj.x > visibleBounds.maxX ||
+            proj.y < visibleBounds.minY || proj.y > visibleBounds.maxY) {
+            continue;
+        }
+        
         if (proj.isChain) {
             // Draw lightning bolt effect for chain lightning
             drawLightningBolt(proj.x, proj.y, proj.targetX, proj.targetY, proj.color);
@@ -2950,12 +3380,89 @@ function drawSelection() {
             const sellValue = Math.floor(tower.totalCost * 0.7);
             const upgradeCost = tower.level >= 3 ? null : Math.floor(config.cost * Math.pow(2, tower.level)); // Increased from 1.5 to 2.0 for balance
             
+            // Generate relevant stats based on tower type
+            const stats = [];
+            
+            // Offensive towers show kills and damage
+            if (config.damage > 0) {
+                stats.push(`Kills: ${tower.kills || 0}`);
+                const baseDmg = config.damage * tower.level;
+                
+                // Check for RAM Bank boost
+                let damageBoost = 1.0;
+                for (let otherTower of towers) {
+                    if (otherTower.type === 'ram') {
+                        const ramConfig = CONFIG.TOWER_TYPES['ram'];
+                        const dx = Math.abs(tower.x - otherTower.x);
+                        const dy = Math.abs(tower.y - otherTower.y);
+                        const distance = Math.max(dx, dy);
+                        if (distance <= ramConfig.range) {
+                            damageBoost += ramConfig.boost * otherTower.level;
+                        }
+                    }
+                }
+                
+                const effectiveDmg = Math.floor(baseDmg * damageBoost);
+                if (damageBoost > 1.0) {
+                    stats.push(`Damage: ${baseDmg} → ${effectiveDmg}`);
+                } else {
+                    stats.push(`Damage: ${baseDmg}`);
+                }
+            }
+            
+            // Support towers show their effect
+            if (config.boost) {
+                // RAM Bank - damage boost
+                const boostPercent = Math.floor(config.boost * tower.level * 100);
+                stats.push(`Damage Boost: +${boostPercent}%`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.rangeBoost) {
+                // Overclock Module - range boost
+                const rangeBoost = config.rangeBoost * tower.level;
+                stats.push(`Range Boost: +${rangeBoost} cells`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.cooldown) {
+                // Heat Sink - fire rate boost
+                const cooldownPercent = Math.floor(config.cooldown * tower.level * 100);
+                stats.push(`Fire Rate Boost: +${cooldownPercent}%`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.armor) {
+                // Shield Generator - armor
+                const armorPercent = Math.floor(config.armor * tower.level * 100);
+                stats.push(`Armor Reduction: ${armorPercent}%`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.goldBoost) {
+                // Battery Array - gold boost
+                const goldPercent = Math.floor(config.goldBoost * tower.level * 100);
+                stats.push(`Gold Boost: +${goldPercent}%`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.chainBoost) {
+                // Conductor Coil - chain targets
+                const chainBoost = config.chainBoost * tower.level;
+                stats.push(`Chain Boost: +${chainBoost} targets`);
+                stats.push(`Effect Range: ${config.range} cells`);
+            } else if (config.slow) {
+                // Resistor - slow
+                const slowPercent = Math.floor(config.slow * 100);
+                stats.push(`Slow: ${slowPercent}%`);
+            }
+            
+            // Show effective range for all towers
+            if (config.range) {
+                const effectiveRange = getEffectiveRange(tower, config);
+                if (effectiveRange > config.range) {
+                    stats.push(`Range: ${config.range} → ${effectiveRange.toFixed(1)}`);
+                } else {
+                    stats.push(`Range: ${config.range} cells`);
+                }
+            }
+            
             // Calculate box dimensions
             const fontSize = 14;
             const lineHeight = fontSize + 4;
             const padding = 8;
-            const boxWidth = 180;
-            const infoHeight = 2 * lineHeight; // Tower name and kills
+            const boxWidth = 200;
+            const infoHeight = (1 + stats.length) * lineHeight; // Tower name + stats
             const buttonHeight = 28;
             const buttonSpacing = 6;
             const boxHeight = infoHeight + buttonHeight * 2 + buttonSpacing + padding * 3;
@@ -2988,8 +3495,13 @@ function drawSelection() {
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             
-            ctx.fillText(`${config.name} (Lv${tower.level})`, boxX + padding, boxY + padding);
-            ctx.fillText(`Kills: ${tower.kills || 0}`, boxX + padding, boxY + padding + lineHeight);
+            // Draw tower name
+            ctx.fillText(`${config.name}`, boxX + padding, boxY + padding);
+            
+            // Draw stats
+            for (let i = 0; i < stats.length; i++) {
+                ctx.fillText(stats[i], boxX + padding, boxY + padding + (i + 1) * lineHeight);
+            }
             
             // Draw buttons
             const buttonY = boxY + padding + infoHeight + padding;
@@ -3815,6 +4327,12 @@ function loadGame(saveName) {
         const newLevelBtn = document.getElementById('newLevelBtn');
         if (newLevelBtn) {
             newLevelBtn.style.display = gameState.wave > 15 ? 'block' : 'none';
+        }
+        
+        // If loading a save beyond wave 15, mark the new level modal as already shown
+        // to prevent it from appearing when the next wave completes
+        if (gameState.wave > 15) {
+            newLevelModalShown = true;
         }
         
         // Update all UI elements
