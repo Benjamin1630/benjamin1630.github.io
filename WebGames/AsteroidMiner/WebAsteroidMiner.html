@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Asteroid Miner: Deep Space Operations</title>
+    <link rel="stylesheet" href="asteroid-miner-style.css">
+</head>
+<body class="booting">
+    <!-- SVG Filter for CRT Barrel Distortion -->
+    <svg style="position: absolute; width: 0; height: 0;">
+        <defs>
+            <filter id="crt-fisheye">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0" result="blur"/>
+                <feColorMatrix in="blur" type="matrix" values="
+                    1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 1 0" result="goo"/>
+                <feComponentTransfer in="goo" result="brightness">
+                    <feFuncR type="linear" slope="1.02"/>
+                    <feFuncG type="linear" slope="1.02"/>
+                    <feFuncB type="linear" slope="1.02"/>
+                </feComponentTransfer>
+                <feDisplacementMap in="brightness" in2="turbulence" scale="3" xChannelSelector="R" yChannelSelector="G" result="distortion"/>
+                <feTurbulence type="fractalNoise" baseFrequency="0.002" numOctaves="1" result="turbulence" seed="0"/>
+            </filter>
+            <!-- Simpler barrel distortion using feDisplacementMap -->
+            <filter id="crt-barrel">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.3" result="blur"/>
+                <feComponentTransfer in="blur" result="brightness">
+                    <feFuncR type="linear" slope="1.01"/>
+                    <feFuncG type="linear" slope="1.01"/>
+                    <feFuncB type="linear" slope="1.01"/>
+                </feComponentTransfer>
+            </filter>
+        </defs>
+    </svg>
+    
+    <!-- Boot Sequence Overlay -->
+    <div id="bootSequence" class="boot-sequence">
+        <div class="boot-content">
+            <pre id="bootText" class="boot-text"></pre>
+            <div class="boot-cursor">█</div>
+        </div>
+    </div>
+
+    <!-- Terminal Header -->
+    <header class="terminal-header">
+        <div class="header-left">
+            <a href="../../projects.html" class="terminal-btn exit-btn" title="Exit to DOS">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text">EXIT</span>
+                <span class="btn-bracket">]</span>
+            </a>
+            <button id="themeToggle" class="terminal-btn" title="Change Color Scheme">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text" id="themeText">GREEN</span>
+                <span class="btn-bracket">]</span>
+            </button>
+            <button id="crtToggle" class="terminal-btn" title="Toggle CRT Scanlines">
+                <span class="btn-bracket">[</span>
+                <span class="btn-text">CRT: OFF</span>
+                <span class="btn-bracket">]</span>
+            </button>
+        </div>
+        
+        <div class="header-center">
+            <div class="title-box">
+                <div class="title-line">╔══════════════════════════════════════════════╗</div>
+                <div class="title-text">║   ASTEROID MINER: DEEP SPACE OPERATIONS     ║</div>
+                <div class="title-line">╚══════════════════════════════════════════════╝</div>
+            </div>
+        </div>
+        
+        <div class="header-right">
+            <button id="drawerToggle" class="drawer-toggle">
+                <span class="drawer-icon">☰</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <div class="game-container">
+        <!-- Left Panel - Ship Status & Navigation -->
+        <aside class="side-panel left-panel">
+            <div class="panel-header">
+                <div class="panel-title">┌─ SHIP STATUS ─┐</div>
+            </div>
+            <div class="panel-content">
+                <!-- Ship Info Display -->
+                <div class="info-section">
+                    <div class="section-header">
+                        <span class="section-icon">◊</span>
+                        <span class="section-title">VESSEL DATA</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">SHIP:</span>
+                            <span class="stat-value stat-clickable" id="shipName" title="Click to rename">PROSPECTOR-1</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">SECTOR:</span>
+                            <span class="stat-value" id="sectorName">ALPHA-001</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">HULL:</span>
+                            <span class="stat-value" id="hullDisplay">100%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">STATUS:</span>
+                            <span class="stat-value" id="dockingStatus" style="color: #888888;">FLYING</span>
+                        </div>
+                    </div>
+                    <!-- Mining Lasers Display -->
+                    <div id="miningLasersDisplay" style="margin-top: 10px;">
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); padding-top: 8px;">
+                            <div id="miningLasersList"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resources Display -->
+                <div class="info-section">
+                    <div class="section-header">
+                        <span class="section-icon">$</span>
+                        <span class="section-title">RESOURCES</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">CREDITS:</span>
+                            <span class="stat-value" id="creditsDisplay">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">CARGO:</span>
+                            <span class="stat-value" id="cargoDisplay">0 / 100</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">FUEL:</span>
+                            <span class="stat-value" id="fuelDisplay">100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory Display -->
+                <div class="info-section">
+                    <div class="section-header">
+                        <span class="section-icon">■</span>
+                        <span class="section-title">CARGO HOLD</span>
+                    </div>
+                    <div class="inventory-list" id="inventoryList">
+                        <div class="inventory-item empty">
+                            <span class="item-icon">∅</span>
+                            <span class="item-text">CARGO BAY EMPTY</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Controls -->
+                <div class="info-section">
+                    <div class="section-header">
+                        <span class="section-icon">►</span>
+                        <span class="section-title">NAVIGATION</span>
+                    </div>
+                    <div class="nav-controls">
+                        <button class="nav-btn" id="returnToStation">
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">AUTO-PILOT TO STATION</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
+                        <button class="nav-btn" id="callForHelp" disabled>
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">CALL FOR HELP - 100 CR</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
+                        <button class="nav-btn" id="nextSector" disabled>
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">JUMP TO NEXT SECTOR</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Panel - Game Canvas -->
+        <main class="center-panel">
+            <div class="game-wrapper">
+                <!-- Canvas Container -->
+                <div class="canvas-container">
+                    <canvas id="gameCanvas" width="800" height="600"></canvas>
+                    
+                    <!-- Minimap -->
+                    <div class="minimap" id="minimap">
+                        <div class="minimap-header">MAP</div>
+                        <canvas id="minimapCanvas" width="120" height="120"></canvas>
+                    </div>
+
+                    <!-- Control Hints Overlay -->
+                    <div class="controls-hint" id="controlsHint">
+                        <div class="hint-title">╔═ CONTROLS ═╗</div>
+                        <div class="hint-item">
+                            <span class="hint-key">WASD</span>
+                            <span class="hint-desc">Move Ship</span>
+                        </div>
+                        <div class="hint-item">
+                            <span class="hint-key">SPACE</span>
+                            <span class="hint-desc">Mining Laser</span>
+                        </div>
+                        <div class="hint-item">
+                            <span class="hint-key">SCROLL</span>
+                            <span class="hint-desc">Zoom</span>
+                        </div>
+                        <div class="hint-item">
+                            <span class="hint-key">F5</span>
+                            <span class="hint-desc">Quick Save</span>
+                        </div>
+                        <div class="hint-item">
+                            <span class="hint-key">F9</span>
+                            <span class="hint-desc">Quick Load</span>
+                        </div>
+                        <div class="hint-close" id="closeHint">[CLICK TO HIDE]</div>
+                    </div>
+                </div>
+
+                <!-- Game Messages Console -->
+                <div class="console-messages" id="consoleMessages">
+                    <div class="console-header">
+                        <span>═══ SYSTEM LOG ═══</span>
+                        <button class="console-clear" id="clearConsole">[CLEAR]</button>
+                    </div>
+                    <div class="console-content" id="consoleContent">
+                        <div class="console-line">
+                            <span class="console-time">[00:00:00]</span>
+                            <span class="console-text">System initialized. Welcome, Captain.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel - Station Services & Upgrades -->
+        <aside class="side-panel right-panel">
+            <div class="panel-header">
+                <div class="panel-title">┌─ STATION SERVICES ─┐</div>
+            </div>
+            <div class="panel-content">
+                <!-- Station Interface (Always visible) -->
+                <div class="info-section" id="stationInterface">
+                    <div class="section-header">
+                        <span class="section-icon">◈</span>
+                        <span class="section-title">DOCKING BAY</span>
+                    </div>
+                    <div class="station-info">
+                        <div class="station-name" id="stationName">---------</div>
+                        <div class="station-status" id="stationStatus">NOT DOCKED</div>
+                    </div>
+                    <div class="nav-controls">
+                        <button class="nav-btn station-btn" id="sellCargoBtn" disabled>
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">SELL CARGO</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
+                        <button class="nav-btn station-btn" id="refuelShipBtn" disabled>
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">REFUEL & REPAIR</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
+                    </div>
+                    <div class="station-details" id="stationDetails">
+                        <div class="detail-item">
+                            <span class="detail-label">Cargo Value:</span>
+                            <span class="detail-value" id="cargoValue">0¢</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Fuel Needed:</span>
+                            <span class="detail-value" id="fuelNeeded">0%</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Hull Repairs:</span>
+                            <span class="detail-value" id="hullNeeded">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upgrade Categories -->
+                <div class="upgrade-categories">
+                    <!-- Physical Upgrades Category -->
+                    <div class="upgrade-category">
+                        <button class="category-header" data-category="physical">
+                            <span class="category-icon">▶</span>
+                            <span class="category-title">PHYSICAL SYSTEMS</span>
+                        </button>
+                        <div class="category-content" id="physicalContent" style="display: none;">
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">→</span>
+                                    <span class="upgrade-name">ENGINE BOOST</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Increase ship speed</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="speedLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeSpeed" data-upgrade="speed">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="speedCost">100</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">□</span>
+                                    <span class="upgrade-name">CARGO EXPANSION</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Increase cargo capacity</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="cargoLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeCargo" data-upgrade="cargo">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="cargoCost">150</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">▣</span>
+                                    <span class="upgrade-name">HULL PLATING</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Increase max hull strength</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="hullLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeHull" data-upgrade="hull">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="hullCost">200</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">●</span>
+                                    <span class="upgrade-name">FUEL EFFICIENCY</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Reduce fuel consumption</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="fuelLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeFuel" data-upgrade="fuel">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="fuelCost">180</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Laser Upgrades Category -->
+                    <div class="upgrade-category">
+                        <button class="category-header" data-category="lasers">
+                            <span class="category-icon">▶</span>
+                            <span class="category-title">MINING LASERS</span>
+                        </button>
+                        <div class="category-content" id="lasersContent" style="display: none;">
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">◊</span>
+                                    <span class="upgrade-name">MINING LASER</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Faster mining speed</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="miningLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeMining" data-upgrade="mining">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="miningCost">120</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">⚡</span>
+                                    <span class="upgrade-name">MULTI-MINING LASER</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Mine multiple asteroids at once</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="multiMiningLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeMultiMining" data-upgrade="multiMining">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="multiMiningCost">200</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">◉</span>
+                                    <span class="upgrade-name">MINING RANGE</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Extend laser reach</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="rangeLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeRange" data-upgrade="range">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="rangeCost">160</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prestige Category -->
+                    <div class="upgrade-category">
+                        <button class="category-header" data-category="prestige">
+                            <span class="category-icon">▶</span>
+                            <span class="category-title">PRESTIGE</span>
+                        </button>
+                        <div class="category-content" id="prestigeContent" style="display: none;">
+                            <div class="prestige-info">
+                                <div class="prestige-desc">
+                                    Reset progress for permanent bonuses
+                                </div>
+                                <div class="prestige-stats">
+                                    <span class="stat-label">REBIRTHS:</span>
+                                    <span class="stat-value" id="prestigeCount">0</span>
+                                </div>
+                                <div class="prestige-stats">
+                                    <span class="stat-label">BONUS:</span>
+                                    <span class="stat-value" id="prestigeBonus">+0%</span>
+                                </div>
+                                <button class="prestige-btn" id="prestigeBtn" disabled>
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">REBIRTH (50,000¢)</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Mobile Drawer Menu -->
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <div class="drawer-title">╔═ SHIP MENU ═╗</div>
+                <button class="drawer-close" id="drawerClose">✕</button>
+            </div>
+            
+            <div class="drawer-tabs">
+                <button class="drawer-tab active" data-tab="status">STATUS</button>
+                <button class="drawer-tab" data-tab="upgrades">UPGRADES</button>
+                <button class="drawer-tab" data-tab="cargo">CARGO</button>
+            </div>
+
+            <div class="drawer-body">
+                <div class="drawer-panel active" data-panel="status">
+                    <!-- Status content will be duplicated from left panel -->
+                </div>
+                <div class="drawer-panel" data-panel="upgrades">
+                    <!-- Upgrades content will be duplicated from right panel -->
+                </div>
+                <div class="drawer-panel" data-panel="cargo">
+                    <!-- Cargo content will be duplicated from inventory -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu Modal -->
+    <div class="modal" id="pauseModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <div class="modal-title">╔════ GAME PAUSED ════╗</div>
+            </div>
+            <div class="modal-body">
+                <!-- Main Buttons -->
+                <div class="pause-section">
+                    <button class="modal-btn" id="resumeBtn">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">RESUME MISSION</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                    <button class="modal-btn" id="restartBtn">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">RESTART GAME</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                    <button class="modal-btn" id="tutorialBtn">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">SHOW TUTORIAL</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                </div>
+
+                <!-- Save Game Section -->
+                <div class="pause-section">
+                    <div class="section-title">╔═══ SAVE GAME ═══╗</div>
+                    <div class="save-controls">
+                        <input type="text" id="saveName" class="save-input" placeholder="Save Name..." maxlength="20">
+                        <button id="saveGameBtn" class="modal-btn">
+                            <span class="btn-bracket">[</span>SAVE GAME<span class="btn-bracket">]</span>
+                        </button>
+                        <div id="saveMessage" class="save-message"></div>
+                    </div>
+                </div>
+
+                <!-- Load Game Section -->
+                <div class="pause-section">
+                    <div class="section-title">╔═══ LOAD GAME ═══╗</div>
+                    <div class="save-list" id="saveList">
+                        <div class="info-text dim">No saved games</div>
+                    </div>
+                </div>
+
+                <!-- Quick Save/Load -->
+                <div class="pause-section">
+                    <div class="section-title">╔═══ QUICK SAVE ═══╗</div>
+                    <div class="quick-save-buttons">
+                        <button id="quickSaveBtn" class="modal-btn">
+                            <span class="btn-bracket">[</span>QUICK SAVE<span class="btn-bracket">]</span>
+                        </button>
+                        <button id="quickLoadBtn" class="modal-btn">
+                            <span class="btn-bracket">[</span>QUICK LOAD<span class="btn-bracket">]</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Import/Export -->
+                <div class="pause-section">
+                    <div class="section-title">╔═══ IMPORT/EXPORT ═══╗</div>
+                    <div class="import-export-buttons">
+                        <button id="exportSaveBtn" class="modal-btn">
+                            <span class="btn-bracket">[</span>EXPORT ALL SAVES<span class="btn-bracket">]</span>
+                        </button>
+                        <button id="importSaveBtn" class="modal-btn">
+                            <span class="btn-bracket">[</span>IMPORT SAVES<span class="btn-bracket">]</span>
+                        </button>
+                        <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal (for confirmations) -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="confirmTitle">╔════ CONFIRM ════╗</div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message" id="confirmMessage">
+                    Are you sure?
+                </div>
+                <div class="modal-buttons">
+                    <button class="modal-btn modal-btn-confirm" id="confirmYes">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">YES</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                    <button class="modal-btn modal-btn-cancel" id="confirmNo">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">NO</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal (for notifications) -->
+    <div class="modal" id="alertModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="alertTitle">╔════ ALERT ════╗</div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message" id="alertMessage">
+                    Message
+                </div>
+                <button class="modal-btn" id="alertOk">
+                    <span class="btn-bracket">[</span>
+                    <span class="btn-text">OK</span>
+                    <span class="btn-bracket">]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div class="modal" id="gameOverModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">╔════ MISSION FAILED ════╗</div>
+            </div>
+            <div class="modal-body">
+                <div class="game-over-content">
+                    <pre class="game-over-text">
+ ██████╗  █████╗ ███╗   ███╗███████╗     ██████╗ ██╗   ██╗███████╗██████╗ 
+██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔═══██╗██║   ██║██╔════╝██╔══██╗
+██║  ███╗███████║██╔████╔██║███████╗    ██║   ██║██║   ██║█████╗  ██████╔╝
+██║   ██║██╔══██║██║╚██╔╝██║██╔════╝    ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗
+╚██████╔╝██║  ██║██║ ╚═╝ ██║███████║    ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║
+ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝
+                    </pre>
+                    <div class="game-over-stats" id="gameOverStats">
+                        <div class="stat-line">CREDITS EARNED: <span id="finalCredits">0</span></div>
+                        <div class="stat-line">ASTEROIDS MINED: <span id="finalAsteroids">0</span></div>
+                        <div class="stat-line">SECTORS EXPLORED: <span id="finalSectors">0</span></div>
+                        <div class="stat-line">DISTANCE TRAVELED: <span id="finalDistance">0</span></div>
+                    </div>
+                    <div class="game-over-message">
+                        CRITICAL DAMAGE SUSTAINED<br>
+                        SHIP DISABLED - RETURNING TO BASE
+                    </div>
+                </div>
+                <button class="modal-btn" id="gameOverRestart">
+                    <span class="btn-bracket">[</span>
+                    <span class="btn-text">RESTART MISSION</span>
+                    <span class="btn-bracket">]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Virtual Joystick (Mobile) -->
+    <div class="virtual-joystick" id="virtualJoystick">
+        <div class="joystick-outer">
+            <div class="joystick-inner" id="joystickInner"></div>
+        </div>
+    </div>
+
+    <!-- Mobile Action Buttons -->
+    <div class="mobile-controls" id="mobileControls">
+        <button class="mobile-btn" id="mobileShoot" title="Mining Laser">
+            <span class="mobile-btn-icon">◊</span>
+        </button>
+        <button class="mobile-btn" id="mobilePause" title="Pause">
+            <span class="mobile-btn-icon">⏸</span>
+        </button>
+    </div>
+
+    <script src="asteroid-miner-script.js"></script>
+</body>
+</html>
