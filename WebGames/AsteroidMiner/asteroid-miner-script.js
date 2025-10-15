@@ -36,7 +36,10 @@ const gameState = {
         hull: 1,
         fuel: 1,
         range: 1,
-        multiMining: 1
+        multiMining: 1,
+        scanRange: 1,
+        scanCooldown: 1,
+        advancedScanner: 0  // 0 = not purchased, 1 = purchased (one-time upgrade)
     },
     
     // Prestige
@@ -94,8 +97,8 @@ const CONFIG = {
     // Max object limits (scaled by sector)
     baseMaxAsteroids: 100, // Base limit for sector 1
     maxAsteroidsPerSector: 50, // Additional asteroids allowed per sector
-    baseMaxHazards: 20, // Base limit for sector 1
-    maxHazardsPerSector: 5, // Additional hazards allowed per sector
+    baseMaxHazards: 40, // Base limit for sector 1
+    maxHazardsPerSector: 15, // Additional hazards allowed per sector
 
     // World size
     worldWidth: 3000,
@@ -112,12 +115,18 @@ const player = {
     vx: 0,
     vy: 0,
     angle: 0,
-    size: 16,
+    size: 18,
     isMining: false,
     miningTargets: [], // Array of {asteroid, progress} objects for multi-mining
     miningTarget: null, // Kept for backward compatibility
     miningProgress: 0, // Kept for backward compatibility
-    isManuallyControlled: false // Track if player is actively providing input
+    isManuallyControlled: false, // Track if player is actively providing input
+    colors: {
+        primary: '#00ffff',    // Main hull color (cyan)
+        secondary: '#00aaaa',  // Hull outline color
+        accent: '#ffff00',     // Laser/detail color (yellow)
+        thruster: '#ff9600'    // Thruster flame color (orange)
+    }
 };
 
 // ================================
@@ -129,8 +138,8 @@ const viewport = {
     y: 0,
     zoom: 1.0,
     targetZoom: 1.0,
-    minZoom: 0.5,
-    maxZoom: 2.0,
+    minZoom: 0.75,
+    maxZoom: 1.5,
     smoothing: 0.1,
     zoomSmoothing: 0.15
 };
@@ -244,6 +253,35 @@ let autoPilotActive = false;
 // Rescue ship state
 let rescueShip = null;
 
+// ================================
+// SCAN SYSTEM
+// ================================
+
+const scanState = {
+    active: false,
+    waveRadius: 0,
+    waveMaxRadius: 400, // Will be calculated based on upgrades
+    waveSpeed: 10,
+    detectedItems: [],
+    displayTime: 7000, // Will be calculated based on upgrades
+    startTime: 0,
+    cooldown: 0,
+    cooldownMax: 8000 // Will be calculated based on upgrades
+};
+
+const SCAN_CONFIG = {
+    baseRange: 400, // Base scan range
+    rangePerLevel: 100, // Additional range per upgrade level
+    baseCooldown: 8000, // Base cooldown (8 seconds)
+    cooldownReduction: 800, // Cooldown reduction per level (0.8 seconds)
+    displayDuration: 7000, // Fixed display duration (7 seconds)
+    lineColor: '#00ffff',
+    labelOffset: 30,
+    horizontalLength: 80,
+    fontSize: 10,
+    fadeOutDuration: 2000 // 2 second fade
+};
+
 // Space Stations - array with main station at index 0
 let stations = [];
 
@@ -254,11 +292,11 @@ const createStation = (x, y, vx, vy, colorScheme, name, isDocked = false) => ({
     vx,
     vy,
     size: 100,  // Visual size of the station (increased from 60)
-    dockingRange: 120,  // Gravity pull zone and visual circle range (increased from 60)
+    dockingRange: 100,  // Gravity pull zone and visual circle range (increased from 60)
     isDocked,
     rotation: 0,
     rotationSpeed: 0.001,
-    pullStrength: 0.2,
+    pullStrength: 0.25,
     colorScheme,
     name,
     vertices: []
@@ -376,9 +414,14 @@ const mouse = {
 };
 
 // Touch/Mobile
-let joystickActive = false;
-let joystickAngle = 0;
-let joystickForce = 0;
+let isTouchDevice = false;
+let touchActive = false;
+let touchX = 0;
+let touchY = 0;
+
+// Pinch zoom for touch devices
+let lastTouchDistance = 0;
+let isPinching = false;
 
 // ================================
 // BOOT SEQUENCE
@@ -461,7 +504,7 @@ function getBootMessages(includeNamePrompt = false, isDocked = true) {
 
 let bootLineIndex = 0;
 let bootCharIndex = 0;
-const bootSpeed = 30;
+const bootSpeed = 10; // milliseconds per character
 let bootMessages = [];
 let awaitingNameInput = false;
 
@@ -825,38 +868,6 @@ function initCRT() {
 }
 
 // ================================
-// MOBILE DRAWER
-// ================================
-
-function initDrawer() {
-    const drawerToggle = document.getElementById('drawerToggle');
-    const drawerClose = document.getElementById('drawerClose');
-    const mobileDrawer = document.getElementById('mobileDrawer');
-    
-    drawerToggle.addEventListener('click', () => {
-        mobileDrawer.classList.add('open');
-    });
-    
-    drawerClose.addEventListener('click', () => {
-        mobileDrawer.classList.remove('open');
-    });
-    
-    const drawerTabs = document.querySelectorAll('.drawer-tab');
-    const drawerPanels = document.querySelectorAll('.drawer-panel');
-    
-    drawerTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetPanel = tab.dataset.tab;
-            
-            drawerTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            drawerPanels.forEach(p => p.classList.remove('active'));
-            document.querySelector(`[data-panel="${targetPanel}"]`).classList.add('active');
-        });
-    });
-}
-
 // ================================
 // CONSOLE LOGGING
 // ================================
@@ -898,18 +909,115 @@ function clearConsole() {
 // CONTROLS HINT
 // ================================
 
+// Track last input method for automatic tutorial switching
+let lastInputMethod = 'keyboard'; // 'keyboard', 'touch', or 'gamepad'
+
+// Define control schemes for different devices
+const controlSchemes = {
+    keyboard: {
+        title: '╔═ KEYBOARD CONTROLS ═╗',
+        controls: [
+            { key: 'W/A/S/D', desc: 'Move Ship' },
+            { key: 'ARROW KEYS', desc: 'Alternative Movement' },
+            { key: 'SPACE', desc: 'Mining Laser (Auto-targets)' },
+            { key: 'E / Q', desc: 'Deep Space Scan' },
+            { key: 'SCROLL', desc: 'Zoom In/Out' },
+            { key: 'F5', desc: 'Quick Save' },
+            { key: 'F9', desc: 'Quick Load' },
+            { key: 'ESC', desc: 'Pause Menu' }
+        ]
+    },
+    touch: {
+        title: '╔═ TOUCH CONTROLS ═╗',
+        controls: [
+            { key: 'TAP', desc: 'Move ship toward tap location' },
+            { key: 'DRAG', desc: 'Continuous movement' },
+            { key: 'PINCH', desc: 'Zoom In/Out' },
+            { key: 'AUTO-MINING', desc: 'Laser fires automatically in range' },
+            { key: 'AUTO-SCAN', desc: 'Auto-scans when available' },
+            { key: 'MENU BTN', desc: 'Access upgrades & saves' }
+        ]
+    },
+    gamepad: {
+        title: '╔═ CONTROLLER LAYOUT ═╗',
+        controls: [
+            { key: 'LEFT STICK', desc: 'Move Ship (Analog)' },
+            { key: 'A / CROSS', desc: 'Mining Laser' },
+            { key: 'B / CIRCLE', desc: 'Deep Space Scan' },
+            { key: 'LB / L1', desc: 'Zoom Out' },
+            { key: 'RB / R1', desc: 'Zoom In' },
+            { key: 'D-PAD UP', desc: 'Toggle Autopilot' },
+            { key: 'SELECT/BACK', desc: 'Virtual Mouse Mode' },
+            { key: 'D-PAD (V-MOUSE)', desc: 'Move Cursor (Magnetizes to buttons)' },
+            { key: 'A (V-MOUSE)', desc: 'Click Button' },
+            { key: 'HOLD L3 (2s)', desc: 'Quick Load' },
+            { key: 'HOLD R3 (2s)', desc: 'Quick Save' },
+            { key: 'START/OPTIONS', desc: 'Pause Menu' }
+        ]
+    }
+};
+
 function initControlsHint() {
     const controlsHint = document.getElementById('controlsHint');
     const closeHint = document.getElementById('closeHint');
     
+    // Detect initial input method
+    if (isTouchDevice) {
+        lastInputMethod = 'touch';
+    }
+    
+    // Render the controls
+    updateControlsHint();
+    
+    // Close button handler
     closeHint.addEventListener('click', () => {
         controlsHint.classList.add('hidden');
         localStorage.setItem('asteroidMinerHintClosed', 'true');
     });
     
+    // Check if hint was previously closed
     const hintClosed = localStorage.getItem('asteroidMinerHintClosed');
     if (hintClosed === 'true') {
         controlsHint.classList.add('hidden');
+    }
+}
+
+function updateControlsHint() {
+    const controlsHint = document.getElementById('controlsHint');
+    const closeHint = document.getElementById('closeHint');
+    
+    if (!controlsHint || !closeHint) return;
+    
+    // Get the appropriate scheme based on last input
+    const scheme = controlSchemes[lastInputMethod];
+    
+    // Update title
+    const hintTitle = controlsHint.querySelector('.hint-title');
+    if (hintTitle) {
+        hintTitle.textContent = scheme.title;
+    }
+    
+    // Clear existing controls (keep only title and close button)
+    const existingItems = controlsHint.querySelectorAll('.hint-item');
+    existingItems.forEach(item => item.remove());
+    
+    // Create new control items
+    scheme.controls.forEach(control => {
+        const item = document.createElement('div');
+        item.className = 'hint-item';
+        item.innerHTML = `
+            <span class="hint-key">${control.key}</span>
+            <span class="hint-desc">${control.desc}</span>
+        `;
+        // Insert before the close button
+        controlsHint.insertBefore(item, closeHint);
+    });
+}
+
+function setInputMethod(method) {
+    if (lastInputMethod !== method) {
+        lastInputMethod = method;
+        updateControlsHint();
     }
 }
 
@@ -1105,6 +1213,27 @@ function showGameOver(credits, asteroids, sectors, distance, reason = 'damage') 
     
     modal.classList.add('active');
     
+    // Check if any saves exist
+    const loadBtn = document.getElementById('gameOverLoadSave');
+    const latestSave = getLatestSaveName();
+    
+    if (latestSave) {
+        loadBtn.style.display = 'block';
+        const handleLoad = () => {
+            loadBtn.removeEventListener('click', handleLoad);
+            if (loadGame(latestSave)) {
+                modal.classList.remove('active');
+                gameState.isPaused = false;
+                initGame();
+            } else {
+                showMessage('Failed to load save. Please try again or restart.');
+            }
+        };
+        loadBtn.addEventListener('click', handleLoad);
+    } else {
+        loadBtn.style.display = 'none';
+    }
+    
     const restartBtn = document.getElementById('gameOverRestart');
     const handleRestart = () => {
         restartBtn.removeEventListener('click', handleRestart);
@@ -1118,6 +1247,43 @@ function showGameOver(credits, asteroids, sectors, distance, reason = 'damage') 
     };
     
     restartBtn.addEventListener('click', handleRestart);
+}
+
+// Get the name of the most recently saved game (excluding AutoSave)
+function getLatestSaveName() {
+    try {
+        const savesString = localStorage.getItem('asteroidMinerSaves') || '{}';
+        const saves = JSON.parse(savesString);
+        
+        // Get all save names except AutoSave
+        const saveNames = Object.keys(saves).filter(name => name !== 'AutoSave');
+        
+        if (saveNames.length === 0) {
+            // No manual saves, check if AutoSave exists
+            if (saves['AutoSave']) {
+                return 'AutoSave';
+            }
+            return null;
+        }
+        
+        // Find the most recent save by timestamp
+        let latestName = saveNames[0];
+        let latestTime = saves[latestName].timestamp || 0;
+        
+        for (let i = 1; i < saveNames.length; i++) {
+            const name = saveNames[i];
+            const time = saves[name].timestamp || 0;
+            if (time > latestTime) {
+                latestTime = time;
+                latestName = name;
+            }
+        }
+        
+        return latestName;
+    } catch (e) {
+        console.error('Failed to get latest save:', e);
+        return null;
+    }
 }
 
 // ================================
@@ -1180,6 +1346,77 @@ function initPauseModal() {
 }
 
 // ================================
+// SHIP CUSTOMIZATION MODAL
+// ================================
+
+function initCustomization() {
+    const applyBtn = document.getElementById('customizeApply');
+    const cancelBtn = document.getElementById('customizeCancel');
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    
+    applyBtn.addEventListener('click', applyShipCustomization);
+    cancelBtn.addEventListener('click', closeShipCustomization);
+    
+    // Add preset button handlers
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const presetName = btn.dataset.preset;
+            applyColorPreset(presetName);
+        });
+    });
+    
+    // Color swatch button handlers
+    const swatchButtons = [
+        'swatchPrimary',
+        'swatchSecondary',
+        'swatchAccent',
+        'swatchThruster'
+    ];
+    
+    swatchButtons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                const colorType = btn.dataset.colorType;
+                openColorPicker(colorType);
+            });
+        }
+    });
+    
+    // Color picker modal handlers
+    const colorPickerClose = document.getElementById('colorPickerClose');
+    if (colorPickerClose) {
+        colorPickerClose.addEventListener('click', closeColorPicker);
+    }
+    
+    // Custom hex input handler
+    const applyCustomHex = document.getElementById('applyCustomHex');
+    const customHexInput = document.getElementById('customHexInput');
+    
+    if (applyCustomHex && customHexInput) {
+        applyCustomHex.addEventListener('click', () => {
+            let hex = customHexInput.value.trim();
+            // Add # if missing
+            if (!hex.startsWith('#')) {
+                hex = '#' + hex;
+            }
+            selectColor(hex);
+        });
+        
+        // Also allow Enter key to apply
+        customHexInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                let hex = customHexInput.value.trim();
+                if (!hex.startsWith('#')) {
+                    hex = '#' + hex;
+                }
+                selectColor(hex);
+            }
+        });
+    }
+}
+
+// ================================
 // SAVE/LOAD SYSTEM
 // ================================
 
@@ -1200,6 +1437,12 @@ function saveGame(saveName) {
             vx: player.vx,
             vy: player.vy,
             angle: player.angle,
+            colors: {
+                primary: player.colors.primary,
+                secondary: player.colors.secondary,
+                accent: player.colors.accent,
+                thruster: player.colors.thruster
+            }
             // Don't save isMining or miningTargets - runtime state
         },
         stations: stations.map(st => ({
@@ -1217,6 +1460,8 @@ function saveGame(saveName) {
             pullStrength: st.pullStrength
         })),
         upgrades: {
+            // Upgrade values determine ship's visual appearance (thrusters, cargo pods, lasers, etc.)
+            // Ship rendering in renderPlayer() reads these values to display upgrade decorations
             speed: gameState.upgrades.speed,
             cargo: gameState.upgrades.cargo,
             mining: gameState.upgrades.mining,
@@ -1224,6 +1469,9 @@ function saveGame(saveName) {
             fuel: gameState.upgrades.fuel,
             range: gameState.upgrades.range,
             multiMining: gameState.upgrades.multiMining,
+            advancedScanner: gameState.upgrades.advancedScanner,
+            scanRange: gameState.upgrades.scanRange,
+            scanCooldown: gameState.upgrades.scanCooldown
         },
         resources: {
             hull: gameState.hull,
@@ -1337,8 +1585,46 @@ function loadGame(saveName) {
         player.miningTarget = null;
         player.miningProgress = 0;
         
-        // Note: Station state is already loaded via loadGameData() before this function
-        // Legacy saves with single station are migrated to stations array in loadGameData()
+        // Restore ship colors (with defaults if not present in save)
+        if (saveData.player.colors) {
+            player.colors.primary = saveData.player.colors.primary || '#00ffff';
+            player.colors.secondary = saveData.player.colors.secondary || '#00aaaa';
+            player.colors.accent = saveData.player.colors.accent || '#ffff00';
+            player.colors.thruster = saveData.player.colors.thruster || '#ff9600';
+        }
+        
+        // Restore stations array
+        if (saveData.stations && saveData.stations.length > 0) {
+            // Load stations from save with full state restoration
+            stations = saveData.stations.map(st => {
+                const station = createStation(
+                    st.x, st.y, st.vx, st.vy,
+                    st.colorScheme || STATION_COLORS[2],
+                    st.name || 'Deep Space 9',
+                    st.isDocked || false
+                );
+                // Restore rotation state
+                station.rotation = st.rotation || 0;
+                station.rotationSpeed = st.rotationSpeed || 0.001;
+                station.pullStrength = st.pullStrength || 0.25;
+                station.size = st.size || 100;
+                station.dockingRange = st.dockingRange || 100;
+                return station;
+            });
+        } else if (saveData.station) {
+            // Legacy save with single station - migrate to array
+            const st = saveData.station;
+            stations = [createStation(
+                st.x, st.y, st.vx, st.vy,
+                st.colorScheme || STATION_COLORS[2],
+                st.name || 'Deep Space 9',
+                st.isDocked || false
+            )];
+            stations[0].rotation = st.rotation || 0;
+        } else {
+            // No station data in save - generate new stations
+            initStationState();
+        }
         
         // Restore upgrades
         gameState.upgrades.speed = saveData.upgrades.speed;
@@ -1348,6 +1634,9 @@ function loadGame(saveName) {
         gameState.upgrades.fuel = saveData.upgrades.fuel;
         gameState.upgrades.range = saveData.upgrades.range;
         gameState.upgrades.multiMining = saveData.upgrades.multiMining;
+        gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
+        gameState.upgrades.scanRange = saveData.upgrades.scanRange || 1;
+        gameState.upgrades.scanCooldown = saveData.upgrades.scanCooldown || 1;
         
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
@@ -1487,6 +1776,9 @@ function loadGameData(saveName) {
         gameState.upgrades.fuel = saveData.upgrades.fuel;
         gameState.upgrades.range = saveData.upgrades.range;
         gameState.upgrades.multiMining = saveData.upgrades.multiMining;
+        gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
+        gameState.upgrades.scanRange = saveData.upgrades.scanRange || 1;
+        gameState.upgrades.scanCooldown = saveData.upgrades.scanCooldown || 1;
         
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
@@ -1822,11 +2114,19 @@ function initInput() {
             return;
         }
         
+        // Track keyboard input
+        setInputMethod('keyboard');
+        
         keys[e.key.toLowerCase()] = true;
         
         // Quick actions
         if (e.key === ' ') {
             keys['space'] = true;
+        }
+        
+        // Scan function (E or Q key)
+        if ((e.key.toLowerCase() === 'e' || e.key.toLowerCase() === 'q') && !gameState.isPaused) {
+            triggerScan();
         }
         
         // Quick Save (F5)
@@ -1908,61 +2208,155 @@ function initInput() {
 }
 
 function initTouchControls() {
-    const joystick = document.getElementById('virtualJoystick');
-    const joystickInner = document.getElementById('joystickInner');
-    const mobileShoot = document.getElementById('mobileShoot');
+    // Detect if this is a touch device
+    isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     
-    if (!joystick) return;
+    if (!isTouchDevice) return;
     
-    let touchId = null;
+    console.log('Touch device detected - enabling canvas joystick controls');
     
-    joystick.addEventListener('touchstart', (e) => {
+    // Auto-blur buttons and links after they're clicked on touch devices
+    document.addEventListener('click', (e) => {
+        // Check if the clicked element or its parent is a button or anchor
+        let element = null;
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') {
+            element = e.target;
+        } else if (e.target.closest('button')) {
+            element = e.target.closest('button');
+        } else if (e.target.closest('a')) {
+            element = e.target.closest('a');
+        }
+        
+        if (element) {
+            // Use setTimeout to ensure the click completes before blurring
+            setTimeout(() => {
+                element.blur();
+            }, 10);
+        }
+    }, true); // Use capture phase to catch all clicks
+    
+    // Helper function to calculate distance between two touches
+    function getTouchDistance(touch1, touch2) {
+        const dx = touch2.clientX - touch1.clientX;
+        const dy = touch2.clientY - touch1.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    // Use the entire canvas as a directional joystick
+    canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        touchId = e.touches[0].identifier;
-        joystickActive = true;
+        
+        // Track touch input
+        setInputMethod('touch');
+        
+        if (e.touches.length === 2) {
+            // Two fingers - start pinch zoom
+            isPinching = true;
+            touchActive = false; // Disable movement when pinching
+            lastTouchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        } else if (e.touches.length === 1) {
+            // One finger - movement
+            isPinching = false;
+            touchActive = true;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchX = touch.clientX - rect.left;
+            touchY = touch.clientY - rect.top;
+        }
+    }, { passive: false });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        
+        if (e.touches.length === 2 && isPinching) {
+            // Two fingers - handle pinch zoom
+            const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+            
+            if (lastTouchDistance > 0) {
+                // Calculate zoom factor based on distance change
+                const distanceChange = currentDistance - lastTouchDistance;
+                const zoomFactor = 1 + (distanceChange * 0.01); // Adjust sensitivity
+                
+                // Update target zoom
+                viewport.targetZoom = Math.max(
+                    viewport.minZoom, 
+                    Math.min(viewport.maxZoom, viewport.targetZoom * zoomFactor)
+                );
+            }
+            
+            lastTouchDistance = currentDistance;
+        } else if (e.touches.length === 1 && touchActive && !isPinching) {
+            // One finger - handle movement
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchX = touch.clientX - rect.left;
+            touchY = touch.clientY - rect.top;
+        }
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        
+        if (e.touches.length < 2) {
+            // Less than 2 fingers - end pinch
+            isPinching = false;
+            lastTouchDistance = 0;
+        }
+        
+        if (e.touches.length === 0) {
+            // No fingers - end movement
+            touchActive = false;
+            touchX = 0;
+            touchY = 0;
+        } else if (e.touches.length === 1 && !isPinching) {
+            // One finger remaining - continue movement
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchX = touch.clientX - rect.left;
+            touchY = touch.clientY - rect.top;
+        }
+    }, { passive: false });
+    
+    canvas.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        touchActive = false;
+        isPinching = false;
+        lastTouchDistance = 0;
+        touchX = 0;
+        touchY = 0;
+    }, { passive: false });
+    
+    // Prevent UI elements from interfering with game controls
+    const uiElements = document.querySelectorAll('button, input, textarea, select, .side-panel, .modal, .console-messages');
+    uiElements.forEach(element => {
+        element.addEventListener('touchstart', (e) => {
+            // Stop propagation to prevent canvas touch handling
+            e.stopPropagation();
+        }, { passive: true });
+        
+        element.addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
+        
+        element.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
     });
     
-    joystick.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        if (!joystickActive) return;
+    // Add visual feedback for button taps
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => {
+        button.addEventListener('touchstart', () => {
+            if (!button.disabled) {
+                button.style.transition = 'all 0.1s';
+            }
+        }, { passive: true });
         
-        const touch = Array.from(e.touches).find(t => t.identifier === touchId);
-        if (!touch) return;
-        
-        const rect = joystick.getBoundingClientRect();
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        
-        const dx = touch.clientX - rect.left - centerX;
-        const dy = touch.clientY - rect.top - centerY;
-        
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const maxDistance = rect.width / 2;
-        
-        joystickAngle = Math.atan2(dy, dx);
-        joystickForce = Math.min(distance / maxDistance, 1);
-        
-        const offsetX = Math.cos(joystickAngle) * joystickForce * (maxDistance / 2);
-        const offsetY = Math.sin(joystickAngle) * joystickForce * (maxDistance / 2);
-        
-        joystickInner.style.transform = `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`;
-    });
-    
-    joystick.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        joystickActive = false;
-        joystickForce = 0;
-        joystickInner.style.transform = 'translate(-50%, -50%)';
-    });
-    
-    mobileShoot.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        keys['space'] = true;
-    });
-    
-    mobileShoot.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        keys['space'] = false;
+        button.addEventListener('touchend', () => {
+            if (!button.disabled) {
+                button.style.transition = 'all 0.2s';
+            }
+        }, { passive: true });
     });
     
     // Mobile pause button
@@ -1977,6 +2371,583 @@ function initTouchControls() {
 }
 
 // ================================
+// GAMEPAD/CONTROLLER SUPPORT
+// ================================
+
+let gamepadConnected = false;
+let gamepadIndex = null;
+let lastGamepadState = {
+    buttons: [],
+    axes: [],
+    l3HoldStart: 0,  // Left stick press (Quick Load)
+    r3HoldStart: 0,  // Right stick press (Quick Save)
+    dpadUpPressed: false, // Track D-pad up for autopilot toggle
+    dpadDownPressed: false, // Track D-pad down for virtual mouse jumps
+    dpadLeftPressed: false, // Track D-pad left for virtual mouse jumps
+    dpadRightPressed: false, // Track D-pad right for virtual mouse jumps
+    selectPressed: false  // Track SELECT button for virtual mouse toggle
+};
+
+// Virtual Mouse for Controller UI Navigation
+let virtualMouseActive = false;
+let virtualMouse = {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    speed: 8,
+    magnetRange: 150,
+    magnetStrength: 0.3,
+    visible: false
+};
+
+// Get all interactive elements for virtual mouse targeting
+function getInteractiveElements() {
+    return Array.from(document.querySelectorAll('button:not([disabled]), input, select, .upgrade-btn, .hint-close, .modal-btn, .modal-btn-small, .color-swatch-btn, .preset-btn, .color-swatch, a.terminal-btn, a.exit-btn'));
+}
+
+// Find nearest interactive element to virtual mouse
+function findNearestButton() {
+    const elements = getInteractiveElements();
+    let nearest = null;
+    let nearestDist = virtualMouse.magnetRange;
+    
+    elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        const dx = centerX - virtualMouse.x;
+        const dy = centerY - virtualMouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = { element: el, x: centerX, y: centerY, dist };
+        }
+    });
+    
+    return nearest;
+}
+
+// Find nearest button in a specific direction
+function findButtonInDirection(direction) {
+    const elements = getInteractiveElements();
+    let best = null;
+    let bestScore = Infinity;
+    
+    elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        const dx = centerX - virtualMouse.x;
+        const dy = centerY - virtualMouse.y;
+        
+        // Check if element is in the general direction
+        let isInDirection = false;
+        let primaryDistance = 0;
+        let secondaryDistance = 0;
+        let alignmentScore = 0; // How well aligned in the desired direction
+        
+        switch(direction) {
+            case 'up':
+                isInDirection = dy < -10; // Must be above
+                primaryDistance = Math.abs(dy);
+                secondaryDistance = Math.abs(dx);
+                // Alignment: prefer buttons directly above (small dx relative to dy)
+                alignmentScore = secondaryDistance / (primaryDistance + 1);
+                break;
+            case 'down':
+                isInDirection = dy > 10; // Must be below
+                primaryDistance = Math.abs(dy);
+                secondaryDistance = Math.abs(dx);
+                // Alignment: prefer buttons directly below
+                alignmentScore = secondaryDistance / (primaryDistance + 1);
+                break;
+            case 'left':
+                isInDirection = dx < -10; // Must be to the left
+                primaryDistance = Math.abs(dx);
+                secondaryDistance = Math.abs(dy);
+                // Alignment: prefer buttons directly to the left
+                alignmentScore = secondaryDistance / (primaryDistance + 1);
+                break;
+            case 'right':
+                isInDirection = dx > 10; // Must be to the right
+                primaryDistance = Math.abs(dx);
+                secondaryDistance = Math.abs(dy);
+                // Alignment: prefer buttons directly to the right
+                alignmentScore = secondaryDistance / (primaryDistance + 1);
+                break;
+        }
+        
+        if (isInDirection) {
+            // Score based on alignment first, then distance
+            // Lower score is better
+            // Weight alignment heavily (x3) to prioritize direction over proximity
+            const score = (alignmentScore * 300) + primaryDistance + (secondaryDistance * 0.2);
+            
+            if (score < bestScore) {
+                bestScore = score;
+                best = { element: el, x: centerX, y: centerY };
+            }
+        }
+    });
+    
+    return best;
+}
+
+// Create virtual mouse cursor element
+function createVirtualMouseCursor() {
+    const cursor = document.createElement('div');
+    cursor.id = 'virtualMouseCursor';
+    cursor.style.cssText = `
+        position: fixed;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: rgba(0, 255, 255, 0.6);
+        border: 2px solid var(--term-text);
+        pointer-events: none;
+        z-index: 100000;
+        display: none;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4);
+        transition: all 0.1s ease;
+    `;
+    document.body.appendChild(cursor);
+    return cursor;
+}
+
+// Update virtual mouse cursor position
+function updateVirtualMouseCursor() {
+    let cursor = document.getElementById('virtualMouseCursor');
+    if (!cursor) {
+        cursor = createVirtualMouseCursor();
+    }
+    
+    if (virtualMouseActive) {
+        cursor.style.display = 'block';
+        cursor.style.left = virtualMouse.x + 'px';
+        cursor.style.top = virtualMouse.y + 'px';
+        
+        // Highlight hovered element
+        const nearest = findNearestButton();
+        if (nearest && nearest.dist < 50) {
+            cursor.style.transform = 'translate(-50%, -50%) scale(1.3)';
+            cursor.style.background = 'rgba(0, 255, 0, 0.8)';
+            
+            // Add hover effect to button
+            nearest.element.style.filter = 'brightness(1.3)';
+        } else {
+            cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+            cursor.style.background = 'rgba(0, 255, 255, 0.6)';
+            
+            // Remove hover effects from all buttons
+            getInteractiveElements().forEach(el => {
+                el.style.filter = '';
+            });
+        }
+    } else {
+        cursor.style.display = 'none';
+        // Remove hover effects when cursor is hidden
+        getInteractiveElements().forEach(el => {
+            el.style.filter = '';
+        });
+    }
+}
+
+// Toggle virtual mouse mode
+function toggleVirtualMouse() {
+    virtualMouseActive = !virtualMouseActive;
+    virtualMouse.visible = virtualMouseActive;
+    
+    if (virtualMouseActive) {
+        // Center cursor on screen
+        virtualMouse.x = window.innerWidth / 2;
+        virtualMouse.y = window.innerHeight / 2;
+        logMessage('Virtual Mouse: ACTIVE (Left Stick=Move, D-Pad=Jump to button, A=Click, SELECT=Exit)');
+    } else {
+        logMessage('Virtual Mouse: INACTIVE');
+    }
+    
+    updateVirtualMouseCursor();
+}
+
+// Gamepad connection events
+window.addEventListener('gamepadconnected', (e) => {
+    console.log('Gamepad connected:', e.gamepad.id);
+    gamepadConnected = true;
+    gamepadIndex = e.gamepad.index;
+    logMessage(`Controller connected: ${e.gamepad.id.substring(0, 30)}`);
+    
+    // Show controller tutorial briefly
+    showControllerHint();
+});
+
+window.addEventListener('gamepaddisconnected', (e) => {
+    console.log('Gamepad disconnected');
+    if (e.gamepad.index === gamepadIndex) {
+        gamepadConnected = false;
+        gamepadIndex = null;
+        logMessage('Controller disconnected');
+    }
+});
+
+function showControllerHint() {
+    // Briefly show a message about controller being connected
+    const hint = document.createElement('div');
+    hint.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        border: 2px solid var(--term-text);
+        padding: 20px 30px;
+        color: var(--term-text);
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        z-index: 10000;
+        text-align: center;
+        line-height: 1.6;
+    `;
+    hint.innerHTML = `
+        <div style="font-size: 18px; margin-bottom: 10px;">╔═ CONTROLLER DETECTED ═╗</div>
+        <div>Press START/OPTIONS for controls</div>
+    `;
+    document.body.appendChild(hint);
+    
+    setTimeout(() => {
+        hint.remove();
+    }, 3000);
+}
+
+function updateGamepad() {
+    if (!gamepadConnected || gamepadIndex === null) return;
+    
+    const gamepads = navigator.getGamepads();
+    const gamepad = gamepads[gamepadIndex];
+    
+    if (!gamepad) return;
+    
+    // Don't process controller input if game is paused
+    if (gameState.isPaused) return;
+    
+    // Don't process game input while editing ship name
+    if (isEditingShipName) return;
+    
+    const DEADZONE = 0.15; // Ignore small stick movements
+    const HOLD_DURATION = 2000; // 2 seconds in milliseconds
+    
+    // Track if any gamepad input is detected this frame
+    let gamepadInputDetected = false;
+    
+    // ====================
+    // NOTE: Left stick movement is now handled in updatePlayer() 
+    // to use the same physics system as keyboard/touch
+    // But we still need to detect it for input method tracking
+    // ====================
+    const leftX = Math.abs(gamepad.axes[0]) > DEADZONE ? gamepad.axes[0] : 0;
+    const leftY = Math.abs(gamepad.axes[1]) > DEADZONE ? gamepad.axes[1] : 0;
+    
+    if (leftX !== 0 || leftY !== 0) {
+        gamepadInputDetected = true;
+    }
+    
+    // ====================
+    // L3 (Left Stick Press) - Quick Load (Hold 2 sec)
+    // ====================
+    const l3Pressed = gamepad.buttons[10] && gamepad.buttons[10].pressed;
+    
+    if (l3Pressed) {
+        gamepadInputDetected = true;
+        if (lastGamepadState.l3HoldStart === 0) {
+            lastGamepadState.l3HoldStart = Date.now();
+        } else {
+            const holdTime = Date.now() - lastGamepadState.l3HoldStart;
+            if (holdTime >= HOLD_DURATION) {
+                // Quick Load
+                const savesString = localStorage.getItem('asteroidMinerSaves') || '{}';
+                const saves = JSON.parse(savesString);
+                if (saves['QuickSave']) {
+                    if (loadGame('QuickSave')) {
+                        logMessage('Quick Load successful');
+                        createFloatingText(player.x, player.y - 30, 'LOADED', '#00ff00');
+                    }
+                } else {
+                    logMessage('No QuickSave found');
+                }
+                lastGamepadState.l3HoldStart = 0; // Reset to prevent repeat
+            }
+        }
+    } else {
+        lastGamepadState.l3HoldStart = 0;
+    }
+    
+    // ====================
+    // R3 (Right Stick Press) - Quick Save (Hold 2 sec)
+    // ====================
+    const r3Pressed = gamepad.buttons[11] && gamepad.buttons[11].pressed;
+    
+    if (r3Pressed) {
+        gamepadInputDetected = true;
+        if (lastGamepadState.r3HoldStart === 0) {
+            lastGamepadState.r3HoldStart = Date.now();
+        } else {
+            const holdTime = Date.now() - lastGamepadState.r3HoldStart;
+            if (holdTime >= HOLD_DURATION) {
+                // Quick Save
+                if (saveGame('QuickSave')) {
+                    logMessage('Quick Save successful');
+                    createFloatingText(player.x, player.y - 30, 'SAVED', '#00ff00');
+                }
+                lastGamepadState.r3HoldStart = 0; // Reset to prevent repeat
+            }
+        }
+    } else {
+        lastGamepadState.r3HoldStart = 0;
+    }
+    
+    // ====================
+    // SELECT/BACK Button (Button 8) - Toggle Virtual Mouse
+    // ====================
+    const selectButton = gamepad.buttons[8] && gamepad.buttons[8].pressed;
+    const selectButtonJustPressed = selectButton && !lastGamepadState.selectPressed;
+    
+    if (selectButtonJustPressed) {
+        gamepadInputDetected = true;
+        toggleVirtualMouse();
+    }
+    
+    // Update SELECT button state
+    lastGamepadState.selectPressed = selectButton;
+    
+    // ====================
+    // VIRTUAL MOUSE MODE
+    // ====================
+    if (virtualMouseActive) {
+        // LEFT STICK - Smooth analog movement
+        const leftX = Math.abs(gamepad.axes[0]) > DEADZONE ? gamepad.axes[0] : 0;
+        const leftY = Math.abs(gamepad.axes[1]) > DEADZONE ? gamepad.axes[1] : 0;
+        
+        if (leftX !== 0 || leftY !== 0) {
+            gamepadInputDetected = true;
+            
+            // Smooth movement based on stick position
+            const moveSpeed = 12; // Base speed for virtual mouse
+            virtualMouse.x += leftX * moveSpeed;
+            virtualMouse.y += leftY * moveSpeed;
+            
+            // Magnetize to nearest button
+            const nearest = findNearestButton();
+            if (nearest && nearest.dist < virtualMouse.magnetRange) {
+                const pullX = (nearest.x - virtualMouse.x) * virtualMouse.magnetStrength;
+                const pullY = (nearest.y - virtualMouse.y) * virtualMouse.magnetStrength;
+                virtualMouse.x += pullX;
+                virtualMouse.y += pullY;
+            }
+            
+            // Clamp to screen bounds
+            virtualMouse.x = Math.max(0, Math.min(window.innerWidth, virtualMouse.x));
+            virtualMouse.y = Math.max(0, Math.min(window.innerHeight, virtualMouse.y));
+        }
+        
+        // D-PAD - Jump to nearest button in direction
+        const dpadLeft = gamepad.buttons[14] && gamepad.buttons[14].pressed;
+        const dpadRight = gamepad.buttons[15] && gamepad.buttons[15].pressed;
+        const dpadUp = gamepad.buttons[12] && gamepad.buttons[12].pressed;
+        const dpadDown = gamepad.buttons[13] && gamepad.buttons[13].pressed;
+        
+        // Track D-pad button presses to only jump once per press
+        const dpadLeftJustPressed = dpadLeft && !lastGamepadState.dpadLeftPressed;
+        const dpadRightJustPressed = dpadRight && !lastGamepadState.dpadRightPressed;
+        const dpadUpJustPressed = dpadUp && !lastGamepadState.dpadUpPressed;
+        const dpadDownJustPressed = dpadDown && !lastGamepadState.dpadDownPressed;
+        
+        // Jump to button in direction
+        if (dpadLeftJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('left');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadRightJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('right');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadUpJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('up');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadDownJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('down');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        
+        // Update D-pad state tracking
+        lastGamepadState.dpadLeftPressed = dpadLeft;
+        lastGamepadState.dpadRightPressed = dpadRight;
+        lastGamepadState.dpadUpPressed = dpadUp;
+        lastGamepadState.dpadDownPressed = dpadDown;
+        
+        // A button clicks the element under cursor (only on button down, not hold)
+        const aButton = gamepad.buttons[0] && gamepad.buttons[0].pressed;
+        const aButtonJustPressed = aButton && !(lastGamepadState.buttons[0]);
+        const nearest = findNearestButton();
+        if (aButtonJustPressed && nearest && nearest.dist < 50) {
+            gamepadInputDetected = true;
+            // Simulate click on the element
+            nearest.element.click();
+            
+            // Visual feedback
+            const cursor = document.getElementById('virtualMouseCursor');
+            if (cursor) {
+                cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
+                setTimeout(() => {
+                    cursor.style.transform = 'translate(-50%, -50%) scale(1.3)';
+                }, 100);
+            }
+        }
+        
+        // Update A button state tracking
+        lastGamepadState.buttons[0] = aButton;
+        
+        // Update cursor visual
+        updateVirtualMouseCursor();
+        
+        // In virtual mouse mode, disable game controls
+        return;
+    }
+    
+    // ====================
+    // GAME CONTROLS (Only when virtual mouse is inactive)
+    // ====================
+    
+    // ====================
+    // A/Cross Button - Mining Laser
+    // ====================
+    const aButton = gamepad.buttons[0] && gamepad.buttons[0].pressed;
+    if (aButton) {
+        gamepadInputDetected = true;
+        keys['space'] = true;
+    } else if (lastInputMethod === 'gamepad') {
+        // Only clear space key if gamepad is the active input method
+        // This prevents overriding keyboard input when using keyboard
+        keys['space'] = false;
+    }
+    
+    // ====================
+    // B/Circle Button - Deep Space Scan
+    // ====================
+    const bButton = gamepad.buttons[1] && gamepad.buttons[1].pressed;
+    const bButtonJustPressed = bButton && !(lastGamepadState.buttons[1]);
+    
+    if (bButtonJustPressed) {
+        gamepadInputDetected = true;
+        triggerScan();
+    }
+    
+    // ====================
+    // LB/L1 - Zoom Out (works in both modes)
+    // ====================
+    const lbButton = gamepad.buttons[4] && gamepad.buttons[4].pressed;
+    if (lbButton && !virtualMouseActive) {
+        gamepadInputDetected = true;
+        viewport.targetZoom = Math.max(viewport.minZoom, viewport.targetZoom * 0.98);
+    }
+    
+    // ====================
+    // RB/R1 - Zoom In (works in both modes)
+    // ====================
+    const rbButton = gamepad.buttons[5] && gamepad.buttons[5].pressed;
+    if (rbButton && !virtualMouseActive) {
+        gamepadInputDetected = true;
+        viewport.targetZoom = Math.min(viewport.maxZoom, viewport.targetZoom * 1.02);
+    }
+    
+    // ====================
+    // D-Pad Up - Toggle Autopilot (only when virtual mouse is OFF)
+    // ====================
+    if (!virtualMouseActive) {
+        const dpadUp = gamepad.buttons[12] && gamepad.buttons[12].pressed;
+        const dpadUpJustPressed = dpadUp && !lastGamepadState.dpadUpPressed;
+        
+        if (dpadUpJustPressed) {
+            gamepadInputDetected = true;
+            autoPilotActive = !autoPilotActive;
+            logMessage(autoPilotActive ? 'Autopilot ENGAGED' : 'Autopilot DISENGAGED');
+            updateNavigationButtonText(); // Update UI to reflect autopilot state
+        }
+        
+        lastGamepadState.dpadUpPressed = dpadUp;
+    } else {
+        lastGamepadState.dpadUpPressed = false;
+    }
+    
+    // ====================
+    // Start/Options Button - Pause Menu
+    // ====================
+    const startButton = gamepad.buttons[9] && gamepad.buttons[9].pressed;
+    const startButtonJustPressed = startButton && !(lastGamepadState.buttons[9]);
+    
+    if (startButtonJustPressed) {
+        gamepadInputDetected = true;
+        const pauseModal = document.getElementById('pauseModal');
+        pauseModal.classList.add('active');
+        gameState.isPaused = true;
+    }
+    
+    // Update input method if any gamepad input was detected
+    if (gamepadInputDetected) {
+        setInputMethod('gamepad');
+    }
+    
+    // Save button states for next frame
+    lastGamepadState.buttons = gamepad.buttons.map(b => b.pressed);
+    lastGamepadState.axes = [...gamepad.axes];
+}
+
+function initMinimapScanner() {
+    // Add touch support for triggering scanner via minimap
+    // Only enabled for touchscreen devices
+    
+    // Only initialize for touch devices
+    if (!isTouchDevice) return;
+    
+    const handleMinimapTouch = (e) => {
+        e.preventDefault();
+        
+        // Don't trigger scan if game is paused
+        if (gameState.isPaused) return;
+        
+        // Trigger the scan
+        triggerScan();
+        
+        // Visual feedback - briefly highlight the minimap
+        minimapCanvas.style.boxShadow = '0 0 15px rgba(0, 255, 255, 0.8)';
+        setTimeout(() => {
+            minimapCanvas.style.boxShadow = '';
+        }, 200);
+    };
+    
+    // Touch support only (for mobile devices)
+    minimapCanvas.addEventListener('touchstart', handleMinimapTouch, { passive: false });
+}
+
+// ================================
 // UPGRADE SYSTEM
 // ================================
 
@@ -1988,7 +2959,10 @@ function initUpgrades() {
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200]
+        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200],
+        advancedScanner: [50], // One-time purchase
+        scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
+        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400]
     };
     
     // Initialize collapsible upgrade categories
@@ -2021,9 +2995,14 @@ function initUpgrades() {
     Object.keys(gameState.upgrades).forEach(upgradeType => {
         const btn = document.getElementById(`upgrade${upgradeType.charAt(0).toUpperCase() + upgradeType.slice(1)}`);
         
-        if (!btn) return; // Skip if button doesn't exist
+        if (!btn) {
+            console.log(`Button not found for upgrade: ${upgradeType}`);
+            return; // Skip if button doesn't exist
+        }
         
         btn.addEventListener('click', () => {
+            console.log(`Clicked upgrade: ${upgradeType}`);
+            
             // Check if player is docked
             if (!isDockedAtAnyStation()) {
                 logMessage('Must be docked at station to purchase upgrades.');
@@ -2031,6 +3010,38 @@ function initUpgrades() {
             }
             
             const level = gameState.upgrades[upgradeType];
+            
+            // Special handling for advanced scanner (one-time purchase)
+            if (upgradeType === 'advancedScanner') {
+                console.log(`Advanced scanner clicked. Level: ${level}, Credits: ${gameState.credits}, Cost: ${upgradeCosts[upgradeType][0]}`);
+                console.log(`Level check: level >= 1 is ${level >= 1}`);
+                
+                if (level >= 1) {
+                    logMessage('Advanced scanner already purchased.');
+                    console.log('Scanner already purchased - exiting');
+                    return;
+                }
+                
+                const cost = upgradeCosts[upgradeType][0]; // First (and only) cost
+                
+                if (gameState.credits >= cost) {
+                    gameState.credits -= cost;
+                    gameState.upgrades[upgradeType] = 1;
+                    
+                    // Apply upgrade effects
+                    applyUpgradeEffects(upgradeType);
+                    
+                    logMessage(`Purchased ADVANCED SCANNER`);
+                    createFloatingText(player.x, player.y - 30, `+ADVANCED SCANNER`, '#00ff00');
+                    
+                    updateUI();
+                } else {
+                    logMessage(`Insufficient credits. Need ${cost}¢`);
+                }
+                return;
+            }
+            
+            // Regular upgrades (level 1-10)
             if (level >= 10) return;
             
             const cost = upgradeCosts[upgradeType][level - 1];
@@ -2123,6 +3134,189 @@ function initUpgrades() {
     document.getElementById('refuelShipBtn').addEventListener('click', () => {
         refuelAndRepair();
     });
+    
+    document.getElementById('customizeShipBtn').addEventListener('click', () => {
+        openShipCustomization();
+    });
+}
+
+// Ship Customization Functions
+let currentColorType = ''; // Track which color is being edited
+let tempShipColors = {}; // Temporary storage for colors being edited
+
+// Predefined color palette
+const COLOR_PALETTE = [
+    // Cyans/Blues
+    '#00ffff', '#00aaaa', '#0088cc', '#0066ff', '#0044aa', '#003388', '#1a1a2e', '#16213e',
+    // Greens
+    '#00ff00', '#00cc00', '#00aa00', '#008800', '#7cb342', '#4caf50', '#2d5016', '#1a3010',
+    // Yellows/Oranges
+    '#ffff00', '#ffcc00', '#ff9600', '#ff6600', '#ff4400', '#f39c12', '#e67e22', '#d35400',
+    // Reds/Pinks
+    '#ff0000', '#cc0000', '#aa0000', '#880000', '#c0392b', '#e74c3c', '#ff00ff', '#cc00cc',
+    // Purples
+    '#9b59b6', '#8e44ad', '#6c3483', '#5b2c6f', '#7b1fa2', '#6a1b9a', '#4a148c', '#311b92',
+    // Grays/Whites
+    '#ffffff', '#cccccc', '#999999', '#666666', '#4a5568', '#333333', '#222222', '#111111',
+    // Browns
+    '#8b4513', '#654321', '#5c4033', '#3e2723', '#6d4c41', '#4e342e', '#3e2c23', '#2c1810',
+    // Special
+    '#00bfff', '#1e90ff', '#4169e1', '#00ced1', '#20b2aa', '#48d1cc', '#40e0d0', '#7fffd4'
+];
+
+function openShipCustomization() {
+    const modal = document.getElementById('customizeModal');
+    
+    // Store current colors in temp storage
+    tempShipColors = {
+        primary: player.colors.primary,
+        secondary: player.colors.secondary,
+        accent: player.colors.accent,
+        thruster: player.colors.thruster
+    };
+    
+    // Update swatch displays
+    updateColorSwatches();
+    
+    modal.classList.add('active');
+}
+
+function updateColorSwatches() {
+    // Update preview swatches and hex values
+    const types = ['primary', 'secondary', 'accent', 'thruster'];
+    types.forEach(type => {
+        const preview = document.getElementById(`preview${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        const hex = document.getElementById(`hex${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        const color = tempShipColors[type];
+        
+        if (preview) preview.style.backgroundColor = color;
+        if (hex) hex.textContent = color.toUpperCase();
+    });
+}
+
+function openColorPicker(colorType) {
+    currentColorType = colorType;
+    const modal = document.getElementById('colorPickerModal');
+    const title = document.getElementById('colorPickerTitle');
+    
+    // Set title based on color type
+    const titles = {
+        primary: 'HULL COLOR',
+        secondary: 'OUTLINE COLOR',
+        accent: 'ACCENT/LASER COLOR',
+        thruster: 'THRUSTER COLOR'
+    };
+    title.textContent = `╔════ SELECT ${titles[colorType]} ════╗`;
+    
+    // Generate color swatches
+    const grid = document.getElementById('colorSwatchesGrid');
+    grid.innerHTML = '';
+    
+    COLOR_PALETTE.forEach(color => {
+        const swatch = document.createElement('button');
+        swatch.className = 'color-swatch';
+        swatch.style.setProperty('--swatch-color', color);
+        swatch.style.backgroundColor = color;
+        swatch.title = color.toUpperCase();
+        
+        // Highlight if this is the current color
+        if (color.toLowerCase() === tempShipColors[colorType].toLowerCase()) {
+            swatch.classList.add('selected');
+        }
+        
+        swatch.addEventListener('click', () => {
+            selectColor(color);
+        });
+        
+        grid.appendChild(swatch);
+    });
+    
+    // Set custom hex input to current color
+    document.getElementById('customHexInput').value = tempShipColors[colorType].toUpperCase();
+    
+    modal.classList.add('active');
+}
+
+function selectColor(color) {
+    // Validate hex color
+    if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        logMessage('Invalid color format. Use #RRGGBB');
+        return;
+    }
+    
+    // Update temp storage
+    tempShipColors[currentColorType] = color.toLowerCase();
+    
+    // Update the swatch in the customization modal
+    updateColorSwatches();
+    
+    // Close color picker
+    closeColorPicker();
+}
+
+function closeColorPicker() {
+    const modal = document.getElementById('colorPickerModal');
+    modal.classList.remove('active');
+}
+
+function applyShipCustomization() {
+    // Apply temp colors to actual player colors
+    player.colors.primary = tempShipColors.primary;
+    player.colors.secondary = tempShipColors.secondary;
+    player.colors.accent = tempShipColors.accent;
+    player.colors.thruster = tempShipColors.thruster;
+    
+    logMessage('Ship customization applied!');
+    closeShipCustomization();
+}
+
+function closeShipCustomization() {
+    const modal = document.getElementById('customizeModal');
+    modal.classList.remove('active');
+}
+
+function applyColorPreset(presetName) {
+    const presets = {
+        default: {
+            primary: '#00ffff',
+            secondary: '#00aaaa',
+            accent: '#ffff00',
+            thruster: '#ff9600'
+        },
+        stealth: {
+            primary: '#1a1a2e',
+            secondary: '#0f0f1a',
+            accent: '#16213e',
+            thruster: '#4a5568'
+        },
+        military: {
+            primary: '#2d5016',
+            secondary: '#1a3010',
+            accent: '#7cb342',
+            thruster: '#ff6b35'
+        },
+        luxury: {
+            primary: '#9b59b6',
+            secondary: '#6c3483',
+            accent: '#f1c40f',
+            thruster: '#e74c3c'
+        },
+        danger: {
+            primary: '#c0392b',
+            secondary: '#7f1d1d',
+            accent: '#f39c12',
+            thruster: '#ff00ff'
+        }
+    };
+    
+    const preset = presets[presetName];
+    if (preset) {
+        tempShipColors.primary = preset.primary;
+        tempShipColors.secondary = preset.secondary;
+        tempShipColors.accent = preset.accent;
+        tempShipColors.thruster = preset.thruster;
+        updateColorSwatches();
+    }
 }
 
 function applyUpgradeEffects(upgradeType) {
@@ -2166,6 +3360,22 @@ function applyUpgradeEffects(upgradeType) {
             // Effect: +1 simultaneous target per level
             const targets = gameState.upgrades.multiMining;
             logMessage(`Can now mine ${targets} asteroid${targets > 1 ? 's' : ''} simultaneously`);
+            break;
+        case 'advancedScanner':
+            // Advanced scanner enables value/danger display on scans
+            logMessage('Advanced scanner installed: Scan results now display item values and hazard warnings');
+            break;
+        case 'scanRange':
+            // Scan range is calculated dynamically in triggerScan()
+            // Effect: +100 units per level
+            const scanRange = SCAN_CONFIG.baseRange + (gameState.upgrades.scanRange - 1) * SCAN_CONFIG.rangePerLevel;
+            logMessage(`Scanner range increased to ${scanRange} units`);
+            break;
+        case 'scanCooldown':
+            // Scan cooldown is calculated dynamically in triggerScan()
+            // Effect: -0.8s per level (minimum 2s)
+            const scanCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (gameState.upgrades.scanCooldown - 1) * SCAN_CONFIG.cooldownReduction);
+            logMessage(`Scanner cooldown reduced to ${scanCooldown / 1000}s`);
             break;
     }
 }
@@ -2359,7 +3569,7 @@ function updateRescueShip(dt = 1) {
 
 function jumpToNextSector() {
     if (gameState.fuel < 50) {
-        logMessage('Insufficient fuel for sector jump. Return to station.');
+        logMessage('Insufficient fuel for sector jump. Refuel at a station or Call for rescue.');
         return;
     }
     
@@ -2380,6 +3590,9 @@ function jumpToNextSector() {
     // Re-center viewport on player
     viewport.x = player.x - canvas.width / (2 * viewport.zoom);
     viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+    
+    // Clear stations before generating new sector (each sector has new stations)
+    stations = [];
     
     generateSector();
     logMessage(`Jumped to sector ${gameState.sectorName}`);
@@ -2407,8 +3620,11 @@ function generateSector() {
     asteroids = [];
     hazards = [];
     
-    // Generate new stations for this sector
-    initStationState();
+    // Generate new stations for this sector ONLY if stations don't already exist
+    // (stations may have been loaded from save)
+    if (stations.length === 0) {
+        initStationState();
+    }
     
     // Generate asteroids based on sector
     const asteroidCount = 30 + gameState.sector * 5;
@@ -2543,12 +3759,13 @@ function initGame() {
     
     initTheme();
     initCRT();
-    initDrawer();
     initControlsHint();
     initShipRename();
     initPauseModal();
+    initCustomization();
     initInput();
     initUpgrades();
+    initMinimapScanner();
     
     document.getElementById('clearConsole').addEventListener('click', clearConsole);
     
@@ -2563,27 +3780,35 @@ function initGame() {
     }
     
     // Station state was already initialized before boot sequence
-    // Now set player position based on docking status
-    const dockedStation = stations.find(st => st.isDocked);
-    
-    if (dockedStation) {
-        // Start docked at the station
-        player.x = dockedStation.x;
-        player.y = dockedStation.y;
-        player.vx = dockedStation.vx;
-        player.vy = dockedStation.vy;
-    } else {
-        // Start somewhere random in the world
-        const margin = 500;
-        player.x = margin + Math.random() * (CONFIG.worldWidth - margin * 2);
-        player.y = margin + Math.random() * (CONFIG.worldHeight - margin * 2);
-        player.vx = 0;
-        player.vy = 0;
+    // Only set player position if NOT loaded from save (check if position is default)
+    // Default player position is 0,0, so if player is still at origin, we need to set a proper position
+    if (player.x === 0 && player.y === 0 && player.vx === 0 && player.vy === 0) {
+        const dockedStation = stations.find(st => st.isDocked);
+        
+        if (dockedStation) {
+            // Start docked at the station
+            player.x = dockedStation.x;
+            player.y = dockedStation.y;
+            player.vx = dockedStation.vx;
+            player.vy = dockedStation.vy;
+        } else {
+            // Start somewhere random in the world
+            const margin = 500;
+            player.x = margin + Math.random() * (CONFIG.worldWidth - margin * 2);
+            player.y = margin + Math.random() * (CONFIG.worldHeight - margin * 2);
+            player.vx = 0;
+            player.vy = 0;
+        }
     }
+    // If player position was loaded from save, keep it unchanged
     
-    // Initialize viewport centered on player
-    viewport.zoom = 1.0;
-    viewport.targetZoom = 1.0;
+    // Initialize viewport centered on player (use loaded zoom if available, or default to 1.0)
+    if (viewport.zoom === 1.0 && viewport.targetZoom === 1.0) {
+        // No zoom was loaded from save, use defaults
+        viewport.zoom = 1.0;
+        viewport.targetZoom = 1.0;
+    }
+    // Always recalculate viewport position based on player location
     viewport.x = player.x - canvas.width / (2 * viewport.zoom);
     viewport.y = player.y - canvas.height / (2 * viewport.zoom);
     
@@ -2618,10 +3843,21 @@ function gameLoop(currentTime = 0) {
     }
     
     if (!gameState.isPaused) {
+        // Update gamepad input
+        updateGamepad();
+        
         update(deltaTime);
+    } else {
+        // Even when paused, update gamepad for virtual mouse in menus
+        updateGamepad();
     }
     
     render();
+    
+    // Update virtual mouse cursor (works even when paused)
+    if (virtualMouseActive) {
+        updateVirtualMouseCursor();
+    }
     
     frameCount++;
     if (frameCount % 60 === 0) {
@@ -2636,6 +3872,231 @@ function gameLoop(currentTime = 0) {
 }
 
 // ================================
+// SCAN SYSTEM FUNCTIONS
+// ================================
+
+function triggerScan() {
+    // Check cooldown
+    if (scanState.cooldown > 0) {
+        logMessage(`Scan recharging... ${Math.ceil(scanState.cooldown / 1000)}s remaining`);
+        return;
+    }
+    
+    // Check if enough fuel
+    const scanFuelCost = 5;
+    if (gameState.fuel < scanFuelCost) {
+        logMessage('Insufficient fuel for scan');
+        return;
+    }
+    
+    // Consume fuel
+    gameState.fuel -= scanFuelCost;
+    
+    // Calculate upgraded values
+    const scanRange = SCAN_CONFIG.baseRange + (gameState.upgrades.scanRange - 1) * SCAN_CONFIG.rangePerLevel;
+    const scanCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (gameState.upgrades.scanCooldown - 1) * SCAN_CONFIG.cooldownReduction);
+    
+    // Start scan
+    scanState.active = true;
+    scanState.waveRadius = 0;
+    scanState.waveMaxRadius = scanRange;
+    scanState.displayTime = SCAN_CONFIG.displayDuration;
+    scanState.detectedItems = [];
+    scanState.startTime = Date.now();
+    scanState.cooldown = scanCooldown;
+    scanState.cooldownMax = scanCooldown;
+    
+    logMessage('Initiating deep space scan...');
+}
+
+function updateScan(deltaTime) {
+    // Update cooldown
+    if (scanState.cooldown > 0) {
+        scanState.cooldown -= deltaTime;
+        if (scanState.cooldown < 0) scanState.cooldown = 0;
+    }
+    
+    if (!scanState.active) return;
+    
+    // Expand wave
+    scanState.waveRadius += scanState.waveSpeed;
+    
+    // Detect objects as wave passes over them
+    if (scanState.waveRadius <= scanState.waveMaxRadius) {
+        const prevRadius = scanState.waveRadius - scanState.waveSpeed;
+        
+        // Check asteroids
+        for (let i = 0; i < asteroids.length; i++) {
+            const ast = asteroids[i];
+            const dx = ast.x - player.x;
+            const dy = ast.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // If object is in the ring between previous and current wave radius
+            if (dist > prevRadius && dist <= scanState.waveRadius && dist <= scanState.waveMaxRadius) {
+                // Check if not already detected
+                const alreadyDetected = scanState.detectedItems.some(item => 
+                    item.type === 'asteroid' && item.object === ast
+                );
+                
+                if (!alreadyDetected) {
+                    const typeData = ASTEROID_TYPES[ast.type];
+                    // Calculate value with prestige bonus (same as when selling)
+                    const baseValue = typeData.value;
+                    const bonusValue = Math.floor(baseValue * (gameState.prestigeBonus / 100));
+                    const totalValue = baseValue + bonusValue;
+                    
+                    scanState.detectedItems.push({
+                        type: 'asteroid',
+                        object: ast, // Store reference to track movement
+                        name: typeData.name,
+                        value: totalValue,
+                        color: typeData.color
+                    });
+                }
+            }
+        }
+        
+        // Check hazards
+        for (let i = 0; i < hazards.length; i++) {
+            const haz = hazards[i];
+            const dx = haz.x - player.x;
+            const dy = haz.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > prevRadius && dist <= scanState.waveRadius && dist <= scanState.waveMaxRadius) {
+                const alreadyDetected = scanState.detectedItems.some(item => 
+                    item.type === 'hazard' && item.object === haz
+                );
+                
+                if (!alreadyDetected) {
+                    const typeData = HAZARD_TYPES[haz.type];
+                    scanState.detectedItems.push({
+                        type: 'hazard',
+                        object: haz, // Store reference to track movement
+                        name: typeData.name,
+                        color: typeData.color
+                    });
+                }
+            }
+        }
+    }
+    
+    // Check if wave is complete
+    if (scanState.waveRadius >= scanState.waveMaxRadius) {
+        scanState.active = false;
+        logMessage(`Scan complete. ${scanState.detectedItems.length} objects detected.`);
+    }
+    
+    // Clean up detected items that no longer exist (destroyed asteroids/hazards)
+    scanState.detectedItems = scanState.detectedItems.filter(item => {
+        if (item.type === 'asteroid') {
+            // Remove if asteroid is destroyed or no longer in the array
+            return asteroids.includes(item.object) && !item.object.destroyed;
+        } else if (item.type === 'hazard') {
+            return hazards.includes(item.object);
+        }
+        return false;
+    });
+    
+    // Check if display time has expired
+    const elapsed = Date.now() - scanState.startTime;
+    if (elapsed > scanState.displayTime) {
+        scanState.detectedItems = [];
+    }
+}
+
+function renderScan() {
+    // Render expanding wave
+    if (scanState.active) {
+        ctx.save();
+        ctx.strokeStyle = SCAN_CONFIG.lineColor;
+        ctx.lineWidth = 2 / viewport.zoom; // Scale line width with zoom
+        ctx.globalAlpha = 0.6;
+        
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, scanState.waveRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+    
+    // Render detected items
+    if (scanState.detectedItems.length > 0) {
+        const elapsed = Date.now() - scanState.startTime;
+        const fadeStart = scanState.displayTime - SCAN_CONFIG.fadeOutDuration;
+        
+        let alpha = 1;
+        if (elapsed > fadeStart) {
+            alpha = 1 - ((elapsed - fadeStart) / SCAN_CONFIG.fadeOutDuration);
+        }
+        
+        if (alpha > 0) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            
+            for (let i = 0; i < scanState.detectedItems.length; i++) {
+                const item = scanState.detectedItems[i];
+                
+                // Use the object's current position (tracks movement)
+                const currentX = item.object.x;
+                const currentY = item.object.y;
+                
+                // Scale diagonal and horizontal lengths with zoom for consistent screen size
+                const scaledLabelOffset = SCAN_CONFIG.labelOffset / viewport.zoom;
+                const scaledHorizontalLength = SCAN_CONFIG.horizontalLength / viewport.zoom;
+                
+                // Draw diagonal line up-right from current position
+                const diagonalEndX = currentX + scaledLabelOffset;
+                const diagonalEndY = currentY - scaledLabelOffset;
+                
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 1 / viewport.zoom; // Scale line width with zoom
+                ctx.beginPath();
+                ctx.moveTo(currentX, currentY);
+                ctx.lineTo(diagonalEndX, diagonalEndY);
+                ctx.stroke();
+                
+                // Draw horizontal line
+                const horizontalEndX = diagonalEndX + scaledHorizontalLength;
+                ctx.beginPath();
+                ctx.moveTo(diagonalEndX, diagonalEndY);
+                ctx.lineTo(horizontalEndX, diagonalEndY);
+                ctx.stroke();
+                
+                // Draw labels
+                ctx.fillStyle = item.color;
+                ctx.font = `${SCAN_CONFIG.fontSize / viewport.zoom}px 'Courier New', monospace`; // Scale font with zoom
+                ctx.textAlign = 'left';
+                
+                // Scale spacing with zoom for consistency
+                const textHorizontalOffset = 5 / viewport.zoom;
+                const textVerticalSpacing = 5 / viewport.zoom;
+                const textLineSpacing = 12 / viewport.zoom;
+                
+                // Name above the horizontal line
+                ctx.fillText(item.name, diagonalEndX + textHorizontalOffset, diagonalEndY - textVerticalSpacing);
+                
+                // Only show value/danger text if Advanced Scanner is purchased
+                if (gameState.upgrades.advancedScanner >= 1) {
+                    // For asteroids, show value below the line
+                    if (item.type === 'asteroid') {
+                        ctx.fillText(`${item.value}¢`, diagonalEndX + textHorizontalOffset, diagonalEndY + textLineSpacing);
+                    }
+                    
+                    // For hazards, show danger warning below the line
+                    if (item.type === 'hazard') {
+                        ctx.fillText('DANGER!!', diagonalEndX + textHorizontalOffset, diagonalEndY + textLineSpacing);
+                    }
+                }
+            }
+            
+            ctx.restore();
+        }
+    }
+}
+
+// ================================
 // UPDATE LOGIC
 // ================================
 
@@ -2643,6 +4104,9 @@ function update(deltaTime) {
     // Normalize deltaTime to 60 FPS (16.67ms per frame)
     // This makes all calculations framerate-independent
     const dt = deltaTime / 16.67;
+    
+    // Update scan system
+    updateScan(deltaTime);
     
     // Update station
     updateStation(dt);
@@ -2737,14 +4201,53 @@ function updatePlayer(dt = 1) {
     if (keys['a'] || keys['arrowleft']) moveX -= 1;
     if (keys['d'] || keys['arrowright']) moveX += 1;
     
-    // Joystick (mobile)
-    if (joystickActive && joystickForce > 0) {
-        moveX = Math.cos(joystickAngle) * joystickForce;
-        moveY = Math.sin(joystickAngle) * joystickForce;
+    // Gamepad (Left Stick) - inject into the same moveX/moveY system
+    // BUT: Don't read gamepad input if virtual mouse is active
+    if (gamepadConnected && gamepadIndex !== null && !virtualMouseActive) {
+        const gamepads = navigator.getGamepads();
+        const gamepad = gamepads[gamepadIndex];
+        
+        if (gamepad) {
+            const DEADZONE = 0.15;
+            const leftX = Math.abs(gamepad.axes[0]) > DEADZONE ? gamepad.axes[0] : 0;
+            const leftY = Math.abs(gamepad.axes[1]) > DEADZONE ? gamepad.axes[1] : 0;
+            
+            if (leftX !== 0 || leftY !== 0) {
+                // Add gamepad stick input to movement (it will override keyboard if both are used)
+                moveX = leftX;
+                moveY = leftY;
+            }
+        }
     }
     
-    // Check if player is trying to mine (space bar)
-    const playerWantsToMine = keys['space'];
+    // Touch Controls - canvas acts as directional joystick
+    if (touchActive) {
+        // Calculate ship's position on screen (accounting for viewport)
+        const shipScreenX = (player.x - viewport.x) * viewport.zoom;
+        const shipScreenY = (player.y - viewport.y) * viewport.zoom;
+        
+        // Calculate direction from ship's screen position to touch point
+        const dx = touchX - shipScreenX;
+        const dy = touchY - shipScreenY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only apply movement if touch is not too close to ship (dead zone)
+        if (distance > 30) {
+            // Normalize to -1 to 1 range with smooth scaling
+            const maxDistance = Math.min(canvas.width, canvas.height) / 2;
+            const normalizedDistance = Math.min(distance / maxDistance, 1);
+            
+            moveX = (dx / distance) * normalizedDistance;
+            moveY = (dy / distance) * normalizedDistance;
+        }
+    }
+    
+    // Auto-mining on touch devices - automatically mine when asteroids are in range
+    let playerWantsToMine = keys['space'];
+    if (isTouchDevice && !isDockedAtAnyStation()) {
+        // Automatically attempt mining on touch devices
+        playerWantsToMine = true;
+    }
     
     // Check if there are asteroids in mining range (only needed if trying to mine)
     let asteroidInRange = false;
@@ -2761,14 +4264,10 @@ function updatePlayer(dt = 1) {
         }
     }
     
-    // Cancel auto-pilot if player provides movement input OR is actually mining an asteroid
-    if (autoPilotActive && ((moveX !== 0 || moveY !== 0) || (playerWantsToMine && asteroidInRange))) {
+    // Cancel auto-pilot if player provides movement input (but NOT mining - allow mining during autopilot)
+    if (autoPilotActive && (moveX !== 0 || moveY !== 0)) {
         autoPilotActive = false;
-        if (playerWantsToMine && asteroidInRange) {
-            logMessage('Auto-pilot cancelled - mining initiated.');
-        } else {
-            logMessage('Auto-pilot cancelled - manual control resumed.');
-        }
+        logMessage('Auto-pilot cancelled - manual control resumed.');
         updateNavigationButtonText();
     }
     
@@ -2844,6 +4343,18 @@ function updatePlayer(dt = 1) {
             // Check station proximity for docking (do this before updating angle)
             checkStationProximity(dt);
             
+            // Mining logic during autopilot - allow mining while autopilot is active
+            if (playerWantsToMine) {
+                attemptMining(dt);
+            } else {
+                player.isMining = false;
+                player.miningTarget = null;
+                player.miningProgress = 0;
+            }
+            
+            // Check hazard collisions during autopilot
+            checkHazardCollisions();
+            
             // Set manual control to false since auto-pilot is controlling
             player.isManuallyControlled = false;
             
@@ -2915,14 +4426,9 @@ function updatePlayer(dt = 1) {
         player.angle = Math.atan2(player.vy, player.vx);
     }
     
-    // Mining logic
-    if (keys['space']) {
-        // Cancel auto-pilot if player starts mining
-        if (autoPilotActive) {
-            autoPilotActive = false;
-            logMessage('Auto-pilot cancelled - mining initiated.');
-            updateNavigationButtonText();
-        }
+    // Mining logic - use playerWantsToMine (includes auto-mining on touch devices)
+    // Mining is now allowed during autopilot - autopilot won't be cancelled
+    if (playerWantsToMine) {
         attemptMining(dt);
     } else {
         player.isMining = false;
@@ -2946,7 +4452,7 @@ function updatePlayer(dt = 1) {
             if (isDocked) {
                 logMessage('WARNING: Out of fuel! Refuel at station.');
             } else if (canAffordRescue) {
-                logMessage('WARNING: Out of fuel! Call for rescue or return to station.');
+                logMessage('WARNING: Out of fuel! Call for rescue.');
             }
         }
     }
@@ -3108,6 +4614,76 @@ function updateStation(dt = 1) {
             }
         }
     }); // End of stations.forEach
+    
+    // Check station-to-station collisions with realistic physics
+    for (let i = 0; i < stations.length; i++) {
+        for (let j = i + 1; j < stations.length; j++) {
+            const station1 = stations[i];
+            const station2 = stations[j];
+            
+            // Calculate distance between stations
+            const dx = station2.x - station1.x;
+            const dy = station2.y - station1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const minDistance = station1.size + station2.size;
+            
+            // Check if stations are colliding
+            if (distance < minDistance && distance > 0) {
+                // Normalize collision vector
+                const nx = dx / distance;
+                const ny = dy / distance;
+                
+                // Separate stations to prevent overlap
+                const overlap = minDistance - distance;
+                const separationX = nx * overlap * 0.5;
+                const separationY = ny * overlap * 0.5;
+                
+                station1.x -= separationX;
+                station1.y -= separationY;
+                station2.x += separationX;
+                station2.y += separationY;
+                
+                // Calculate relative velocity
+                const relVx = station1.vx - station2.vx;
+                const relVy = station1.vy - station2.vy;
+                
+                // Calculate relative velocity in collision normal direction
+                const velAlongNormal = relVx * nx + relVy * ny;
+                
+                // Only resolve if stations are moving towards each other
+                if (velAlongNormal < 0) {
+                    // Elastic collision (conserve momentum and kinetic energy)
+                    // Assume equal mass for stations
+                    const restitution = 0.95; // Slightly inelastic (0.95 = 95% energy retained)
+                    
+                    // Calculate impulse scalar
+                    const impulse = -(1 + restitution) * velAlongNormal / 2;
+                    
+                    // Apply impulse to both stations
+                    const impulseX = impulse * nx;
+                    const impulseY = impulse * ny;
+                    
+                    station1.vx += impulseX;
+                    station1.vy += impulseY;
+                    station2.vx -= impulseX;
+                    station2.vy -= impulseY;
+                    
+                    // Create visual feedback
+                    const collisionX = station1.x + dx * 0.5;
+                    const collisionY = station1.y + dy * 0.5;
+                    
+                    for (let k = 0; k < 10; k++) {
+                        createParticle(collisionX, collisionY, '#00ffff');
+                    }
+                    
+                    // Optional: Log station collision
+                    if (frameCount % 30 === 0) {
+                        logMessage(`${station1.name} and ${station2.name} collided!`);
+                    }
+                }
+            }
+        }
+    }
 }
 
 function checkStationAsteroidCollision(asteroid) {
@@ -3246,7 +4822,12 @@ function checkStationProximity(dt = 1) {
         
         // Apply gravitational pull if not too close and moving slowly
         if (dist >= centerZone && playerSpeed < 1.5) {
-            const pullForce = closestStationForEffects.pullStrength * (1 - dist / pullZone) * dt;
+            // Use inverse-square-like falloff for stronger pull at outer ranges
+            // Normalized distance from 0 (at edge) to 1 (at center)
+            const normalizedDist = dist / pullZone;
+            // Inverse relationship: stronger at edge (when normalizedDist is high)
+            const gravityMultiplier = 1 / (normalizedDist * normalizedDist + 0.1);
+            const pullForce = closestStationForEffects.pullStrength * gravityMultiplier * dt;
             player.vx += (dx / dist) * pullForce;
             player.vy += (dy / dist) * pullForce;
         }
@@ -3567,7 +5148,6 @@ function checkHazardCollisions() {
             
             // Gravity pull
             if (distSq < pullRadiusSq) {
-                const dist = Math.sqrt(distSq); // Only calculate sqrt when needed
                 const angle = Math.atan2(dy, dx);
                 player.vx += Math.cos(angle) * hazardData.pullForce;
                 player.vy += Math.sin(angle) * hazardData.pullForce;
@@ -3885,6 +5465,9 @@ function render() {
     // Render player (on top of mining laser)
     renderPlayer();
     
+    // Render scan system (on top of everything in world space)
+    renderScan();
+    
     // Render floating text
     renderFloatingText();
     
@@ -3892,6 +5475,11 @@ function render() {
     
     // Render minimap
     renderMinimap();
+    
+    // Render touch control indicator (in screen space, after ctx.restore())
+    if (touchActive && isTouchDevice) {
+        renderTouchIndicator();
+    }
 }
 
 function renderStars() {
@@ -4152,6 +5740,10 @@ function renderRescueShip() {
 }
 
 function renderPlayer() {
+    // Ship visuals are dynamically generated based on gameState.upgrades
+    // This ensures visual appearance is consistent with save/load system
+    // (all upgrade values are saved and restored automatically)
+    
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
@@ -4171,44 +5763,203 @@ function renderPlayer() {
     const showThruster = currentSpeed > 0.1 && (!withinStationRange || player.isManuallyControlled);
     
     if (showThruster) {
+        const speedLevel = gameState.upgrades.speed || 1;
+        const thrusterCount = Math.min(Math.floor(speedLevel / 3) + 1, 3); // 1-3 thrusters based on speed
         const thrusterLength = Math.min(currentSpeed * 3, player.size * 1.5);
-        const flicker = Math.random() * 0.3 + 0.7; // Random flicker
+        const flicker = Math.random() * 0.3 + 0.7;
         
-        ctx.fillStyle = `rgba(255, 150, 0, ${flicker * 0.8})`;
-        ctx.beginPath();
-        ctx.moveTo(-player.size * 0.6, -player.size * 0.4);
-        ctx.lineTo(-player.size - thrusterLength, 0);
-        ctx.lineTo(-player.size * 0.6, player.size * 0.4);
-        ctx.closePath();
-        ctx.fill();
+        // Enhanced thrusters based on speed upgrade - use player's thruster color
+        const thrusterIntensity = Math.min(speedLevel / 10, 1);
+        // Parse the player's thruster color to create gradient variations
+        const baseColor = player.colors.thruster;
+        const thrusterColor = `${baseColor}${Math.floor(flicker * 204 + 51).toString(16).padStart(2, '0')}`; // Add alpha
+        const innerColor = `rgba(255, 255, ${100 + Math.floor(thrusterIntensity * 155)}, ${flicker})`;
         
-        // Inner flame
-        ctx.fillStyle = `rgba(255, 255, 100, ${flicker})`;
-        ctx.beginPath();
-        ctx.moveTo(-player.size * 0.6, -player.size * 0.3);
-        ctx.lineTo(-player.size - thrusterLength * 0.6, 0);
-        ctx.lineTo(-player.size * 0.6, player.size * 0.3);
-        ctx.closePath();
-        ctx.fill();
+        for (let i = 0; i < thrusterCount; i++) {
+            const offset = (i - (thrusterCount - 1) / 2) * player.size * 0.3;
+            
+            ctx.fillStyle = thrusterColor;
+            ctx.beginPath();
+            ctx.moveTo(-player.size * 0.6, -player.size * 0.3 + offset);
+            ctx.lineTo(-player.size - thrusterLength, offset);
+            ctx.lineTo(-player.size * 0.6, player.size * 0.3 + offset);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Inner flame
+            ctx.fillStyle = innerColor;
+            ctx.beginPath();
+            ctx.moveTo(-player.size * 0.6, -player.size * 0.2 + offset);
+            ctx.lineTo(-player.size - thrusterLength * 0.6, offset);
+            ctx.lineTo(-player.size * 0.6, player.size * 0.2 + offset);
+            ctx.closePath();
+            ctx.fill();
+        }
     }
     
-    // Ship body (triangle)
-    ctx.fillStyle = '#00ffff';
-    ctx.strokeStyle = '#00aaaa';
+    // Main ship body - Mining Vessel design - use player's custom colors
+    ctx.fillStyle = player.colors.primary;
+    ctx.strokeStyle = player.colors.secondary;
     ctx.lineWidth = 2;
+    
+    // Central hull (triangle)
     ctx.beginPath();
-    ctx.moveTo(player.size, 0); // Front point
-    ctx.lineTo(-player.size * 0.6, -player.size * 0.8); // Back left
-    ctx.lineTo(-player.size * 0.6, player.size * 0.8); // Back right
+    ctx.moveTo(player.size * 0.8, 0);
+    ctx.lineTo(-player.size * 0.4, -player.size * 0.5);
+    ctx.lineTo(-player.size * 0.4, player.size * 0.5);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     
-    // Cockpit detail
-    ctx.fillStyle = '#008888';
+    // Cargo pods (side attachments) - scale with cargo upgrade
+    const cargoLevel = gameState.upgrades.cargo || 1;
+    const podSize = Math.min(0.3 + (cargoLevel - 1) * 0.03, 0.6); // Grows from 0.3 to 0.6
+    const podOpacity = Math.min(0.3 + cargoLevel * 0.07, 1);
+    
+    ctx.fillStyle = `rgba(0, 200, 200, ${podOpacity})`;
+    ctx.strokeStyle = '#00aaaa';
+    ctx.lineWidth = 1.5;
+    
+    // Left cargo pod
     ctx.beginPath();
-    ctx.arc(player.size * 0.3, 0, player.size * 0.3, 0, Math.PI * 2);
+    ctx.rect(-player.size * 0.3, -player.size * (0.5 + podSize * 0.5), player.size * 0.6, player.size * podSize);
     ctx.fill();
+    ctx.stroke();
+    
+    // Right cargo pod
+    ctx.beginPath();
+    ctx.rect(-player.size * 0.3, player.size * (0.5 - podSize * 0.5), player.size * 0.6, player.size * podSize);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Hull reinforcement lines - appears with hull upgrades
+    const hullLevel = gameState.upgrades.hull || 1;
+    if (hullLevel >= 3) {
+        ctx.strokeStyle = '#00dddd';
+        ctx.lineWidth = 1;
+        const reinforcementLines = Math.min(Math.floor(hullLevel / 2), 5);
+        for (let i = 0; i < reinforcementLines; i++) {
+            const x = player.size * 0.6 - (i * player.size * 0.25);
+            ctx.beginPath();
+            ctx.moveTo(x, -player.size * 0.4);
+            ctx.lineTo(x, player.size * 0.4);
+            ctx.stroke();
+        }
+    }
+    
+    // Mining lasers (front-mounted) - based on multiMining upgrade - use player's accent color
+    const miningLasers = gameState.upgrades.multiMining || 1;
+    ctx.fillStyle = player.colors.accent;
+    ctx.strokeStyle = player.colors.secondary;
+    ctx.lineWidth = 1;
+    
+    for (let i = 0; i < Math.min(miningLasers, 4); i++) {
+        const angle = (i - (miningLasers - 1) / 2) * 0.4;
+        const laserX = player.size * 0.6 * Math.cos(angle);
+        const laserY = player.size * 0.6 * Math.sin(angle);
+        
+        ctx.beginPath();
+        ctx.arc(laserX, laserY, player.size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Laser glow when actively mining
+        if (player.isMining && i < player.miningTargets.length) {
+            ctx.fillStyle = `${player.colors.accent}80`; // Use accent color with transparency
+            ctx.beginPath();
+            ctx.arc(laserX, laserY, player.size * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = player.colors.accent;
+        }
+    }
+    
+    // Scanner dish - only if advanced scanner purchased
+    if (gameState.upgrades.advancedScanner >= 1) {
+        ctx.strokeStyle = '#00ff00';
+        ctx.fillStyle = '#004400';
+        ctx.lineWidth = 1.5;
+        
+        // Dish mount (top of ship)
+        ctx.beginPath();
+        ctx.rect(-player.size * 0.1, -player.size * 0.8, player.size * 0.2, player.size * 0.3);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Dish (rotating slightly)
+        const dishAngle = Math.sin(Date.now() / 1000) * 0.2;
+        ctx.save();
+        ctx.translate(0, -player.size * 0.65);
+        ctx.rotate(dishAngle);
+        
+        ctx.fillStyle = '#006600';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, player.size * 0.25, player.size * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Scanner pulse when scanning
+        if (scanState.active) {
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+            ctx.lineWidth = 2;
+            const pulseRadius = (scanState.duration / SCAN_CONFIG.scanDuration) * player.size * 0.4;
+            ctx.beginPath();
+            ctx.arc(0, 0, pulseRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+    
+    // Fuel tanks (bottom attachment) - scale with fuel upgrade
+    const fuelLevel = gameState.upgrades.fuel || 1;
+    if (fuelLevel >= 3) {
+        const tankSize = Math.min(0.15 + (fuelLevel - 3) * 0.02, 0.3);
+        ctx.fillStyle = '#0088ff';
+        ctx.strokeStyle = '#0066cc';
+        ctx.lineWidth = 1;
+        
+        ctx.beginPath();
+        ctx.rect(-player.size * 0.6, -player.size * (tankSize / 2), player.size * 0.3, player.size * tankSize);
+        ctx.fill();
+        ctx.stroke();
+    }
+    
+    // Cockpit (central detail)
+    ctx.fillStyle = '#008888';
+    ctx.strokeStyle = '#00aaaa';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(player.size * 0.3, 0, player.size * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Cockpit window
+    ctx.fillStyle = '#00ddff';
+    ctx.beginPath();
+    ctx.arc(player.size * 0.35, 0, player.size * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Range indicator lines (mining range upgrade visual)
+    const rangeLevel = gameState.upgrades.range || 1;
+    if (rangeLevel >= 5) {
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        
+        const rangeLines = Math.min(Math.floor((rangeLevel - 4) / 2), 3);
+        for (let i = 0; i < rangeLines; i++) {
+            const lineAngle = (i - (rangeLines - 1) / 2) * 0.6;
+            const lineLength = player.size * 1.2;
+            ctx.beginPath();
+            ctx.moveTo(player.size * 0.8, 0);
+            ctx.lineTo(
+                player.size * 0.8 + lineLength * Math.cos(lineAngle),
+                lineLength * Math.sin(lineAngle)
+            );
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+    }
     
     // Shield effect
     if (gameState.shieldActive) {
@@ -4496,6 +6247,84 @@ function renderMinimap() {
         (canvas.width / viewport.zoom) * scale,
         (canvas.height / viewport.zoom) * scale
     );
+    
+    // Scanner indicator - show if scanner is ready
+    if (scanState.cooldown <= 0 && !scanState.active) {
+        // Subtle pulsing indicator in corner to show scanner is ready
+        const pulseAlpha = 0.3 + Math.sin(Date.now() / 500) * 0.2;
+        minimapCtx.fillStyle = `rgba(0, 255, 0, ${pulseAlpha})`;
+        minimapCtx.font = '10px monospace';
+        minimapCtx.textAlign = 'right';
+        minimapCtx.textBaseline = 'top';
+        minimapCtx.fillText('SCAN', minimapCanvas.width - 3, 3);
+    }
+}
+
+function renderTouchIndicator() {
+    // Draw touch position indicator
+    ctx.save();
+    
+    // Calculate ship's position on screen (accounting for viewport)
+    const shipScreenX = (player.x - viewport.x) * viewport.zoom;
+    const shipScreenY = (player.y - viewport.y) * viewport.zoom;
+    
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(shipScreenX, shipScreenY);
+    ctx.lineTo(touchX, touchY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Draw touch point
+    ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(touchX, touchY, 30, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(touchX, touchY, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Draw direction arrow at touch point
+    const dx = touchX - shipScreenX;
+    const dy = touchY - shipScreenY;
+    const angle = Math.atan2(dy, dx);
+    const arrowLength = 20;
+    
+    ctx.strokeStyle = 'rgba(0, 255, 255, 1)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(touchX - Math.cos(angle) * 10, touchY - Math.sin(angle) * 10);
+    ctx.lineTo(touchX + Math.cos(angle) * arrowLength, touchY + Math.sin(angle) * arrowLength);
+    ctx.stroke();
+    
+    // Arrow head
+    const arrowHeadAngle = 0.5;
+    const arrowHeadLength = 10;
+    ctx.beginPath();
+    ctx.moveTo(
+        touchX + Math.cos(angle) * arrowLength,
+        touchY + Math.sin(angle) * arrowLength
+    );
+    ctx.lineTo(
+        touchX + Math.cos(angle - Math.PI + arrowHeadAngle) * arrowHeadLength,
+        touchY + Math.sin(angle - Math.PI + arrowHeadAngle) * arrowHeadLength
+    );
+    ctx.moveTo(
+        touchX + Math.cos(angle) * arrowLength,
+        touchY + Math.sin(angle) * arrowLength
+    );
+    ctx.lineTo(
+        touchX + Math.cos(angle - Math.PI - arrowHeadAngle) * arrowHeadLength,
+        touchY + Math.sin(angle - Math.PI - arrowHeadAngle) * arrowHeadLength
+    );
+    ctx.stroke();
+    
+    ctx.restore();
 }
 
 // ================================
@@ -4542,6 +6371,9 @@ function updateUI() {
     // Mining Lasers Display
     updateMiningLasersDisplay();
     
+    // Scan System Display
+    updateScanDisplay();
+    
     // Inventory
     updateInventoryDisplay();
     
@@ -4584,6 +6416,7 @@ function updateStationInterface() {
     const stationStatusEl = document.getElementById('stationStatus');
     const sellCargoBtn = document.getElementById('sellCargoBtn');
     const refuelShipBtn = document.getElementById('refuelShipBtn');
+    const customizeShipBtn = document.getElementById('customizeShipBtn');
     
     // Find the docked station (if any)
     const dockedStation = stations.find(st => st.isDocked);
@@ -4637,10 +6470,12 @@ function updateStationInterface() {
     if (isDockedAtAnyStation()) {
         sellCargoBtn.disabled = gameState.cargo === 0;
         refuelShipBtn.disabled = fuelNeeded === 0 && hullNeeded === 0;
+        customizeShipBtn.disabled = false; // Always available when docked
     } else {
         // Disable all station service buttons when not docked
         sellCargoBtn.disabled = true;
         refuelShipBtn.disabled = true;
+        customizeShipBtn.disabled = true;
     }
 }
 
@@ -4693,6 +6528,25 @@ function updateMiningLasersDisplay() {
     }
 }
 
+function updateScanDisplay() {
+    const scanStatusEl = document.getElementById('scanStatus');
+    
+    if (scanState.cooldown > 0) {
+        const secondsLeft = Math.ceil(scanState.cooldown / 1000);
+        scanStatusEl.textContent = `RECHARGE ${secondsLeft}s`;
+        scanStatusEl.style.color = '#ff8800';
+    } else if (scanState.active) {
+        scanStatusEl.textContent = 'SCANNING...';
+        scanStatusEl.style.color = '#00ffff';
+    } else if (scanState.detectedItems.length > 0) {
+        scanStatusEl.textContent = `${scanState.detectedItems.length} DETECTED`;
+        scanStatusEl.style.color = '#00ff00';
+    } else {
+        scanStatusEl.textContent = 'READY';
+        scanStatusEl.style.color = '#00ff00';
+    }
+}
+
 function updateInventoryDisplay() {
     const inventoryList = document.getElementById('inventoryList');
     inventoryList.innerHTML = '';
@@ -4730,28 +6584,126 @@ function updateUpgradeButtons() {
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200]
+        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200],
+        advancedScanner: [50],
+        scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
+        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400]
     };
     
     Object.keys(gameState.upgrades).forEach(upgradeType => {
         const level = gameState.upgrades[upgradeType];
         const levelDisplay = document.getElementById(`${upgradeType}Level`);
         const costDisplay = document.getElementById(`${upgradeType}Cost`);
+        const valueDisplay = document.getElementById(`${upgradeType}Value`);
         const btn = document.getElementById(`upgrade${upgradeType.charAt(0).toUpperCase() + upgradeType.slice(1)}`);
         
         if (!levelDisplay || !costDisplay || !btn) return; // Skip if elements don't exist
         
-        levelDisplay.textContent = level;
+        // Update value displays
+        if (valueDisplay) {
+            switch(upgradeType) {
+                case 'speed':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `SPEED: ${100 + (level - 1) * 20}%`;
+                    } else {
+                        valueDisplay.textContent = `SPEED: +20%`;
+                    }
+                    break;
+                case 'cargo':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `CAPACITY: ${100 + (level - 1) * 50}`;
+                    } else {
+                        valueDisplay.textContent = `CAPACITY: +50`;
+                    }
+                    break;
+                case 'mining':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `MINING: +${(level - 1) * 10}%`;
+                    } else {
+                        valueDisplay.textContent = `MINING: +10%`;
+                    }
+                    break;
+                case 'hull':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `MAX HULL: ${100 + (level - 1) * 25} HP`;
+                    } else {
+                        valueDisplay.textContent = `MAX HULL: +25 HP`;
+                    }
+                    break;
+                case 'fuel':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `MAX FUEL: ${100 + (level - 1) * 20}%`;
+                    } else {
+                        valueDisplay.textContent = `MAX FUEL: +20%`;
+                    }
+                    break;
+                case 'range':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `RANGE: ${50 + (level - 1) * 10}`;
+                    } else {
+                        valueDisplay.textContent = `RANGE: +10`;
+                    }
+                    break;
+                case 'multiMining':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `TARGETS: ${level}`;
+                    } else {
+                        valueDisplay.textContent = `TARGETS: +1`;
+                    }
+                    break;
+                case 'scanRange':
+                    if (level >= 10) {
+                        valueDisplay.textContent = `RANGE: ${SCAN_CONFIG.baseRange + (level - 1) * SCAN_CONFIG.rangePerLevel}`;
+                    } else {
+                        valueDisplay.textContent = `RANGE: +${SCAN_CONFIG.rangePerLevel}`;
+                    }
+                    break;
+                case 'scanCooldown':
+                    if (level >= 10) {
+                        const cooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (level - 1) * SCAN_CONFIG.cooldownReduction);
+                        valueDisplay.textContent = `COOLDOWN: ${(cooldown / 1000).toFixed(1)}s`;
+                    } else {
+                        valueDisplay.textContent = `COOLDOWN: -0.8s`;
+                    }
+                    break;
+                case 'advancedScanner':
+                    // Keep the description static for one-time purchase
+                    if (valueDisplay) {
+                        valueDisplay.textContent = 'Value & Danger Display';
+                    }
+                    break;
+            }
+        }
         
-        if (level >= 10) {
-            costDisplay.textContent = 'MAX';
-            btn.disabled = true;
-            btn.querySelector('.btn-text').textContent = 'MAX LEVEL';
+        // Special handling for one-time purchases
+        if (upgradeType === 'advancedScanner') {
+            if (level >= 1) {
+                levelDisplay.textContent = 'PURCHASED';
+                costDisplay.textContent = '-';
+                btn.disabled = true;
+                btn.querySelector('.btn-text').textContent = 'PURCHASED';
+            } else {
+                levelDisplay.textContent = 'NOT PURCHASED';
+                const cost = upgradeCosts[upgradeType][0];
+                costDisplay.textContent = cost;
+                const isDocked = stations.some(s => s.isDocked);
+                btn.disabled = !isDocked || gameState.credits < cost;
+                btn.querySelector('.btn-text').textContent = `PURCHASE: ${cost}¢`;
+            }
         } else {
-            const cost = upgradeCosts[upgradeType][level - 1];
-            costDisplay.textContent = cost;
-            // Disable upgrade buttons if not docked OR insufficient credits
-            btn.disabled = !isDockedAtAnyStation() || gameState.credits < cost;
+            // Normal multi-level upgrades
+            levelDisplay.textContent = level;
+            
+            if (level >= 10) {
+                costDisplay.textContent = 'MAX';
+                btn.disabled = true;
+                btn.querySelector('.btn-text').textContent = 'MAX LEVEL';
+            } else {
+                const cost = upgradeCosts[upgradeType][level - 1];
+                costDisplay.textContent = cost;
+                // Disable upgrade buttons if not docked OR insufficient credits
+                btn.disabled = !isDockedAtAnyStation() || gameState.credits < cost;
+            }
         }
     });
 }

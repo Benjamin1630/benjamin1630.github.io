@@ -74,9 +74,7 @@
         </div>
         
         <div class="header-right">
-            <button id="drawerToggle" class="drawer-toggle">
-                <span class="drawer-icon">☰</span>
-            </button>
+            <!-- Drawer removed - layout fits everything -->
         </div>
     </header>
 
@@ -116,6 +114,16 @@
                     <div id="miningLasersDisplay" style="margin-top: 10px;">
                         <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); padding-top: 8px;">
                             <div id="miningLasersList"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Scan System Display -->
+                    <div id="scanSystemDisplay" style="margin-top: 10px;">
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); padding-top: 8px;">
+                            <div class="stat-item">
+                                <span class="stat-label">SCANNER:</span>
+                                <span class="stat-value" id="scanStatus">READY</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -208,6 +216,10 @@
                             <span class="hint-desc">Mining Laser</span>
                         </div>
                         <div class="hint-item">
+                            <span class="hint-key">E / Q</span>
+                            <span class="hint-desc">Deep Space Scan</span>
+                        </div>
+                        <div class="hint-item">
                             <span class="hint-key">SCROLL</span>
                             <span class="hint-desc">Zoom</span>
                         </div>
@@ -266,6 +278,11 @@
                             <span class="btn-text">REFUEL & REPAIR</span>
                             <span class="btn-bracket">]</span>
                         </button>
+                        <button class="nav-btn station-btn" id="customizeShipBtn" disabled>
+                            <span class="btn-bracket">[</span>
+                            <span class="btn-text">CUSTOMIZE SHIP</span>
+                            <span class="btn-bracket">]</span>
+                        </button>
                     </div>
                     <div class="station-details" id="stationDetails">
                         <div class="detail-item">
@@ -300,6 +317,10 @@
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Increase ship speed</div>
                                     <div class="upgrade-stats">
+                                        <span class="stat-label">SPEED:</span>
+                                        <span class="stat-value" id="speedValue">100%</span>
+                                    </div>
+                                    <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="speedLevel">1</span>
                                         <span class="stat-label">/ MAX: 10</span>
@@ -319,6 +340,10 @@
                                 </div>
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Increase cargo capacity</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">CAPACITY:</span>
+                                        <span class="stat-value" id="cargoValue">100</span>
+                                    </div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="cargoLevel">1</span>
@@ -340,6 +365,10 @@
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Increase max hull strength</div>
                                     <div class="upgrade-stats">
+                                        <span class="stat-label">MAX HULL:</span>
+                                        <span class="stat-value" id="hullValue">100 HP</span>
+                                    </div>
+                                    <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="hullLevel">1</span>
                                         <span class="stat-label">/ MAX: 10</span>
@@ -359,6 +388,10 @@
                                 </div>
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Reduce fuel consumption</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">MAX FUEL:</span>
+                                        <span class="stat-value" id="fuelValue">100%</span>
+                                    </div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="fuelLevel">1</span>
@@ -389,6 +422,10 @@
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Faster mining speed</div>
                                     <div class="upgrade-stats">
+                                        <span class="stat-label">SPEED:</span>
+                                        <span class="stat-value" id="miningValue">+0%</span>
+                                    </div>
+                                    <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="miningLevel">1</span>
                                         <span class="stat-label">/ MAX: 10</span>
@@ -408,6 +445,10 @@
                                 </div>
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Mine multiple asteroids at once</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">TARGETS:</span>
+                                        <span class="stat-value" id="multiMiningValue">1</span>
+                                    </div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="multiMiningLevel">1</span>
@@ -429,6 +470,10 @@
                                 <div class="upgrade-info">
                                     <div class="upgrade-desc">Extend laser reach</div>
                                     <div class="upgrade-stats">
+                                        <span class="stat-label">RANGE:</span>
+                                        <span class="stat-value" id="rangeValue">50</span>
+                                    </div>
+                                    <div class="upgrade-stats">
                                         <span class="stat-label">LEVEL:</span>
                                         <span class="stat-value" id="rangeLevel">1</span>
                                         <span class="stat-label">/ MAX: 10</span>
@@ -437,6 +482,86 @@
                                 <button class="upgrade-btn" id="upgradeRange" data-upgrade="range">
                                     <span class="btn-bracket">[</span>
                                     <span class="btn-text">UPGRADE: <span id="rangeCost">160</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scanners Category -->
+                    <div class="upgrade-category">
+                        <button class="category-header" data-category="scanners">
+                            <span class="category-icon">▶</span>
+                            <span class="category-title">SCANNERS</span>
+                        </button>
+                        <div class="category-content" id="scannersContent" style="display: none;">
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">◉</span>
+                                    <span class="upgrade-name">ADVANCED SCANNER</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Display item values and hazard warnings</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">UNLOCKS:</span>
+                                        <span class="stat-value" id="advancedScannerValue">Value & Danger Display</span>
+                                    </div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">STATUS:</span>
+                                        <span class="stat-value" id="advancedScannerLevel">NOT PURCHASED</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeAdvancedScanner" data-upgrade="advancedScanner">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">PURCHASE: <span id="advancedScannerCost">50</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">◎</span>
+                                    <span class="upgrade-name">SCAN RANGE</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Increase scanner detection range</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">RANGE:</span>
+                                        <span class="stat-value" id="scanRangeValue">400</span>
+                                    </div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="scanRangeLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeScanRange" data-upgrade="scanRange">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="scanRangeCost">250</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+
+                            <div class="upgrade-item">
+                                <div class="upgrade-header">
+                                    <span class="upgrade-icon">⌚</span>
+                                    <span class="upgrade-name">SCAN COOLDOWN</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <div class="upgrade-desc">Reduce time between scans</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">COOLDOWN:</span>
+                                        <span class="stat-value" id="scanCooldownValue">8.0s</span>
+                                    </div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">LEVEL:</span>
+                                        <span class="stat-value" id="scanCooldownLevel">1</span>
+                                        <span class="stat-label">/ MAX: 10</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeScanCooldown" data-upgrade="scanCooldown">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">UPGRADE: <span id="scanCooldownCost">200</span>¢</span>
                                     <span class="btn-bracket">]</span>
                                 </button>
                             </div>
@@ -473,34 +598,6 @@
                 </div>
             </div>
         </aside>
-    </div>
-
-    <!-- Mobile Drawer Menu -->
-    <div class="mobile-drawer" id="mobileDrawer">
-        <div class="drawer-content">
-            <div class="drawer-header">
-                <div class="drawer-title">╔═ SHIP MENU ═╗</div>
-                <button class="drawer-close" id="drawerClose">✕</button>
-            </div>
-            
-            <div class="drawer-tabs">
-                <button class="drawer-tab active" data-tab="status">STATUS</button>
-                <button class="drawer-tab" data-tab="upgrades">UPGRADES</button>
-                <button class="drawer-tab" data-tab="cargo">CARGO</button>
-            </div>
-
-            <div class="drawer-body">
-                <div class="drawer-panel active" data-panel="status">
-                    <!-- Status content will be duplicated from left panel -->
-                </div>
-                <div class="drawer-panel" data-panel="upgrades">
-                    <!-- Upgrades content will be duplicated from right panel -->
-                </div>
-                <div class="drawer-panel" data-panel="cargo">
-                    <!-- Cargo content will be duplicated from inventory -->
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Pause Menu Modal -->
@@ -605,6 +702,102 @@
         </div>
     </div>
 
+    <!-- Ship Customization Modal -->
+    <div class="modal" id="customizeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">╔════ SHIP CUSTOMIZATION ════╗</div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message">
+                    Customize your ship's color scheme:
+                </div>
+                <div class="color-customization">
+                    <div class="color-option">
+                        <label class="color-label">Hull Color:</label>
+                        <button class="color-swatch-btn" id="swatchPrimary" data-color-type="primary">
+                            <span class="swatch-preview" id="previewPrimary"></span>
+                            <span class="swatch-hex" id="hexPrimary">#00ffff</span>
+                        </button>
+                    </div>
+                    <div class="color-option">
+                        <label class="color-label">Outline Color:</label>
+                        <button class="color-swatch-btn" id="swatchSecondary" data-color-type="secondary">
+                            <span class="swatch-preview" id="previewSecondary"></span>
+                            <span class="swatch-hex" id="hexSecondary">#00aaaa</span>
+                        </button>
+                    </div>
+                    <div class="color-option">
+                        <label class="color-label">Accent/Laser Color:</label>
+                        <button class="color-swatch-btn" id="swatchAccent" data-color-type="accent">
+                            <span class="swatch-preview" id="previewAccent"></span>
+                            <span class="swatch-hex" id="hexAccent">#ffff00</span>
+                        </button>
+                    </div>
+                    <div class="color-option">
+                        <label class="color-label">Thruster Color:</label>
+                        <button class="color-swatch-btn" id="swatchThruster" data-color-type="thruster">
+                            <span class="swatch-preview" id="previewThruster"></span>
+                            <span class="swatch-hex" id="hexThruster">#ff9600</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="color-presets">
+                    <div class="preset-label">Quick Presets:</div>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-preset="default">Default</button>
+                        <button class="preset-btn" data-preset="stealth">Stealth</button>
+                        <button class="preset-btn" data-preset="military">Military</button>
+                        <button class="preset-btn" data-preset="luxury">Luxury</button>
+                        <button class="preset-btn" data-preset="danger">Danger</button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button class="modal-btn modal-btn-confirm" id="customizeApply">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">APPLY</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                    <button class="modal-btn modal-btn-cancel" id="customizeCancel">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">CANCEL</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Color Picker Modal -->
+    <div class="modal" id="colorPickerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="colorPickerTitle">╔════ SELECT COLOR ════╗</div>
+            </div>
+            <div class="modal-body">
+                <div class="color-picker-container">
+                    <!-- Predefined color swatches -->
+                    <div class="color-swatches-grid" id="colorSwatchesGrid">
+                        <!-- Colors will be generated by JavaScript -->
+                    </div>
+                    <!-- Custom hex input -->
+                    <div class="custom-hex-input">
+                        <label class="color-label">Custom Hex:</label>
+                        <input type="text" id="customHexInput" class="hex-input" placeholder="#RRGGBB" maxlength="7">
+                        <button class="modal-btn-small" id="applyCustomHex">OK</button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button class="modal-btn modal-btn-cancel" id="colorPickerClose">
+                        <span class="btn-bracket">[</span>
+                        <span class="btn-text">CLOSE</span>
+                        <span class="btn-bracket">]</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Alert Modal (for notifications) -->
     <div class="modal" id="alertModal">
         <div class="modal-content">
@@ -651,6 +844,11 @@
                         SHIP DISABLED - RETURNING TO BASE
                     </div>
                 </div>
+                <button class="modal-btn" id="gameOverLoadSave">
+                    <span class="btn-bracket">[</span>
+                    <span class="btn-text">LOAD LATEST SAVE</span>
+                    <span class="btn-bracket">]</span>
+                </button>
                 <button class="modal-btn" id="gameOverRestart">
                     <span class="btn-bracket">[</span>
                     <span class="btn-text">RESTART MISSION</span>
@@ -660,18 +858,8 @@
         </div>
     </div>
 
-    <!-- Virtual Joystick (Mobile) -->
-    <div class="virtual-joystick" id="virtualJoystick">
-        <div class="joystick-outer">
-            <div class="joystick-inner" id="joystickInner"></div>
-        </div>
-    </div>
-
     <!-- Mobile Action Buttons -->
     <div class="mobile-controls" id="mobileControls">
-        <button class="mobile-btn" id="mobileShoot" title="Mining Laser">
-            <span class="mobile-btn-icon">◊</span>
-        </button>
         <button class="mobile-btn" id="mobilePause" title="Pause">
             <span class="mobile-btn-icon">⏸</span>
         </button>

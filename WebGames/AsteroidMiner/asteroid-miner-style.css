@@ -103,6 +103,11 @@ body {
     width: 100vw;
     display: flex;
     flex-direction: column;
+    /* Prevent pull-to-refresh and overscroll on mobile */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+    /* Prevent touch callouts on long press */
+    -webkit-touch-callout: none;
 }
 
 /* Disable text selection for game elements */
@@ -180,7 +185,7 @@ body.booting {
 .terminal-header {
     background-color: var(--term-bg);
     border-bottom: 2px solid var(--term-text);
-    padding: var(--space-sm) var(--space-md);
+    padding: 2px var(--space-md);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -206,10 +211,10 @@ body.booting {
 
 .title-line,
 .title-text {
-    font-size: var(--font-size-md);
+    font-size: 11px;
     color: var(--term-bright);
     text-shadow: var(--term-glow);
-    line-height: 1.2;
+    line-height: 1;
 }
 
 .title-text {
@@ -221,14 +226,26 @@ body.booting {
     background: transparent;
     border: 1px solid var(--term-text);
     color: var(--term-text);
-    padding: var(--space-xs) var(--space-sm);
+    padding: 2px var(--space-sm);
     font-family: var(--font-main);
     font-size: var(--font-size-sm);
+    line-height: 1;
     cursor: pointer;
     transition: all 0.2s;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
+    height: 24px;
+    box-sizing: border-box;
+    vertical-align: middle; /* Ensure consistent alignment */
+    margin: 0; /* Remove default button margins */
+}
+
+/* Additional button-specific resets */
+button.terminal-btn {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
 
 .terminal-btn:hover,
@@ -244,22 +261,6 @@ body.booting {
 
 .btn-text {
     color: var(--term-bright);
-}
-
-.drawer-toggle {
-    display: none;
-    background: transparent;
-    border: 1px solid var(--term-text);
-    color: var(--term-bright);
-    padding: var(--space-xs) var(--space-sm);
-    font-family: var(--font-main);
-    font-size: var(--font-size-lg);
-    cursor: pointer;
-}
-
-.drawer-toggle:hover {
-    background-color: var(--term-text);
-    color: var(--term-bg);
 }
 
 /* ================================
@@ -1084,110 +1085,6 @@ body.crt-mode .canvas-container::before {
 }
 
 /* ================================
-   MOBILE DRAWER
-   ================================ */
-
-.mobile-drawer {
-    position: fixed;
-    top: 0;
-    right: -100%;
-    width: 80%;
-    max-width: 400px;
-    height: 100%;
-    background-color: var(--term-bg);
-    border-left: 2px solid var(--term-text);
-    z-index: 1000;
-    transition: right 0.3s ease-in-out;
-    display: flex;
-    flex-direction: column;
-}
-
-.mobile-drawer.open {
-    right: 0;
-}
-
-.drawer-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.drawer-header {
-    padding: var(--space-md);
-    border-bottom: 1px solid var(--term-text);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.drawer-title {
-    font-size: var(--font-size-md);
-    color: var(--term-bright);
-}
-
-.drawer-close {
-    background: transparent;
-    border: 1px solid var(--term-text);
-    color: var(--term-bright);
-    padding: var(--space-xs) var(--space-sm);
-    font-family: var(--font-main);
-    font-size: var(--font-size-lg);
-    cursor: pointer;
-    line-height: 1;
-}
-
-.drawer-close:hover {
-    background-color: var(--term-text);
-    color: var(--term-bg);
-}
-
-.drawer-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--term-text);
-}
-
-.drawer-tab {
-    flex: 1;
-    background: transparent;
-    border: none;
-    border-right: 1px solid var(--term-dim);
-    color: var(--term-text);
-    padding: var(--space-sm);
-    font-family: var(--font-main);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-}
-
-.drawer-tab:last-child {
-    border-right: none;
-}
-
-.drawer-tab.active {
-    background-color: rgba(0, 255, 0, 0.1);
-    color: var(--term-bright);
-    border-bottom: 2px solid var(--term-bright);
-}
-
-.drawer-tab:hover:not(.active) {
-    background-color: rgba(0, 255, 0, 0.05);
-}
-
-.drawer-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-md);
-}
-
-.drawer-panel {
-    display: none;
-}
-
-.drawer-panel.active {
-    display: block;
-}
-
-/* ================================
    MODALS
    ================================ */
 
@@ -1370,6 +1267,183 @@ body.crt-mode .canvas-container::before {
     min-height: 20px;
 }
 
+/* Ship Customization Styles */
+.color-customization {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin: var(--space-lg) 0;
+}
+
+.color-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm);
+    background: rgba(0, 255, 0, 0.05);
+    border: 1px solid var(--term-dim);
+}
+
+.color-label {
+    color: var(--term-text);
+    font-size: var(--font-size-md);
+}
+
+/* Custom Color Swatch Button */
+.color-swatch-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: transparent;
+    border: 2px solid var(--term-text);
+    padding: var(--space-xs);
+    cursor: pointer;
+    font-family: var(--font-main);
+    transition: all 0.2s;
+    min-width: 150px;
+}
+
+.color-swatch-btn:hover {
+    border-color: var(--term-bright);
+    box-shadow: 0 0 10px var(--term-text);
+    background: rgba(0, 255, 0, 0.05);
+}
+
+.swatch-preview {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--term-text);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.swatch-hex {
+    color: var(--term-text);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-main);
+    text-transform: uppercase;
+}
+
+/* Color Picker Modal */
+.color-picker-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.color-swatches-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: var(--space-xs);
+    padding: var(--space-md);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--term-dim);
+}
+
+.color-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 30px;
+    min-height: 30px;
+    border: 2px solid var(--term-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--swatch-color);
+}
+
+.color-swatch:hover {
+    border-color: var(--term-bright);
+    box-shadow: 0 0 15px var(--term-bright);
+    transform: scale(1.1);
+    z-index: 1;
+}
+
+.color-swatch.selected {
+    border-color: var(--term-bright);
+    box-shadow: 0 0 20px var(--term-bright), inset 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+/* Custom Hex Input */
+.custom-hex-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: rgba(0, 255, 0, 0.05);
+    border: 1px solid var(--term-dim);
+}
+
+.hex-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--term-text);
+    color: var(--term-text);
+    padding: var(--space-xs);
+    font-family: var(--font-main);
+    font-size: var(--font-size-md);
+    text-transform: uppercase;
+}
+
+.hex-input:focus {
+    border-color: var(--term-bright);
+    box-shadow: 0 0 10px var(--term-text);
+    outline: none;
+}
+
+.modal-btn-small {
+    background: transparent;
+    border: 1px solid var(--term-text);
+    color: var(--term-text);
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-btn-small:hover {
+    background-color: var(--term-text);
+    color: var(--term-bg);
+    box-shadow: 0 0 10px var(--term-text);
+}
+
+.color-presets {
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    border: 1px dashed var(--term-dim);
+}
+
+.preset-label {
+    color: var(--term-bright);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-sm);
+    text-align: center;
+}
+
+.preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    justify-content: center;
+}
+
+.preset-btn {
+    background: transparent;
+    border: 1px solid var(--term-text);
+    color: var(--term-text);
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preset-btn:hover {
+    background-color: var(--term-text);
+    color: var(--term-bg);
+    box-shadow: 0 0 10px var(--term-text);
+}
+
 .save-message.success {
     color: var(--term-bright);
 }
@@ -1514,41 +1588,10 @@ body.crt-mode .canvas-container::before {
    MOBILE CONTROLS
    ================================ */
 
-.virtual-joystick {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    width: 120px;
-    height: 120px;
-    display: none;
-    z-index: 100;
-}
-
-.joystick-outer {
-    width: 100%;
-    height: 100%;
-    border: 2px solid var(--term-text);
-    border-radius: 50%;
-    background-color: rgba(0, 0, 0, 0.5);
-    position: relative;
-}
-
-.joystick-inner {
-    width: 50%;
-    height: 50%;
-    background-color: var(--term-text);
-    border-radius: 50%;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: var(--term-glow);
-}
-
 .mobile-controls {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    top: 10px;
+    right: 10px;
     display: none;
     flex-direction: column;
     gap: var(--space-sm);
@@ -1556,9 +1599,9 @@ body.crt-mode .canvas-container::before {
 }
 
 .mobile-btn {
-    width: 60px;
-    height: 60px;
-    background-color: rgba(0, 0, 0, 0.7);
+    width: 50px;
+    height: 50px;
+    background-color: rgba(0, 0, 0, 0.8);
     border: 2px solid var(--term-text);
     border-radius: 8px;
     color: var(--term-bright);
@@ -1568,6 +1611,7 @@ body.crt-mode .canvas-container::before {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .mobile-btn:active {
@@ -1601,24 +1645,121 @@ body.crt-mode .canvas-container::before {
 
 /* Mobile */
 @media (max-width: 768px) {
-    .drawer-toggle {
-        display: block;
-    }
-    
     .header-center .title-box {
         display: none;
     }
     
-    .side-panel {
-        display: none;
-    }
-    
     .game-container {
-        flex-direction: column;
+        flex-direction: row; /* Allow horizontal layout */
+        flex-wrap: wrap; /* Allow items to wrap to next line */
     }
     
     .center-panel {
-        flex: 1;
+        flex: unset; /* Don't take full height */
+        width: 100%; /* Take full width for first row */
+        order: 1; /* Canvas and log first */
+    }
+    
+    .canvas-container {
+        flex: unset; /* Don't stretch to fill */
+        height: auto; /* Only as tall as the canvas */
+        touch-action: none; /* Prevent default touch behaviors on canvas */
+    }
+    
+    .console-messages {
+        max-height: 120px; /* Limit system log height on mobile */
+        height: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    
+    /* Show side panels side-by-side under the system log on mobile */
+    .side-panel {
+        display: block;
+        width: 50%; /* Half width to sit side-by-side */
+        order: 2; /* Side panels appear after center panel */
+        max-height: 400px; /* Limit height on mobile */
+        overflow-y: auto; /* Enable vertical scrolling */
+        overflow-x: hidden; /* Prevent horizontal scroll */
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+        border-top: 1px solid var(--term-text);
+        touch-action: pan-y; /* Allow vertical scrolling only */
+    }
+    
+    .side-panel.left-panel {
+        order: 2; /* Left panel first */
+        border-left: none;
+        border-right: 1px solid var(--term-text); /* Add divider between panels */
+    }
+    
+    .side-panel.right-panel {
+        order: 2; /* Same order to sit on same row */
+        border-left: none;
+        border-right: none;
+    }
+    
+    /* Touch-friendly button improvements */
+    .upgrade-btn,
+    .modal-btn,
+    .modal-btn-confirm,
+    .modal-btn-cancel,
+    button {
+        min-height: 44px; /* Apple's recommended minimum touch target */
+        padding: var(--space-sm) var(--space-md);
+        touch-action: manipulation; /* Prevent double-tap zoom */
+        -webkit-tap-highlight-color: rgba(0, 255, 0, 0.2); /* Visual feedback on tap */
+    }
+    
+    /* Active state for touch feedback */
+    .upgrade-btn:active:not(:disabled) {
+        background-color: var(--term-text);
+        color: var(--term-bg);
+        transform: scale(0.98);
+        box-shadow: var(--term-glow);
+    }
+    
+    .modal-btn-confirm:active {
+        background-color: var(--term-text);
+        transform: scale(0.98);
+        box-shadow: 0 0 20px var(--term-text);
+    }
+    
+    .modal-btn-cancel:active {
+        background-color: #ff4444;
+        color: var(--term-bg);
+        transform: scale(0.98);
+        box-shadow: 0 0 20px #ff4444;
+    }
+    
+    /* Improve input fields for touch */
+    input[type="text"],
+    input[type="number"],
+    textarea {
+        min-height: 44px;
+        font-size: 16px; /* Prevent iOS zoom on focus */
+        touch-action: manipulation;
+    }
+    
+    /* Tab buttons touch improvements */
+    .tab-btn {
+        min-height: 44px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 255, 0, 0.2);
+    }
+    
+    .tab-btn:active {
+        transform: scale(0.98);
+    }
+    
+    /* Category headers touch improvements */
+    .category-header {
+        min-height: 44px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 255, 0, 0.1);
+    }
+    
+    .category-header:active {
+        background-color: rgba(0, 255, 0, 0.05);
     }
     
     .stats-bar {
@@ -1628,10 +1769,6 @@ body.crt-mode .canvas-container::before {
     
     .stat-display {
         font-size: 10px;
-    }
-    
-    .console-messages {
-        height: 80px;
     }
     
     .minimap {
@@ -1646,7 +1783,6 @@ body.crt-mode .canvas-container::before {
         left: var(--space-sm);
     }
     
-    .virtual-joystick,
     .mobile-controls {
         display: flex;
     }
@@ -1655,7 +1791,7 @@ body.crt-mode .canvas-container::before {
 /* Small Mobile */
 @media (max-width: 480px) {
     .terminal-header {
-        padding: var(--space-xs);
+        padding: 4px var(--space-xs);
     }
     
     .terminal-btn,
@@ -1687,21 +1823,14 @@ body.crt-mode .canvas-container::before {
         font-size: 10px;
     }
     
-    .virtual-joystick {
-        width: 100px;
-        height: 100px;
-        bottom: 10px;
-        left: 10px;
-    }
-    
     .mobile-controls {
-        bottom: 10px;
-        right: 10px;
+        top: 8px;
+        right: 8px;
     }
     
     .mobile-btn {
-        width: 50px;
-        height: 50px;
+        width: 45px;
+        height: 45px;
         font-size: 20px;
     }
     
@@ -1719,6 +1848,32 @@ body.crt-mode .canvas-container::before {
     .modal-message {
         font-size: 11px;
         padding: var(--space-sm);
+    }
+    
+    /* Color picker mobile adjustments */
+    .color-swatches-grid {
+        grid-template-columns: repeat(6, 1fr); /* Reduce columns for mobile */
+        gap: 6px;
+    }
+    
+    .color-swatch {
+        min-width: 38px; /* Larger touch targets */
+        min-height: 38px;
+    }
+    
+    .color-swatch-btn {
+        min-width: 130px;
+        font-size: 10px;
+    }
+    
+    .swatch-preview {
+        width: 25px;
+        height: 25px;
+    }
+    
+    .custom-hex-input input {
+        font-size: 11px;
+        padding: 6px;
     }
     
     .modal-btn {
