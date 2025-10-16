@@ -11,27 +11,27 @@
     <svg style="position: absolute; width: 0; height: 0;">
         <defs>
             <filter id="crt-fisheye">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="0" result="blur"/>
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" result="blur"/>
                 <feColorMatrix in="blur" type="matrix" values="
                     1 0 0 0 0
                     0 1 0 0 0
                     0 0 1 0 0
                     0 0 0 1 0" result="goo"/>
                 <feComponentTransfer in="goo" result="brightness">
-                    <feFuncR type="linear" slope="1.02"/>
-                    <feFuncG type="linear" slope="1.02"/>
-                    <feFuncB type="linear" slope="1.02"/>
+                    <feFuncR type="linear" slope="1.08"/>
+                    <feFuncG type="linear" slope="1.08"/>
+                    <feFuncB type="linear" slope="1.08"/>
                 </feComponentTransfer>
-                <feDisplacementMap in="brightness" in2="turbulence" scale="3" xChannelSelector="R" yChannelSelector="G" result="distortion"/>
-                <feTurbulence type="fractalNoise" baseFrequency="0.002" numOctaves="1" result="turbulence" seed="0"/>
+                <feDisplacementMap in="brightness" in2="turbulence" scale="5" xChannelSelector="R" yChannelSelector="G" result="distortion"/>
+                <feTurbulence type="fractalNoise" baseFrequency="0.003" numOctaves="2" result="turbulence" seed="0"/>
             </filter>
             <!-- Simpler barrel distortion using feDisplacementMap -->
             <filter id="crt-barrel">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="0.3" result="blur"/>
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.6" result="blur"/>
                 <feComponentTransfer in="blur" result="brightness">
-                    <feFuncR type="linear" slope="1.01"/>
-                    <feFuncG type="linear" slope="1.01"/>
-                    <feFuncB type="linear" slope="1.01"/>
+                    <feFuncR type="linear" slope="1.05"/>
+                    <feFuncG type="linear" slope="1.05"/>
+                    <feFuncB type="linear" slope="1.05"/>
                 </feComponentTransfer>
             </filter>
         </defs>
@@ -198,11 +198,38 @@
                 <div class="canvas-container">
                     <canvas id="gameCanvas" width="800" height="600"></canvas>
                     
+                    <!-- Pause Button (Always Visible) -->
+                    <button class="pause-btn" id="pauseBtn" title="Pause Game (ESC)">
+                        <svg class="pause-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="30" y="20" width="15" height="60" rx="3" fill="currentColor"/>
+                            <rect x="55" y="20" width="15" height="60" rx="3" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    
                     <!-- Minimap -->
                     <div class="minimap" id="minimap">
                         <div class="minimap-header">MAP</div>
                         <canvas id="minimapCanvas" width="120" height="120"></canvas>
                     </div>
+
+                    <!-- Auto-Mining Button (Touchscreen Only) -->
+                    <button class="auto-mine-btn" id="autoMineBtn" title="Toggle Auto-Mining">
+                        <svg class="auto-mine-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Laser beam core -->
+                            <line x1="20" y1="50" x2="80" y2="50" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                            <!-- Laser glow lines -->
+                            <line x1="20" y1="50" x2="80" y2="50" stroke="currentColor" stroke-width="8" opacity="0.3"/>
+                            <line x1="20" y1="50" x2="80" y2="50" stroke="currentColor" stroke-width="12" opacity="0.1"/>
+                            <!-- Laser emitter (left) -->
+                            <rect x="10" y="42" width="12" height="16" fill="currentColor"/>
+                            <polygon points="10,42 10,58 5,54 5,46" fill="currentColor" opacity="0.8"/>
+                            <!-- Laser impact point (right) -->
+                            <circle cx="80" cy="50" r="6" fill="currentColor"/>
+                            <circle cx="80" cy="50" r="10" fill="currentColor" opacity="0.3"/>
+                            <circle cx="80" cy="50" r="14" fill="currentColor" opacity="0.1"/>
+                        </svg>
+                        <span class="auto-mine-status">OFF</span>
+                    </button>
 
                     <!-- Control Hints Overlay -->
                     <div class="controls-hint" id="controlsHint">
@@ -239,6 +266,7 @@
                 <div class="console-messages" id="consoleMessages">
                     <div class="console-header">
                         <span>═══ SYSTEM LOG ═══</span>
+                        <span id="fpsCounter" style="display: none; margin-left: 10px; color: #00ff00; font-family: 'Courier New', monospace;">FPS: 60</span>
                         <button class="console-clear" id="clearConsole">[CLEAR]</button>
                     </div>
                     <div class="console-content" id="consoleContent">
@@ -246,6 +274,10 @@
                             <span class="console-time">[00:00:00]</span>
                             <span class="console-text">System initialized. Welcome, Captain.</span>
                         </div>
+                    </div>
+                    <div class="console-input-area">
+                        <span class="console-prompt">&gt;</span>
+                        <input type="text" id="consoleInput" class="console-input" placeholder="Enter command..." autocomplete="off">
                     </div>
                 </div>
             </div>
@@ -287,7 +319,7 @@
                     <div class="station-details" id="stationDetails">
                         <div class="detail-item">
                             <span class="detail-label">Cargo Value:</span>
-                            <span class="detail-value" id="cargoValue">0¢</span>
+                            <span class="detail-value" id="cargoValueCredits">0¢</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Fuel Needed:</span>
@@ -315,7 +347,7 @@
                                     <span class="upgrade-name">ENGINE BOOST</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Increase ship speed</div>
+                                    <div class="upgrade-desc">+20% max speed per level - Faster travel between mining zones</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">SPEED:</span>
                                         <span class="stat-value" id="speedValue">100%</span>
@@ -339,7 +371,7 @@
                                     <span class="upgrade-name">CARGO EXPANSION</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Increase cargo capacity</div>
+                                    <div class="upgrade-desc">+50 capacity per level - Hold more ore before returning to station</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">CAPACITY:</span>
                                         <span class="stat-value" id="cargoValue">100</span>
@@ -363,7 +395,7 @@
                                     <span class="upgrade-name">HULL PLATING</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Increase max hull strength</div>
+                                    <div class="upgrade-desc">+25 HP per level - Survive more hazard collisions</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">MAX HULL:</span>
                                         <span class="stat-value" id="hullValue">100 HP</span>
@@ -387,7 +419,7 @@
                                     <span class="upgrade-name">FUEL EFFICIENCY</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Reduce fuel consumption</div>
+                                    <div class="upgrade-desc">-5% fuel consumption & +20% max fuel per level</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">MAX FUEL:</span>
                                         <span class="stat-value" id="fuelValue">100%</span>
@@ -420,7 +452,7 @@
                                     <span class="upgrade-name">MINING LASER</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Faster mining speed</div>
+                                    <div class="upgrade-desc">-10% mining time per level - Break asteroids faster</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">SPEED:</span>
                                         <span class="stat-value" id="miningValue">+0%</span>
@@ -444,7 +476,7 @@
                                     <span class="upgrade-name">MULTI-MINING LASER</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Mine multiple asteroids at once</div>
+                                    <div class="upgrade-desc">+1 laser per level - Mine up to 6 asteroids simultaneously</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">TARGETS:</span>
                                         <span class="stat-value" id="multiMiningValue">1</span>
@@ -468,7 +500,7 @@
                                     <span class="upgrade-name">MINING RANGE</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Extend laser reach</div>
+                                    <div class="upgrade-desc">+10 units per level - Lock onto distant asteroids</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">RANGE:</span>
                                         <span class="stat-value" id="rangeValue">50</span>
@@ -501,7 +533,7 @@
                                     <span class="upgrade-name">ADVANCED SCANNER</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Display item values and hazard warnings</div>
+                                    <div class="upgrade-desc">Shows asteroid ore values & hazard damage indicators</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">UNLOCKS:</span>
                                         <span class="stat-value" id="advancedScannerValue">Value & Danger Display</span>
@@ -524,7 +556,7 @@
                                     <span class="upgrade-name">SCAN RANGE</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Increase scanner detection range</div>
+                                    <div class="upgrade-desc">+50 units per level - Detect asteroids & hazards from further away</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">RANGE:</span>
                                         <span class="stat-value" id="scanRangeValue">400</span>
@@ -548,7 +580,7 @@
                                     <span class="upgrade-name">SCAN COOLDOWN</span>
                                 </div>
                                 <div class="upgrade-info">
-                                    <div class="upgrade-desc">Reduce time between scans</div>
+                                    <div class="upgrade-desc">-0.5s per level - Scan more frequently for targets</div>
                                     <div class="upgrade-stats">
                                         <span class="stat-label">COOLDOWN:</span>
                                         <span class="stat-value" id="scanCooldownValue">8.0s</span>
@@ -562,6 +594,35 @@
                                 <button class="upgrade-btn" id="upgradeScanCooldown" data-upgrade="scanCooldown">
                                     <span class="btn-bracket">[</span>
                                     <span class="btn-text">UPGRADE: <span id="scanCooldownCost">200</span>¢</span>
+                                    <span class="btn-bracket">]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- External Category -->
+                    <div class="upgrade-category">
+                        <button class="category-header" data-category="external">
+                            <span class="category-icon">▶</span>
+                            <span class="category-title">EXTERNAL</span>
+                        </button>
+                        <div class="category-content" id="externalContent" style="display: none;">
+                            <div class="upgrade-item">
+                                <div class="upgrade-info">
+                                    <span class="upgrade-name">CARGO DRONE</span>
+                                    <div class="upgrade-desc">One-time purchase - Unlock ability to sell cargo remotely without docking</div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">EFFECT:</span>
+                                        <span class="stat-value" id="cargoDroneValue">Remote Cargo Selling</span>
+                                    </div>
+                                    <div class="upgrade-stats">
+                                        <span class="stat-label">STATUS:</span>
+                                        <span class="stat-value" id="cargoDroneLevel">NOT PURCHASED</span>
+                                    </div>
+                                </div>
+                                <button class="upgrade-btn" id="upgradeCargoDrone" data-upgrade="cargoDrone">
+                                    <span class="btn-bracket">[</span>
+                                    <span class="btn-text">PURCHASE: <span id="cargoDroneCost">5000</span>¢</span>
                                     <span class="btn-bracket">]</span>
                                 </button>
                             </div>
@@ -714,28 +775,28 @@
                 </div>
                 <div class="color-customization">
                     <div class="color-option">
-                        <label class="color-label">Hull Color:</label>
+                        <label class="color-label" for="swatchPrimary">Hull Color:</label>
                         <button class="color-swatch-btn" id="swatchPrimary" data-color-type="primary">
                             <span class="swatch-preview" id="previewPrimary"></span>
                             <span class="swatch-hex" id="hexPrimary">#00ffff</span>
                         </button>
                     </div>
                     <div class="color-option">
-                        <label class="color-label">Outline Color:</label>
+                        <label class="color-label" for="swatchSecondary">Outline Color:</label>
                         <button class="color-swatch-btn" id="swatchSecondary" data-color-type="secondary">
                             <span class="swatch-preview" id="previewSecondary"></span>
                             <span class="swatch-hex" id="hexSecondary">#00aaaa</span>
                         </button>
                     </div>
                     <div class="color-option">
-                        <label class="color-label">Accent/Laser Color:</label>
+                        <label class="color-label" for="swatchAccent">Accent/Laser Color:</label>
                         <button class="color-swatch-btn" id="swatchAccent" data-color-type="accent">
                             <span class="swatch-preview" id="previewAccent"></span>
                             <span class="swatch-hex" id="hexAccent">#ffff00</span>
                         </button>
                     </div>
                     <div class="color-option">
-                        <label class="color-label">Thruster Color:</label>
+                        <label class="color-label" for="swatchThruster">Thruster Color:</label>
                         <button class="color-swatch-btn" id="swatchThruster" data-color-type="thruster">
                             <span class="swatch-preview" id="previewThruster"></span>
                             <span class="swatch-hex" id="hexThruster">#ff9600</span>
@@ -746,10 +807,11 @@
                     <div class="preset-label">Quick Presets:</div>
                     <div class="preset-buttons">
                         <button class="preset-btn" data-preset="default">Default</button>
-                        <button class="preset-btn" data-preset="stealth">Stealth</button>
-                        <button class="preset-btn" data-preset="military">Military</button>
-                        <button class="preset-btn" data-preset="luxury">Luxury</button>
-                        <button class="preset-btn" data-preset="danger">Danger</button>
+                        <button class="preset-btn" data-preset="normandy">Normandy</button> <!-- Mass Effect -->
+                        <button class="preset-btn" data-preset="spartan">Spartan</button> <!-- Halo -->
+                        <button class="preset-btn" data-preset="arwing">Arwing</button> <!-- Star Fox -->
+                        <button class="preset-btn" data-preset="atlas">Atlas</button> <!-- No Man's Sky Atlas -->
+                        <button class="preset-btn" data-preset="viper">Viper</button> <!-- Elite Dangerous / Battlestar Galactica -->
                     </div>
                 </div>
                 <div class="modal-buttons">
@@ -782,7 +844,7 @@
                     </div>
                     <!-- Custom hex input -->
                     <div class="custom-hex-input">
-                        <label class="color-label">Custom Hex:</label>
+                        <label class="color-label" for="customHexInput">Custom Hex:</label>
                         <input type="text" id="customHexInput" class="hex-input" placeholder="#RRGGBB" maxlength="7">
                         <button class="modal-btn-small" id="applyCustomHex">OK</button>
                     </div>
@@ -856,13 +918,6 @@
                 </button>
             </div>
         </div>
-    </div>
-
-    <!-- Mobile Action Buttons -->
-    <div class="mobile-controls" id="mobileControls">
-        <button class="mobile-btn" id="mobilePause" title="Pause">
-            <span class="mobile-btn-icon">⏸</span>
-        </button>
     </div>
 
     <script src="asteroid-miner-script.js"></script>

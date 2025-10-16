@@ -274,6 +274,20 @@ button.terminal-btn {
     gap: 0;
 }
 
+/* When canvas is width-constrained, center panel still fills height */
+/* but allows canvas-container to shrink to its explicit height */
+.center-panel.width-constrained {
+    /* Still fill the available height */
+    flex: 1;
+    /* Allow children to have constrained heights */
+    align-items: stretch;
+}
+
+.center-panel.width-constrained .game-wrapper {
+    /* Don't force game-wrapper to fill height when width-constrained */
+    flex: 0 0 auto;
+}
+
 /* ================================
    SIDE PANELS
    ================================ */
@@ -541,7 +555,7 @@ button.terminal-btn {
 }
 
 .game-wrapper {
-    flex: 1;
+    flex: 1; /* Grow to fill space normally */
     display: flex;
     flex-direction: column;
     position: relative;
@@ -582,7 +596,6 @@ button.terminal-btn {
    ================================ */
 
 .canvas-container {
-    flex: 1;
     position: relative;
     display: flex;
     align-items: center;
@@ -591,6 +604,9 @@ button.terminal-btn {
     border: 2px solid var(--term-text);
     margin: var(--space-sm);
     overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
 }
 
 #gameCanvas {
@@ -611,8 +627,8 @@ body.crt-mode .canvas-container::after {
     height: 100%;
     background: repeating-linear-gradient(
         0deg,
-        rgba(0, 0, 0, 0.15),
-        rgba(0, 0, 0, 0.15) 1px,
+        rgba(0, 0, 0, 0.3),
+        rgba(0, 0, 0, 0.3) 1px,
         transparent 1px,
         transparent 2px
     );
@@ -622,7 +638,7 @@ body.crt-mode .canvas-container::after {
 
 /* CRT Fisheye/Barrel Distortion Effect */
 body.crt-mode .canvas-container {
-    perspective: 300px;
+    perspective: 250px;
     transform-style: preserve-3d;
     overflow: hidden !important;
     padding: 0;
@@ -632,19 +648,19 @@ body.crt-mode #gameCanvas {
     /* CRT effect without bezel - canvas fills container */
     /* No rotation to avoid tilting/squishing */
     transform: 
-        perspective(300px) 
-        scale(1.0) !important;
+        perspective(250px) 
+        scale(1.02) !important;
     border-radius: 0;
     transform-origin: center center;
     transform-style: preserve-3d;
     will-change: transform;
     /* Apply a filter for additional curvature simulation */
-    filter: contrast(1.05) brightness(1.02);
+    filter: contrast(1.12) brightness(1.05);
     /* Inset shadows for glass depth effect - no outer bezel */
     box-shadow: 
-        inset 0 0 150px rgba(0, 0, 0, 0.6),
-        inset 0 0 100px rgba(0, 0, 0, 0.5),
-        inset 0 0 60px rgba(0, 0, 0, 0.4) !important;
+        inset 0 0 180px rgba(0, 0, 0, 0.7),
+        inset 0 0 120px rgba(0, 0, 0, 0.6),
+        inset 0 0 80px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* Ensure minimap canvas is NOT affected by barrel distortion */
@@ -664,18 +680,67 @@ body.crt-mode .canvas-container::before {
     width: 100%;
     height: 100%;
     background: radial-gradient(
-        ellipse 80% 70% at center,
+        ellipse 75% 65% at center,
         transparent 0%,
-        transparent 35%,
-        rgba(0, 0, 0, 0.1) 50%,
-        rgba(0, 0, 0, 0.25) 65%,
-        rgba(0, 0, 0, 0.45) 80%,
-        rgba(0, 0, 0, 0.7) 95%,
-        rgba(0, 0, 0, 0.85) 100%
+        transparent 30%,
+        rgba(0, 0, 0, 0.15) 45%,
+        rgba(0, 0, 0, 0.35) 60%,
+        rgba(0, 0, 0, 0.55) 75%,
+        rgba(0, 0, 0, 0.75) 90%,
+        rgba(0, 0, 0, 0.9) 100%
     );
     pointer-events: none;
     z-index: 2;
     border-radius: 5%;
+}
+
+/* ================================
+   PAUSE BUTTON
+   ================================ */
+
+.pause-btn {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid var(--term-text);
+    color: var(--term-text);
+    padding: var(--space-sm);
+    font-family: var(--font-main);
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.2s ease;
+    line-height: 1;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto; /* Ensure it receives clicks */
+}
+
+.pause-btn:hover {
+    background-color: var(--term-text);
+    color: var(--term-bg);
+    box-shadow: 0 0 10px var(--term-text);
+    transform: scale(1.05);
+}
+
+.pause-btn:active {
+    transform: scale(0.95);
+}
+
+.pause-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    color: var(--term-text);
+    filter: drop-shadow(0 0 2px var(--term-text));
+}
+
+.pause-btn:hover .pause-icon {
+    color: var(--term-bg);
 }
 
 /* ================================
@@ -705,6 +770,78 @@ body.crt-mode .canvas-container::before {
     border: 1px solid var(--term-dim);
     image-rendering: pixelated;
 }
+
+/* ================================
+   AUTO-MINING BUTTON
+   ================================ */
+
+.auto-mine-btn {
+    position: absolute;
+    bottom: var(--space-md);
+    left: var(--space-md);
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid var(--term-text);
+    color: var(--term-text);
+    padding: var(--space-xs);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.2s ease;
+    width: 120px;
+    height: 120px;
+    display: none; /* Hidden by default, shown for touch devices */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    pointer-events: auto;
+}
+
+.auto-mine-btn:hover {
+    background-color: var(--term-text);
+    color: var(--term-bg);
+    box-shadow: 0 0 10px var(--term-text);
+    transform: scale(1.02);
+}
+
+.auto-mine-btn:active {
+    transform: scale(0.98);
+}
+
+.auto-mine-btn.active {
+    background-color: rgba(0, 255, 0, 0.2);
+    border-color: var(--term-bright);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+}
+
+.auto-mine-icon {
+    display: block;
+    width: 48px;
+    height: 48px;
+    color: var(--term-text);
+    filter: drop-shadow(0 0 3px var(--term-text));
+    transition: all 0.2s ease;
+}
+
+.auto-mine-btn:hover .auto-mine-icon {
+    filter: drop-shadow(0 0 6px currentColor);
+    transform: scale(1.1);
+}
+
+.auto-mine-btn.active .auto-mine-icon {
+    color: var(--term-bright);
+    filter: drop-shadow(0 0 8px var(--term-bright));
+}
+
+.auto-mine-status {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    text-shadow: var(--term-glow);
+    margin-top: var(--space-xs);
+}
+
 
 /* ================================
    CONTROLS HINT OVERLAY
@@ -833,6 +970,41 @@ body.crt-mode .canvas-container::before {
 
 .console-content::-webkit-scrollbar-thumb {
     background: var(--term-dim);
+}
+
+.console-input-area {
+    display: flex;
+    align-items: center;
+    padding: var(--space-xs) var(--space-sm);
+    border-top: 1px solid var(--term-dim);
+    background-color: rgba(0, 0, 0, 0.2);
+    gap: var(--space-xs);
+}
+
+.console-prompt {
+    color: var(--term-bright);
+    font-weight: bold;
+    font-size: var(--font-size-sm);
+}
+
+.console-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--term-text);
+    font-family: var(--font-main);
+    font-size: var(--font-size-sm);
+    padding: 2px 4px;
+}
+
+.console-input::placeholder {
+    color: var(--term-dim);
+    opacity: 0.7;
+}
+
+.console-input:focus {
+    background-color: rgba(0, 255, 0, 0.05);
 }
 
 /* ================================
@@ -1585,46 +1757,6 @@ body.crt-mode .canvas-container::before {
 }
 
 /* ================================
-   MOBILE CONTROLS
-   ================================ */
-
-.mobile-controls {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    display: none;
-    flex-direction: column;
-    gap: var(--space-sm);
-    z-index: 100;
-}
-
-.mobile-btn {
-    width: 50px;
-    height: 50px;
-    background-color: rgba(0, 0, 0, 0.8);
-    border: 2px solid var(--term-text);
-    border-radius: 8px;
-    color: var(--term-bright);
-    font-size: 24px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-}
-
-.mobile-btn:active {
-    background-color: var(--term-text);
-    color: var(--term-bg);
-    box-shadow: var(--term-glow);
-}
-
-.mobile-btn-icon {
-    text-shadow: var(--term-glow);
-}
-
-/* ================================
    RESPONSIVE DESIGN
    ================================ */
 
@@ -1667,7 +1799,7 @@ body.crt-mode .canvas-container::before {
     }
     
     .console-messages {
-        max-height: 120px; /* Limit system log height on mobile */
+        max-height: 170px; /* Limit system log height on mobile */
         height: auto;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -1782,10 +1914,6 @@ body.crt-mode .canvas-container::before {
         top: var(--space-sm);
         left: var(--space-sm);
     }
-    
-    .mobile-controls {
-        display: flex;
-    }
 }
 
 /* Small Mobile */
@@ -1821,17 +1949,6 @@ body.crt-mode .canvas-container::before {
     .console-header,
     .console-content {
         font-size: 10px;
-    }
-    
-    .mobile-controls {
-        top: 8px;
-        right: 8px;
-    }
-    
-    .mobile-btn {
-        width: 45px;
-        height: 45px;
-        font-size: 20px;
     }
     
     /* Modal adjustments for small screens */
@@ -1949,3 +2066,258 @@ body.crt-mode .canvas-container::before {
 .text-accent {
     color: var(--term-accent);
 }
+
+/* ================================
+   LARGE SCREEN SCALING
+   (Base design: 1920x1080)
+   ================================ */
+
+/* 2K Displays (2560x1440) - Scale up 33% */
+@media (min-width: 2560px) {
+    :root {
+        --font-size-sm: 16px;   /* was 12px */
+        --font-size-md: 19px;   /* was 14px */
+        --font-size-lg: 21px;   /* was 16px */
+        --font-size-xl: 27px;   /* was 20px */
+        
+        --space-xs: 5px;        /* was 4px */
+        --space-sm: 11px;       /* was 8px */
+        --space-md: 21px;       /* was 16px */
+        --space-lg: 32px;       /* was 24px */
+    }
+    
+    body {
+        font-size: 19px;        /* Scale base font */
+    }
+    
+    .modal-content {
+        min-width: 533px;       /* was 400px */
+        max-width: 80%;
+    }
+    
+    .minimap {
+        width: 200px;           /* was 150px */
+        height: 200px;          /* was 150px */
+    }
+    
+    #minimapCanvas {
+        width: 160px;           /* was 120px */
+        height: 160px;          /* was 120px */
+    }
+    
+    .mobile-btn {
+        width: 67px;            /* was 50px */
+        height: 67px;           /* was 50px */
+        font-size: 32px;        /* was 24px */
+    }
+    
+    /* Canvas and CRT Effect Scaling */
+    .canvas-container {
+        border-width: 3px;      /* was 2px */
+    }
+    
+    body.crt-mode .canvas-container::after {
+        /* Scale scanline pattern */
+        background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.15),
+            rgba(0, 0, 0, 0.15) 1.33px,  /* was 1px */
+            transparent 1.33px,
+            transparent 2.66px   /* was 2px */
+        );
+    }
+    
+    body.crt-mode #gameCanvas {
+        /* Scale CRT shadows */
+        box-shadow: 
+            inset 0 0 200px rgba(0, 0, 0, 0.6),   /* was 150px */
+            inset 0 0 133px rgba(0, 0, 0, 0.5),   /* was 100px */
+            inset 0 0 80px rgba(0, 0, 0, 0.4) !important;  /* was 60px */
+    }
+}
+
+/* 4K Displays (3840x2160) - Scale up 100% */
+@media (min-width: 3840px) {
+    :root {
+        --font-size-sm: 24px;   /* was 12px */
+        --font-size-md: 28px;   /* was 14px */
+        --font-size-lg: 32px;   /* was 16px */
+        --font-size-xl: 40px;   /* was 20px */
+        
+        --space-xs: 8px;        /* was 4px */
+        --space-sm: 16px;       /* was 8px */
+        --space-md: 32px;       /* was 16px */
+        --space-lg: 48px;       /* was 24px */
+    }
+    
+    body {
+        font-size: 28px;        /* Scale base font */
+    }
+    
+    .modal-content {
+        min-width: 800px;       /* was 400px */
+        max-width: 80%;
+    }
+    
+    .modal-title {
+        font-size: 32px;        /* was 16px */
+        padding: 16px;          /* was 8px */
+    }
+    
+    .modal-message {
+        font-size: 24px;        /* was 12px */
+        padding: 32px;          /* was 16px */
+    }
+    
+    .modal-btn {
+        padding: 16px 32px;     /* was 8px 16px */
+        font-size: 28px;        /* was 14px */
+    }
+    
+    .minimap {
+        width: 300px;           /* was 150px */
+        height: 300px;          /* was 150px */
+    }
+    
+    #minimapCanvas {
+        width: 240px;           /* was 120px */
+        height: 240px;          /* was 120px */
+    }
+    
+    .controls-hint {
+        font-size: 22px;        /* was 11px */
+        padding: 16px;          /* was 8px */
+    }
+    
+    .stat-display {
+        font-size: 24px;        /* was 12px */
+    }
+    
+    .upgrade-btn,
+    .terminal-btn {
+        padding: 16px 32px;     /* was 8px 16px */
+        font-size: 28px;        /* was 14px */
+        min-height: 88px;       /* was 44px */
+    }
+    
+    .mobile-btn {
+        width: 100px;           /* was 50px */
+        height: 100px;          /* was 50px */
+        font-size: 48px;        /* was 24px */
+    }
+    
+    .color-swatch {
+        min-width: 60px;        /* was 30px */
+        min-height: 60px;       /* was 30px */
+    }
+    
+    .swatch-preview {
+        width: 60px;            /* was 30px */
+        height: 60px;           /* was 30px */
+    }
+    
+    /* Canvas and CRT Effect Scaling */
+    .canvas-container {
+        border-width: 4px;      /* was 2px */
+    }
+    
+    body.crt-mode .canvas-container::after {
+        /* Scale scanline pattern */
+        background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.15),
+            rgba(0, 0, 0, 0.15) 2px,     /* was 1px */
+            transparent 2px,
+            transparent 4px      /* was 2px */
+        );
+    }
+    
+    body.crt-mode #gameCanvas {
+        /* Scale CRT shadows */
+        box-shadow: 
+            inset 0 0 300px rgba(0, 0, 0, 0.6),   /* was 150px */
+            inset 0 0 200px rgba(0, 0, 0, 0.5),   /* was 100px */
+            inset 0 0 120px rgba(0, 0, 0, 0.4) !important;  /* was 60px */
+    }
+}
+
+/* Ultra-wide and 8K Displays (5120px+) - Scale up 166% */
+@media (min-width: 5120px) {
+    :root {
+        --font-size-sm: 32px;   /* was 12px */
+        --font-size-md: 37px;   /* was 14px */
+        --font-size-lg: 43px;   /* was 16px */
+        --font-size-xl: 53px;   /* was 20px */
+        
+        --space-xs: 11px;       /* was 4px */
+        --space-sm: 21px;       /* was 8px */
+        --space-md: 43px;       /* was 16px */
+        --space-lg: 64px;       /* was 24px */
+    }
+    
+    body {
+        font-size: 37px;        /* Scale base font */
+    }
+    
+    .modal-content {
+        min-width: 1066px;      /* was 400px */
+        max-width: 75%;
+    }
+    
+    .modal-title {
+        font-size: 43px;        /* was 16px */
+        padding: 21px;          /* was 8px */
+    }
+    
+    .modal-message {
+        font-size: 32px;        /* was 12px */
+        padding: 43px;          /* was 16px */
+    }
+    
+    .modal-btn {
+        padding: 21px 43px;     /* was 8px 16px */
+        font-size: 37px;        /* was 14px */
+    }
+    
+    .minimap {
+        width: 400px;           /* was 150px */
+        height: 400px;          /* was 150px */
+    }
+    
+    #minimapCanvas {
+        width: 320px;           /* was 120px */
+        height: 320px;          /* was 120px */
+    }
+    
+    .upgrade-btn,
+    .terminal-btn {
+        padding: 21px 43px;     /* was 8px 16px */
+        font-size: 37px;        /* was 14px */
+        min-height: 117px;      /* was 44px */
+    }
+    
+    /* Canvas and CRT Effect Scaling */
+    .canvas-container {
+        border-width: 5px;      /* was 2px */
+    }
+    
+    body.crt-mode .canvas-container::after {
+        /* Scale scanline pattern */
+        background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.15),
+            rgba(0, 0, 0, 0.15) 2.66px,  /* was 1px */
+            transparent 2.66px,
+            transparent 5.32px   /* was 2px */
+        );
+    }
+    
+    body.crt-mode #gameCanvas {
+        /* Scale CRT shadows */
+        box-shadow: 
+            inset 0 0 400px rgba(0, 0, 0, 0.6),   /* was 150px */
+            inset 0 0 266px rgba(0, 0, 0, 0.5),   /* was 100px */
+            inset 0 0 160px rgba(0, 0, 0, 0.4) !important;  /* was 60px */
+    }
+}
+

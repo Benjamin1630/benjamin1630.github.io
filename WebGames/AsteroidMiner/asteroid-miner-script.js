@@ -39,7 +39,8 @@ const gameState = {
         multiMining: 1,
         scanRange: 1,
         scanCooldown: 1,
-        advancedScanner: 0  // 0 = not purchased, 1 = purchased (one-time upgrade)
+        advancedScanner: 0,  // 0 = not purchased, 1 = purchased (one-time upgrade)
+        cargoDrone: 0  // 0 = not purchased, 1 = purchased (one-time upgrade)
     },
     
     // Prestige
@@ -81,7 +82,7 @@ const CONFIG = {
     
     // Mining
     baseMiningSpeed: 60, // frames to mine
-    miningRange: 50,
+    miningRange: 75,
     
     // Fuel consumption (less efficient - increased consumption)
     baseFuelConsumption: 0.005,
@@ -105,6 +106,13 @@ const CONFIG = {
     worldHeight: 3000
 };
 
+// Reference resolution for consistent viewport across all screen sizes
+// This is the virtual resolution that determines how much of the game world is visible
+const VIEWPORT_REFERENCE = {
+    WIDTH: 1200,
+    HEIGHT: 900
+};
+
 // ================================
 // PLAYER SHIP
 // ================================
@@ -115,18 +123,29 @@ const player = {
     vx: 0,
     vy: 0,
     angle: 0,
-    size: 18,
+    size: 36,
     isMining: false,
     miningTargets: [], // Array of {asteroid, progress} objects for multi-mining
     miningTarget: null, // Kept for backward compatibility
     miningProgress: 0, // Kept for backward compatibility
     isManuallyControlled: false, // Track if player is actively providing input
+    asteroidInRange: false, // Populated by collision worker
+    closestAsteroidData: null, // Populated by collision worker
     colors: {
-        primary: '#00ffff',    // Main hull color (cyan)
-        secondary: '#00aaaa',  // Hull outline color
-        accent: '#ffff00',     // Laser/detail color (yellow)
-        thruster: '#ff9600'    // Thruster flame color (orange)
+        primary: '#e0e0e0',    // Main hull color (light grey/white)
+        secondary: '#808080',  // Hull outline color (medium grey)
+        accent: '#c0c0c0',     // Laser/detail color (silver)
+        thruster: '#ff6600'    // Thruster flame color (red-orange)
     }
+};
+
+// ================================
+// FUEL WARNING TRACKING
+// ================================
+
+const fuelWarnings = {
+    warning50: { triggered: false, timestamp: 0 }, // 40% warning
+    warning25: { triggered: false, timestamp: 0 }  // 20% warning
 };
 
 // ================================
@@ -136,13 +155,19 @@ const player = {
 const viewport = {
     x: 0,
     y: 0,
-    zoom: 1.0,
-    targetZoom: 1.0,
+    zoom: 1.5,
+    targetZoom: 1.5,
     minZoom: 0.75,
     maxZoom: 1.5,
     smoothing: 0.1,
     zoomSmoothing: 0.15
 };
+
+// ================================
+// CARGO DRONE SYSTEM
+// ================================
+
+let cargoDrone = null; // Will hold drone state when active
 
 // ================================
 // ASTEROID TYPES
@@ -233,7 +258,7 @@ const HAZARD_TYPES = {
         damage: 5,
         size: 30,
         speed: 0,
-        pullForce: 0.25  // Reduced from 3.33
+        pullForce: 0.08  // Reduced from 0.25 for more manageable gravity
     }
 };
 
@@ -246,6 +271,25 @@ let hazards = [];
 let particles = [];
 let floatingText = [];
 let stars = [];
+let starRenderData = []; // Pre-calculated star positions from worker
+
+// Star worker for multi-threaded optimization
+let starWorker = null;
+let starWorkerReady = false;
+
+// Physics worker for asteroid/hazard/particle updates
+let physicsWorker = null;
+let physicsWorkerReady = false;
+let pendingPhysicsUpdate = false;
+
+// Collision worker for collision detection
+let collisionWorker = null;
+let collisionWorkerReady = false;
+let pendingCollisionCheck = false;
+
+// FPS counter worker for zero-overhead FPS tracking
+let fpsWorker = null;
+let fpsWorkerReady = false;
 
 // Auto-pilot state
 let autoPilotActive = false;
@@ -278,7 +322,7 @@ const SCAN_CONFIG = {
     lineColor: '#00ffff',
     labelOffset: 30,
     horizontalLength: 80,
-    fontSize: 10,
+    fontSize: 15,
     fadeOutDuration: 2000 // 2 second fade
 };
 
@@ -418,10 +462,59 @@ let isTouchDevice = false;
 let touchActive = false;
 let touchX = 0;
 let touchY = 0;
+let autoMiningEnabled = false; // Auto-mining toggle for touchscreen
+
+// Time tracking
+let currentDeltaTime = 16.67; // Store current frame's delta time for use in render functions
 
 // Pinch zoom for touch devices
 let lastTouchDistance = 0;
 let isPinching = false;
+
+// ================================
+// EARLY INITIALIZATION (Before Boot Sequence)
+// ================================
+
+function detectInputMethod() {
+    // Detect touch device
+    isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    
+    // Check for already-connected gamepads
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let gamepadDetected = false;
+    for (let i = 0; i < gamepads.length; i++) {
+        if (gamepads[i]) {
+            gamepadDetected = true;
+            gamepadConnected = true;
+            gamepadIndex = i;
+            console.log('Gamepad already connected at startup:', gamepads[i].id);
+            break;
+        }
+    }
+    
+    // Set initial input method for tutorial (priority: gamepad > touch > keyboard)
+    if (gamepadDetected) {
+        lastInputMethod = 'gamepad';
+    } else if (isTouchDevice) {
+        lastInputMethod = 'touch';
+    } else {
+        lastInputMethod = 'keyboard';
+    }
+    
+    // Setup pause button visibility immediately
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) {
+        pauseBtn.style.display = isTouchDevice ? 'flex' : 'none';
+    }
+    
+    // Setup auto-mine button visibility immediately (touchscreen only)
+    const autoMineBtn = document.getElementById('autoMineBtn');
+    if (autoMineBtn) {
+        autoMineBtn.style.display = isTouchDevice ? 'flex' : 'none';
+    }
+    
+    console.log(`Input method detected: ${lastInputMethod}, isTouchDevice: ${isTouchDevice}`);
+}
 
 // ================================
 // BOOT SEQUENCE
@@ -487,14 +580,14 @@ function getBootMessages(includeNamePrompt = false, isDocked = true) {
                 "All systems nominal.",
                 "Ready for deployment.",
                 "",
-                "Press any key to launch..."
+                "Press any key or button to launch..."
             );
         } else {
             messages.push(
                 "All systems nominal.",
                 "Ship is currently in flight.",
                 "",
-                "Press any key to continue..."
+                "Press any key or button to continue..."
             );
         }
     }
@@ -504,7 +597,7 @@ function getBootMessages(includeNamePrompt = false, isDocked = true) {
 
 let bootLineIndex = 0;
 let bootCharIndex = 0;
-const bootSpeed = 10; // milliseconds per character
+const bootSpeed = 5; // milliseconds per character
 let bootMessages = [];
 let awaitingNameInput = false;
 
@@ -557,64 +650,114 @@ function displayBootSequence() {
                     input.placeholder = 'PROSPECTOR-1';
                     
                     bootText.appendChild(input);
+                    
+                    // Add instruction for gamepad users
+                    const instruction = document.createElement('div');
+                    instruction.style.cssText = `
+                        color: inherit;
+                        font-family: 'Courier New', monospace;
+                        font-size: 12px;
+                        margin-top: 10px;
+                        opacity: 0.7;
+                    `;
+                    instruction.textContent = '(Press ENTER or gamepad A to confirm)';
+                    bootText.appendChild(instruction);
+                    
                     input.focus();
                     awaitingNameInput = true;
                     
+                    // Function to continue boot with name
+                    const continueWithName = (name) => {
+                        if (!awaitingNameInput) return;
+                        
+                        awaitingNameInput = false;
+                        name = name.trim().toUpperCase();
+                        if (!name) name = 'PROSPECTOR-1';
+                        
+                        shipName = name;
+                        localStorage.setItem('asteroidMinerShipName', shipName);
+                        
+                        // Replace input with the entered name and remove instruction
+                        input.remove();
+                        instruction.remove();
+                        bootText.textContent += name;
+                        bootText.textContent += '\n';
+                        
+                        bootLineIndex++;
+                        bootCharIndex = 0;
+                        
+                        // Continue with rest of boot sequence
+                        const hullPercent = Math.ceil((gameState.hull / gameState.maxHull) * 100);
+                        const fuelPercent = Math.ceil((gameState.fuel / gameState.maxFuel) * 100);
+                        const hullStatus = hullPercent >= 100 ? '100%' : hullPercent >= 75 ? `${hullPercent}% (GOOD)` : hullPercent >= 50 ? `${hullPercent}% (FAIR)` : hullPercent >= 25 ? `${hullPercent}% (DAMAGED)` : `${hullPercent}% (CRITICAL)`;
+                        const fuelStatus = fuelPercent >= 100 ? 'FULL' : fuelPercent >= 75 ? `${fuelPercent}% (HIGH)` : fuelPercent >= 50 ? `${fuelPercent}% (MODERATE)` : fuelPercent >= 25 ? `${fuelPercent}% (LOW)` : `${fuelPercent}% (CRITICAL)`;
+                        const sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
+                        const asteroidDensity = gameState.sector <= 2 ? 'LOW' : gameState.sector <= 4 ? 'MODERATE' : gameState.sector <= 6 ? 'HIGH' : gameState.sector <= 8 ? 'VERY HIGH' : 'EXTREME';
+                        const hazardLevel = gameState.sector <= 2 ? 'MINIMAL' : gameState.sector <= 4 ? 'LOW' : gameState.sector <= 6 ? 'MODERATE' : gameState.sector <= 8 ? 'HIGH' : 'CRITICAL';
+                        const resourceQuality = gameState.sector <= 2 ? 'STANDARD' : gameState.sector <= 4 ? 'IMPROVED' : gameState.sector <= 6 ? 'ENHANCED' : gameState.sector <= 8 ? 'SUPERIOR' : 'EXCEPTIONAL';
+                        const isDockedAtAny = stations.some(st => st.isDocked);
+                        const statusText = isDockedAtAny ? 'DOCKED' : 'IN FLIGHT';
+                        const readyText = isDockedAtAny 
+                            ? ["All systems nominal.", "Ready for deployment.", "", "Press any key or button to launch..."]
+                            : ["All systems nominal.", "Ship is currently in flight.", "", "Press any key or button to continue..."];
+                        
+                        bootMessages = [
+                            ...bootMessages.slice(0, bootLineIndex),
+                            "- Vessel registration confirmed.",
+                            "",
+                            "VESSEL IDENTIFICATION:",
+                            `- Ship Name: ${shipName}`,
+                            "- Class: Deep Space Mining Frigate",
+                            `- Hull Integrity: ${hullStatus}`,
+                            `- Fuel Reserves: ${fuelStatus}`,
+                            `- STATUS: ${statusText}`,
+                            "",
+                            "SECTOR ANALYSIS:",
+                            `- Location: ${sectorName} (Mining Zone)`,
+                            `- Asteroid Density: ${asteroidDensity}`,
+                            `- Hazard Level: ${hazardLevel}`,
+                            `- Resource Quality: ${resourceQuality}`,
+                            "",
+                            ...readyText
+                        ];
+                        
+                        setTimeout(typeNextChar, bootSpeed * 10);
+                    };
+                    
+                    // Keyboard input handler
                     input.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && awaitingNameInput) {
-                            awaitingNameInput = false;
-                            let name = input.value.trim().toUpperCase();
-                            if (!name) name = 'PROSPECTOR-1';
-                            
-                            shipName = name;
-                            localStorage.setItem('asteroidMinerShipName', shipName);
-                            
-                            // Replace input with the entered name
-                            input.remove();
-                            bootText.textContent += name;
-                            bootText.textContent += '\n';
-                            
-                            bootLineIndex++;
-                            bootCharIndex = 0;
-                            
-                            // Continue with rest of boot sequence
-                            const hullPercent = Math.ceil((gameState.hull / gameState.maxHull) * 100);
-                            const fuelPercent = Math.ceil((gameState.fuel / gameState.maxFuel) * 100);
-                            const hullStatus = hullPercent >= 100 ? '100%' : hullPercent >= 75 ? `${hullPercent}% (GOOD)` : hullPercent >= 50 ? `${hullPercent}% (FAIR)` : hullPercent >= 25 ? `${hullPercent}% (DAMAGED)` : `${hullPercent}% (CRITICAL)`;
-                            const fuelStatus = fuelPercent >= 100 ? 'FULL' : fuelPercent >= 75 ? `${fuelPercent}% (HIGH)` : fuelPercent >= 50 ? `${fuelPercent}% (MODERATE)` : fuelPercent >= 25 ? `${fuelPercent}% (LOW)` : `${fuelPercent}% (CRITICAL)`;
-                            const sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
-                            const asteroidDensity = gameState.sector <= 2 ? 'LOW' : gameState.sector <= 4 ? 'MODERATE' : gameState.sector <= 6 ? 'HIGH' : gameState.sector <= 8 ? 'VERY HIGH' : 'EXTREME';
-                            const hazardLevel = gameState.sector <= 2 ? 'MINIMAL' : gameState.sector <= 4 ? 'LOW' : gameState.sector <= 6 ? 'MODERATE' : gameState.sector <= 8 ? 'HIGH' : 'CRITICAL';
-                            const resourceQuality = gameState.sector <= 2 ? 'STANDARD' : gameState.sector <= 4 ? 'IMPROVED' : gameState.sector <= 6 ? 'ENHANCED' : gameState.sector <= 8 ? 'SUPERIOR' : 'EXCEPTIONAL';
-                            const isDockedAtAny = stations.some(st => st.isDocked);
-                            const statusText = isDockedAtAny ? 'DOCKED' : 'IN FLIGHT';
-                            const readyText = isDockedAtAny 
-                                ? ["All systems nominal.", "Ready for deployment.", "", "Press any key to launch..."]
-                                : ["All systems nominal.", "Ship is currently in flight.", "", "Press any key to continue..."];
-                            
-                            bootMessages = [
-                                ...bootMessages.slice(0, bootLineIndex),
-                                "- Vessel registration confirmed.",
-                                "",
-                                "VESSEL IDENTIFICATION:",
-                                `- Ship Name: ${shipName}`,
-                                "- Class: Deep Space Mining Frigate",
-                                `- Hull Integrity: ${hullStatus}`,
-                                `- Fuel Reserves: ${fuelStatus}`,
-                                `- STATUS: ${statusText}`,
-                                "",
-                                "SECTOR ANALYSIS:",
-                                `- Location: ${sectorName} (Mining Zone)`,
-                                `- Asteroid Density: ${asteroidDensity}`,
-                                `- Hazard Level: ${hazardLevel}`,
-                                `- Resource Quality: ${resourceQuality}`,
-                                "",
-                                ...readyText
-                            ];
-                            
-                            setTimeout(typeNextChar, bootSpeed * 10);
+                        if (e.key === 'Enter') {
+                            continueWithName(input.value);
                         }
                     });
+                    
+                    // Gamepad handler - A button to use default name
+                    let lastAButtonState = false;
+                    const checkGamepadForNameInput = () => {
+                        if (!awaitingNameInput) return;
+                        
+                        if (gamepadConnected && gamepadIndex !== null) {
+                            const gamepads = navigator.getGamepads();
+                            const gamepad = gamepads[gamepadIndex];
+                            
+                            if (gamepad) {
+                                const aButton = gamepad.buttons[0] && gamepad.buttons[0].pressed;
+                                const aButtonJustPressed = aButton && !lastAButtonState;
+                                
+                                if (aButtonJustPressed) {
+                                    // Use current input value or default
+                                    continueWithName(input.value || 'PROSPECTOR-1');
+                                    return;
+                                }
+                                
+                                lastAButtonState = aButton;
+                            }
+                        }
+                        
+                        requestAnimationFrame(checkGamepadForNameInput);
+                    };
+                    
+                    requestAnimationFrame(checkGamepadForNameInput);
                 }
             } else if (bootCharIndex < currentLine.length) {
                 bootText.textContent += currentLine[bootCharIndex];
@@ -629,6 +772,34 @@ function displayBootSequence() {
         } else if (!awaitingNameInput) {
             document.addEventListener('keydown', finishBoot, { once: true });
             document.addEventListener('click', finishBoot, { once: true });
+            
+            // Add gamepad support for finishing boot sequence
+            const checkGamepadForBoot = () => {
+                if (!gamepadConnected || gamepadIndex === null) {
+                    requestAnimationFrame(checkGamepadForBoot);
+                    return;
+                }
+                
+                const gamepads = navigator.getGamepads();
+                const gamepad = gamepads[gamepadIndex];
+                
+                if (gamepad) {
+                    // Check if any button is pressed
+                    const anyButtonPressed = gamepad.buttons.some(button => button.pressed);
+                    
+                    if (anyButtonPressed) {
+                        // Remove listeners to prevent double-triggering
+                        document.removeEventListener('keydown', finishBoot);
+                        document.removeEventListener('click', finishBoot);
+                        finishBoot();
+                        return;
+                    }
+                }
+                
+                requestAnimationFrame(checkGamepadForBoot);
+            };
+            
+            requestAnimationFrame(checkGamepadForBoot);
         }
     }
     
@@ -832,9 +1003,11 @@ function initTheme() {
         }
         themeText.textContent = themeNames[currentTheme];
     } else {
-        // Apply default mono theme
+        // Apply default mono theme on first load
+        currentTheme = 'mono';
         document.body.classList.add('theme-mono');
         themeText.textContent = themeNames['mono'];
+        localStorage.setItem('asteroidMinerTheme', 'mono');
     }
 }
 
@@ -906,6 +1079,177 @@ function clearConsole() {
 }
 
 // ================================
+// CONSOLE COMMAND PROCESSING
+// ================================
+
+function processCommand(commandString) {
+    // Log the user's command
+    logMessage(`> ${commandString}`, 'command');
+    
+    // Parse the command
+    const parts = commandString.trim().split(/\s+/);
+    const command = parts[0];
+    const args = parts.slice(1);
+    
+    // Process commands
+    switch(command) {
+        case 'sv_cheats':
+            if (args.length === 0) {
+                logMessage(`Error: sv_cheats requires a boolean value. Usage: sv_cheats <true|false>`, 'error');
+                return;
+            }
+            
+            const value = args[0].toLowerCase();
+            if (value === 'true' || value === '1') {
+                sv_cheats = true;
+                logMessage('CHEAT ACCESS GRANTED - Developer commands unlocked', 'success');
+            } else if (value === 'false' || value === '0') {
+                sv_cheats = false;
+                logMessage('CHEAT ACCESS REVOKED - Developer commands locked', 'info');
+            } else {
+                logMessage(`Error: "${args[0]}" is not a valid boolean (use true/false or 1/0)`, 'error');
+            }
+            break;
+        
+        case 'AddCredits':
+            if (!sv_cheats) {
+                logMessage('Error: This command requires sv_cheats to be enabled', 'error');
+                return;
+            }
+            if (args.length === 0) {
+                logMessage('Error: AddCredits requires a numerical value. Usage: AddCredits <amount>', 'error');
+                return;
+            }
+            
+            const amount = parseFloat(args[0]);
+            if (isNaN(amount)) {
+                logMessage(`Error: "${args[0]}" is not a valid number.`, 'error');
+                return;
+            }
+            
+            gameState.credits += amount;
+            updateUI();
+            logMessage(`Added ${amount} credits. New balance: ${gameState.credits.toFixed(2)} CR`, 'success');
+            break;
+            
+        case 'GodMode':
+            if (!sv_cheats) {
+                logMessage('Error: This command requires sv_cheats to be enabled', 'error');
+                return;
+            }
+            godModeActive = !godModeActive;
+            if (godModeActive) {
+                // Set hull and fuel to max
+                gameState.hull = gameState.maxHull;
+                gameState.fuel = gameState.maxFuel;
+                updateUI();
+                logMessage('GOD MODE ENABLED - Invincibility and unlimited fuel activated', 'success');
+            } else {
+                logMessage('GOD MODE DISABLED - Normal gameplay resumed', 'info');
+            }
+            break;
+            
+        case 'FPSToggle':
+            fpsCounterEnabled = !fpsCounterEnabled;
+            const fpsCounter = document.getElementById('fpsCounter');
+            if (fpsCounterEnabled) {
+                fpsCounter.style.display = 'inline';
+                if (fpsWorkerReady && fpsWorker) {
+                    fpsWorker.postMessage({ type: 'enable', timestamp: performance.now() });
+                }
+                logMessage('FPS COUNTER ENABLED', 'success');
+            } else {
+                fpsCounter.style.display = 'none';
+                if (fpsWorkerReady && fpsWorker) {
+                    fpsWorker.postMessage({ type: 'disable' });
+                }
+                logMessage('FPS COUNTER DISABLED', 'info');
+            }
+            break;
+            
+        case 'GoToStation':
+            if (!sv_cheats) {
+                logMessage('Error: This command requires sv_cheats to be enabled', 'error');
+                return;
+            }
+            const nearestStation = findNearestStation();
+            if (!nearestStation) {
+                logMessage('Error: No station found in current sector', 'error');
+                return;
+            }
+            
+            // Teleport player to station location
+            player.x = nearestStation.x;
+            player.y = nearestStation.y;
+            
+            // Stop player movement
+            player.vx = 0;
+            player.vy = 0;
+            
+            // Update viewport to center on new position
+            viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+            viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
+            
+            // Cancel autopilot if active
+            if (autoPilotActive) {
+                autoPilotActive = false;
+                updateNavigationButtonText();
+            }
+            
+            logMessage(`Teleported to ${nearestStation.name}`, 'success');
+            break;
+            
+        case 'Help':
+            logMessage('Available commands:', 'info');
+            if (sv_cheats) {
+                logMessage('"sv_cheats <true|false>" - Toggle cheat access (ENABLED)', 'success');
+                logMessage('"AddCredits <amount>" - Add credits to your account', 'info');
+                logMessage('"GodMode" - Toggle invincibility and unlimited fuel', 'info');
+                logMessage('"GoToStation" - Teleport to nearest space station', 'info');
+            }
+            logMessage('"FPSToggle" - Toggle FPS counter display', 'info');
+            logMessage('"Help" - Show this help message', 'info');
+            break;
+            
+        case '':
+            // Empty command, do nothing
+            break;
+            
+        default:
+            logMessage(`Unknown command: "${command}". Type "Help" for available commands.`, 'error');
+            break;
+    }
+}
+
+function initConsoleInput() {
+    const consoleInput = document.getElementById('consoleInput');
+    if (!consoleInput) return;
+    
+    // Track when user is focused on console input
+    consoleInput.addEventListener('focus', () => {
+        isTypingInConsole = true;
+    });
+    
+    consoleInput.addEventListener('blur', () => {
+        isTypingInConsole = false;
+    });
+    
+    consoleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const command = consoleInput.value.trim();
+            if (command) {
+                processCommand(command);
+                consoleInput.value = '';
+            }
+        }
+        // Allow Escape to unfocus the input
+        if (e.key === 'Escape') {
+            consoleInput.blur();
+        }
+    });
+}
+
+// ================================
 // CONTROLS HINT
 // ================================
 
@@ -930,12 +1274,13 @@ const controlSchemes = {
     touch: {
         title: '╔═ TOUCH CONTROLS ═╗',
         controls: [
-            { key: 'TAP', desc: 'Move ship toward tap location' },
-            { key: 'DRAG', desc: 'Continuous movement' },
+            { key: 'TAP CANVAS', desc: 'Move ship toward location' },
+            { key: 'DRAG CANVAS', desc: 'Continuous movement control' },
             { key: 'PINCH', desc: 'Zoom In/Out' },
-            { key: 'AUTO-MINING', desc: 'Laser fires automatically in range' },
-            { key: 'AUTO-SCAN', desc: 'Auto-scans when available' },
-            { key: 'MENU BTN', desc: 'Access upgrades & saves' }
+            { key: 'LASER BTN', desc: 'Toggle auto-mining (bottom-left)' },
+            { key: 'TAP MINIMAP', desc: 'Trigger deep space scan' },
+            { key: 'PAUSE BTN', desc: 'Access menu (top-right)' },
+            { key: 'SIDE PANELS', desc: 'Swipe to access stats & upgrades' }
         ]
     },
     gamepad: {
@@ -948,7 +1293,9 @@ const controlSchemes = {
             { key: 'RB / R1', desc: 'Zoom In' },
             { key: 'D-PAD UP', desc: 'Toggle Autopilot' },
             { key: 'SELECT/BACK', desc: 'Virtual Mouse Mode' },
-            { key: 'D-PAD (V-MOUSE)', desc: 'Move Cursor (Magnetizes to buttons)' },
+            { key: 'L-STICK (V-MOUSE)', desc: 'Move Cursor' },
+            { key: 'R-STICK (V-MOUSE)', desc: 'Scroll Up/Down' },
+            { key: 'D-PAD (V-MOUSE)', desc: 'Jump to Button' },
             { key: 'A (V-MOUSE)', desc: 'Click Button' },
             { key: 'HOLD L3 (2s)', desc: 'Quick Load' },
             { key: 'HOLD R3 (2s)', desc: 'Quick Save' },
@@ -961,12 +1308,8 @@ function initControlsHint() {
     const controlsHint = document.getElementById('controlsHint');
     const closeHint = document.getElementById('closeHint');
     
-    // Detect initial input method
-    if (isTouchDevice) {
-        lastInputMethod = 'touch';
-    }
-    
-    // Render the controls
+    // Input method already detected in detectInputMethod() before boot sequence
+    // Just render the controls with the correct scheme
     updateControlsHint();
     
     // Close button handler
@@ -1023,6 +1366,16 @@ function setInputMethod(method) {
 
 // Track if ship name is being edited (needs to be global so updateUI can check it)
 let isEditingShipName = false;
+let isTypingInConsole = false;
+
+// Cheat access control
+let sv_cheats = false;
+
+// God mode state
+let godModeActive = false;
+
+// FPS counter state (now handled by worker)
+let fpsCounterEnabled = false;
 
 function initShipRename() {
     const shipNameEl = document.getElementById('shipName');
@@ -1429,7 +1782,16 @@ function saveGame(saveName) {
         gameState: {
             credits: gameState.credits,
             sector: gameState.sector,
-            // Don't save totalMined or totalTraveled - can be inferred from upgrades/sector
+            sectorName: gameState.sectorName,
+            sectorsExplored: gameState.sectorsExplored,
+            stats: {
+                totalMined: gameState.stats.totalMined,
+                distanceTraveled: gameState.stats.distanceTraveled,
+                asteroidsDestroyed: gameState.stats.asteroidsDestroyed,
+                hazardsAvoided: gameState.stats.hazardsAvoided,
+                sectorsVisited: gameState.stats.sectorsVisited,
+                playTime: gameState.stats.playTime
+            }
         },
         player: {
             x: player.x,
@@ -1437,6 +1799,7 @@ function saveGame(saveName) {
             vx: player.vx,
             vy: player.vy,
             angle: player.angle,
+            size: player.size,
             colors: {
                 primary: player.colors.primary,
                 secondary: player.colors.secondary,
@@ -1471,7 +1834,8 @@ function saveGame(saveName) {
             multiMining: gameState.upgrades.multiMining,
             advancedScanner: gameState.upgrades.advancedScanner,
             scanRange: gameState.upgrades.scanRange,
-            scanCooldown: gameState.upgrades.scanCooldown
+            scanCooldown: gameState.upgrades.scanCooldown,
+            cargoDrone: gameState.upgrades.cargoDrone
         },
         resources: {
             hull: gameState.hull,
@@ -1485,8 +1849,26 @@ function saveGame(saveName) {
         },
         viewport: {
             zoom: viewport.zoom,
+            targetZoom: viewport.targetZoom,
             // x and y will be recalculated based on player position
         },
+        autoMiningEnabled: autoMiningEnabled, // Save auto-mining toggle state
+        cargoDrone: cargoDrone ? {
+            x: cargoDrone.x,
+            y: cargoDrone.y,
+            vx: cargoDrone.vx,
+            vy: cargoDrone.vy,
+            targetStation: cargoDrone.targetStation ? {
+                name: cargoDrone.targetStation.name,
+                x: cargoDrone.targetStation.x,
+                y: cargoDrone.targetStation.y
+            } : null,
+            state: cargoDrone.state,
+            cargo: cargoDrone.cargo,
+            cargoAmount: cargoDrone.cargoAmount,
+            credits: cargoDrone.credits,
+            dockTime: cargoDrone.dockTime
+        } : null,
         recentStationNames: recentStationNames,
         asteroids: asteroids.map(ast => ({
             x: ast.x,
@@ -1514,7 +1896,7 @@ function saveGame(saveName) {
             rotationSpeed: haz.rotationSpeed
         }))
         // Don't save stars - will be regenerated (visual only, no gameplay impact)
-        // Don't save UI state, particle effects, or other runtime data
+        // Don't save UI state, particle effects, scanState, or other runtime data
     };
     
     try {
@@ -1571,8 +1953,18 @@ function loadGame(saveName) {
         // Restore game state
         gameState.credits = saveData.gameState.credits;
         gameState.sector = saveData.gameState.sector;
-        gameState.totalMined = 0; // Will be updated as they mine
-        gameState.totalTraveled = 0; // Will be updated as they travel
+        gameState.sectorName = saveData.gameState.sectorName || `ALPHA-${String(saveData.gameState.sector).padStart(3, '0')}`;
+        gameState.sectorsExplored = saveData.gameState.sectorsExplored || saveData.gameState.sector;
+        
+        // Restore stats (with fallbacks for older saves)
+        if (saveData.gameState.stats) {
+            gameState.stats.totalMined = saveData.gameState.stats.totalMined || 0;
+            gameState.stats.distanceTraveled = saveData.gameState.stats.distanceTraveled || 0;
+            gameState.stats.asteroidsDestroyed = saveData.gameState.stats.asteroidsDestroyed || 0;
+            gameState.stats.hazardsAvoided = saveData.gameState.stats.hazardsAvoided || 0;
+            gameState.stats.sectorsVisited = saveData.gameState.stats.sectorsVisited || 1;
+            gameState.stats.playTime = saveData.gameState.stats.playTime || 0;
+        }
         
         // Restore player
         player.x = saveData.player.x;
@@ -1580,17 +1972,19 @@ function loadGame(saveName) {
         player.vx = saveData.player.vx;
         player.vy = saveData.player.vy;
         player.angle = saveData.player.angle;
+        player.size = saveData.player.size || 36;
         player.isMining = false;
         player.miningTargets = [];
         player.miningTarget = null;
         player.miningProgress = 0;
+        player.isManuallyControlled = false;
         
         // Restore ship colors (with defaults if not present in save)
         if (saveData.player.colors) {
-            player.colors.primary = saveData.player.colors.primary || '#00ffff';
-            player.colors.secondary = saveData.player.colors.secondary || '#00aaaa';
-            player.colors.accent = saveData.player.colors.accent || '#ffff00';
-            player.colors.thruster = saveData.player.colors.thruster || '#ff9600';
+            player.colors.primary = saveData.player.colors.primary || '#e0e0e0';
+            player.colors.secondary = saveData.player.colors.secondary || '#808080';
+            player.colors.accent = saveData.player.colors.accent || '#c0c0c0';
+            player.colors.thruster = saveData.player.colors.thruster || '#ff6600';
         }
         
         // Restore stations array
@@ -1637,6 +2031,7 @@ function loadGame(saveName) {
         gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
         gameState.upgrades.scanRange = saveData.upgrades.scanRange || 1;
         gameState.upgrades.scanCooldown = saveData.upgrades.scanCooldown || 1;
+        gameState.upgrades.cargoDrone = saveData.upgrades.cargoDrone || 0;
         
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
@@ -1653,14 +2048,61 @@ function loadGame(saveName) {
         gameState.prestige = saveData.prestige.level;
         gameState.prestigeBonus = saveData.prestige.bonus;
         
-        // Restore viewport
-        viewport.zoom = saveData.viewport.zoom;
-        viewport.targetZoom = saveData.viewport.zoom;
-        viewport.x = player.x - canvas.width / (2 * viewport.zoom);
-        viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+        // Restore viewport with both zoom and targetZoom
+        viewport.zoom = saveData.viewport.zoom || 1.5;
+        viewport.targetZoom = saveData.viewport.targetZoom || saveData.viewport.zoom || 1.5;
+        viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+        viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
+        
+        // Restore auto-mining toggle state
+        if (saveData.autoMiningEnabled !== undefined) {
+            autoMiningEnabled = saveData.autoMiningEnabled;
+            updateAutoMineButton();
+        }
+        
+        // Restore cargo drone if it was active
+        if (saveData.cargoDrone) {
+            const droneData = saveData.cargoDrone;
+            // Find the target station by name
+            const targetStation = droneData.targetStation ? 
+                stations.find(st => st.name === droneData.targetStation.name && 
+                               Math.abs(st.x - droneData.targetStation.x) < 10 && 
+                               Math.abs(st.y - droneData.targetStation.y) < 10) : null;
+            
+            cargoDrone = {
+                x: droneData.x,
+                y: droneData.y,
+                vx: droneData.vx,
+                vy: droneData.vy,
+                targetStation: targetStation || stations[0], // Fallback to first station if not found
+                state: droneData.state || 'traveling',
+                cargo: droneData.cargo || {},
+                cargoAmount: droneData.cargoAmount || 0,
+                credits: droneData.credits || 0,
+                dockTime: droneData.dockTime || 0,
+                dockDuration: 1000,
+                size: 15,
+                speed: 3.5
+            };
+        } else {
+            cargoDrone = null;
+        }
         
         // Restore recent station names
         recentStationNames = saveData.recentStationNames || [];
+        
+        // Reset fuel warnings
+        fuelWarnings.warning50.triggered = false;
+        fuelWarnings.warning50.timestamp = 0;
+        fuelWarnings.warning25.triggered = false;
+        fuelWarnings.warning25.timestamp = 0;
+        
+        // Reset scan state to defaults
+        scanState.active = false;
+        scanState.waveRadius = 0;
+        scanState.detectedItems = [];
+        scanState.startTime = 0;
+        scanState.cooldown = 0;
         
         // Regenerate stars (visual only)
         generateStars();
@@ -1697,6 +2139,14 @@ function loadGame(saveName) {
             // Old save format or missing data - generate new sector
             generateSector();
         }
+        
+        // Clear particles and floating text (runtime visual effects)
+        particles = [];
+        floatingText = [];
+        
+        // Reset game flags
+        gameState.isPaused = false;
+        gameState.isAtStation = false;
         
         // Update UI
         updateUI();
@@ -1735,6 +2185,18 @@ function loadGameData(saveName) {
         // Restore game state
         gameState.credits = saveData.gameState.credits;
         gameState.sector = saveData.gameState.sector;
+        gameState.sectorName = saveData.gameState.sectorName || `ALPHA-${String(saveData.gameState.sector).padStart(3, '0')}`;
+        gameState.sectorsExplored = saveData.gameState.sectorsExplored || saveData.gameState.sector;
+        
+        // Restore stats (with fallbacks for older saves)
+        if (saveData.gameState.stats) {
+            gameState.stats.totalMined = saveData.gameState.stats.totalMined || 0;
+            gameState.stats.distanceTraveled = saveData.gameState.stats.distanceTraveled || 0;
+            gameState.stats.asteroidsDestroyed = saveData.gameState.stats.asteroidsDestroyed || 0;
+            gameState.stats.hazardsAvoided = saveData.gameState.stats.hazardsAvoided || 0;
+            gameState.stats.sectorsVisited = saveData.gameState.stats.sectorsVisited || 1;
+            gameState.stats.playTime = saveData.gameState.stats.playTime || 0;
+        }
         
         // Restore player
         player.x = saveData.player.x;
@@ -1742,16 +2204,33 @@ function loadGameData(saveName) {
         player.vx = saveData.player.vx;
         player.vy = saveData.player.vy;
         player.angle = saveData.player.angle;
+        player.size = saveData.player.size || 36;
+        
+        // Restore ship colors (with defaults if not present in save)
+        if (saveData.player.colors) {
+            player.colors.primary = saveData.player.colors.primary || '#e0e0e0';
+            player.colors.secondary = saveData.player.colors.secondary || '#808080';
+            player.colors.accent = saveData.player.colors.accent || '#c0c0c0';
+            player.colors.thruster = saveData.player.colors.thruster || '#ff6600';
+        }
         
         // Restore stations array
         if (saveData.stations && saveData.stations.length > 0) {
             // Load stations from save
-            stations = saveData.stations.map(st => createStation(
-                st.x, st.y, st.vx, st.vy,
-                st.colorScheme || STATION_COLORS[2],
-                st.name || 'Deep Space 9',
-                st.isDocked || false
-            ));
+            stations = saveData.stations.map(st => {
+                const station = createStation(
+                    st.x, st.y, st.vx, st.vy,
+                    st.colorScheme || STATION_COLORS[2],
+                    st.name || 'Deep Space 9',
+                    st.isDocked || false
+                );
+                station.rotation = st.rotation || 0;
+                station.rotationSpeed = st.rotationSpeed || 0.001;
+                station.pullStrength = st.pullStrength || 0.25;
+                station.size = st.size || 100;
+                station.dockingRange = st.dockingRange || 100;
+                return station;
+            });
         } else if (saveData.station) {
             // Legacy save with single station - migrate to array
             stations = [createStation(
@@ -1763,6 +2242,7 @@ function loadGameData(saveName) {
                 saveData.station.name || 'Deep Space 9',
                 saveData.station.isDocked || false
             )];
+            stations[0].rotation = saveData.station.rotation || 0;
         } else {
             // No station data in save - create a default one
             initStationState();
@@ -1779,6 +2259,7 @@ function loadGameData(saveName) {
         gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
         gameState.upgrades.scanRange = saveData.upgrades.scanRange || 1;
         gameState.upgrades.scanCooldown = saveData.upgrades.scanCooldown || 1;
+        gameState.upgrades.cargoDrone = saveData.upgrades.cargoDrone || 0;
         
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
@@ -1795,9 +2276,34 @@ function loadGameData(saveName) {
         gameState.prestige = saveData.prestige.level;
         gameState.prestigeBonus = saveData.prestige.bonus;
         
-        // Restore viewport
-        viewport.zoom = saveData.viewport.zoom;
-        viewport.targetZoom = saveData.viewport.zoom;
+        // Restore viewport with both zoom and targetZoom
+        viewport.zoom = saveData.viewport.zoom || 1.5;
+        viewport.targetZoom = saveData.viewport.targetZoom || saveData.viewport.zoom || 1.5;
+        
+        // Restore cargo drone if it was active
+        if (saveData.cargoDrone) {
+            const droneData = saveData.cargoDrone;
+            const targetStation = droneData.targetStation ? 
+                stations.find(st => st.name === droneData.targetStation.name) : null;
+            
+            cargoDrone = {
+                x: droneData.x,
+                y: droneData.y,
+                vx: droneData.vx,
+                vy: droneData.vy,
+                targetStation: targetStation || stations[0],
+                state: droneData.state || 'traveling',
+                cargo: droneData.cargo || {},
+                cargoAmount: droneData.cargoAmount || 0,
+                credits: droneData.credits || 0,
+                dockTime: droneData.dockTime || 0,
+                dockDuration: 1000,
+                size: 15,
+                speed: 3.5
+            };
+        } else {
+            cargoDrone = null;
+        }
         
         // Restore recent station names
         recentStationNames = saveData.recentStationNames || [];
@@ -2071,10 +2577,23 @@ const ctx = canvas.getContext('2d');
 const minimapCanvas = document.getElementById('minimapCanvas');
 const minimapCtx = minimapCanvas.getContext('2d');
 
+// Phosphor decay layer for CRT effect
+const phosphorCanvas = document.createElement('canvas');
+const phosphorCtx = phosphorCanvas.getContext('2d');
+phosphorCanvas.width = canvas.width;
+phosphorCanvas.height = canvas.height;
+
+// Clean frame buffer for saturation boost (untouched by phosphor)
+const cleanFrameCanvas = document.createElement('canvas');
+const cleanFrameCtx = cleanFrameCanvas.getContext('2d');
+cleanFrameCanvas.width = canvas.width;
+cleanFrameCanvas.height = canvas.height;
+
 function resizeCanvas() {
-    const container = canvas.parentElement;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
+    const canvasContainer = canvas.parentElement; // .canvas-container
+    const centerPanel = document.querySelector('.center-panel');
+    const containerWidth = canvasContainer.clientWidth;
+    const containerHeight = canvasContainer.clientHeight;
     
     const aspectRatio = 4 / 3;
     
@@ -2082,17 +2601,53 @@ function resizeCanvas() {
     const oldHeight = canvas.height;
     
     if (containerWidth / containerHeight > aspectRatio) {
-        canvas.height = containerHeight - 40;
+        // Height-constrained: fill height, adjust width to maintain aspect ratio
+        canvas.height = containerHeight;
         canvas.width = canvas.height * aspectRatio;
+        
+        // Reset heights - let flex containers expand naturally
+        canvasContainer.style.height = '';
+        if (centerPanel) {
+            centerPanel.style.height = '';
+            centerPanel.classList.remove('width-constrained');
+        }
     } else {
-        canvas.width = containerWidth - 40;
+        // Width-constrained: fill width, adjust height to maintain aspect ratio
+        canvas.width = containerWidth;
         canvas.height = canvas.width / aspectRatio;
+        
+        // Set explicit height on canvas-container only (not center-panel)
+        // This allows the console-messages below to remain visible
+        canvasContainer.style.height = canvas.height + 'px';
+        if (centerPanel) {
+            // Don't set height on center-panel - let it fill the screen
+            // The canvas-container height constraint is sufficient
+            centerPanel.style.height = '';
+            centerPanel.classList.add('width-constrained');
+        }
     }
+    
+    // Calculate scale factor to maintain consistent viewport across all screen sizes
+    // This ensures the game always shows the same amount of world space
+    const scaleX = canvas.width / VIEWPORT_REFERENCE.WIDTH;
+    const scaleY = canvas.height / VIEWPORT_REFERENCE.HEIGHT;
+    const canvasScale = Math.min(scaleX, scaleY);
+    
+    // Store the scale for use in rendering
+    canvas.renderScale = canvasScale;
+    
+    // Resize phosphor decay canvas to match main canvas
+    phosphorCanvas.width = canvas.width;
+    phosphorCanvas.height = canvas.height;
+    
+    // Resize clean frame canvas to match main canvas
+    cleanFrameCanvas.width = canvas.width;
+    cleanFrameCanvas.height = canvas.height;
     
     // Update viewport if canvas size changed and player exists
     if (player && (oldWidth !== canvas.width || oldHeight !== canvas.height)) {
-        viewport.x = player.x - canvas.width / (2 * viewport.zoom);
-        viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+        viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+        viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     }
 }
 
@@ -2103,15 +2658,15 @@ function resizeCanvas() {
 function initInput() {
     // Keyboard
     document.addEventListener('keydown', (e) => {
+        // Don't process game input while editing ship name or typing in console
+        if (isEditingShipName || isTypingInConsole) {
+            return;
+        }
+        
         // Prevent default browser behaviors for game keys
         if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || 
             e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Tab') {
             e.preventDefault();
-        }
-        
-        // Don't process game input while editing ship name
-        if (isEditingShipName) {
-            return;
         }
         
         // Track keyboard input
@@ -2152,8 +2707,8 @@ function initInput() {
     });
     
     document.addEventListener('keyup', (e) => {
-        // Don't process game input while editing ship name
-        if (isEditingShipName) {
+        // Don't process game input while editing ship name or typing in console
+        if (isEditingShipName || isTypingInConsole) {
             return;
         }
         
@@ -2208,12 +2763,31 @@ function initInput() {
 }
 
 function initTouchControls() {
-    // Detect if this is a touch device
-    isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    // Touch detection and pause button setup already done in detectInputMethod()
+    // Just need to setup the pause button event listener here
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn && !pauseBtn.hasAttribute('data-listener-added')) {
+        pauseBtn.addEventListener('click', () => {
+            const pauseModal = document.getElementById('pauseModal');
+            pauseModal.classList.add('active');
+            gameState.isPaused = true;
+        });
+        pauseBtn.setAttribute('data-listener-added', 'true');
+    }
+    
+    // Setup auto-mining button for touch devices
+    const autoMineBtn = document.getElementById('autoMineBtn');
+    if (autoMineBtn && !autoMineBtn.hasAttribute('data-listener-added')) {
+        autoMineBtn.addEventListener('click', () => {
+            autoMiningEnabled = !autoMiningEnabled;
+            updateAutoMineButton();
+        });
+        autoMineBtn.setAttribute('data-listener-added', 'true');
+    }
     
     if (!isTouchDevice) return;
     
-    console.log('Touch device detected - enabling canvas joystick controls');
+    console.log('Setting up touch controls for canvas joystick');
     
     // Auto-blur buttons and links after they're clicked on touch devices
     document.addEventListener('click', (e) => {
@@ -2260,8 +2834,16 @@ function initTouchControls() {
             touchActive = true;
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchX = touch.clientX - rect.left;
-            touchY = touch.clientY - rect.top;
+            
+            // Convert touch coordinates to VIEWPORT_REFERENCE coordinate space
+            // Touch is in canvas pixels, we need to map it to the viewport reference dimensions
+            const canvasX = touch.clientX - rect.left;
+            const canvasY = touch.clientY - rect.top;
+            
+            // Map from canvas pixels to viewport reference space
+            // The canvas may be larger/smaller than VIEWPORT_REFERENCE due to aspect ratio
+            touchX = (canvasX / rect.width) * VIEWPORT_REFERENCE.WIDTH;
+            touchY = (canvasY / rect.height) * VIEWPORT_REFERENCE.HEIGHT;
         }
     }, { passive: false });
     
@@ -2289,8 +2871,14 @@ function initTouchControls() {
             // One finger - handle movement
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchX = touch.clientX - rect.left;
-            touchY = touch.clientY - rect.top;
+            
+            // Convert touch coordinates to VIEWPORT_REFERENCE coordinate space
+            const canvasX = touch.clientX - rect.left;
+            const canvasY = touch.clientY - rect.top;
+            
+            // Map from canvas pixels to viewport reference space
+            touchX = (canvasX / rect.width) * VIEWPORT_REFERENCE.WIDTH;
+            touchY = (canvasY / rect.height) * VIEWPORT_REFERENCE.HEIGHT;
         }
     }, { passive: false });
     
@@ -2358,15 +2946,21 @@ function initTouchControls() {
             }
         }, { passive: true });
     });
+}
+
+// Update auto-mining button appearance
+function updateAutoMineButton() {
+    const autoMineBtn = document.getElementById('autoMineBtn');
+    const statusText = autoMineBtn?.querySelector('.auto-mine-status');
     
-    // Mobile pause button
-    const mobilePause = document.getElementById('mobilePause');
-    if (mobilePause) {
-        mobilePause.addEventListener('click', () => {
-            const pauseModal = document.getElementById('pauseModal');
-            pauseModal.classList.add('active');
-            gameState.isPaused = true;
-        });
+    if (autoMineBtn) {
+        if (autoMiningEnabled) {
+            autoMineBtn.classList.add('active');
+            if (statusText) statusText.textContent = 'ON';
+        } else {
+            autoMineBtn.classList.remove('active');
+            if (statusText) statusText.textContent = 'OFF';
+        }
     }
 }
 
@@ -2395,7 +2989,7 @@ let virtualMouse = {
     y: window.innerHeight / 2,
     speed: 8,
     magnetRange: 150,
-    magnetStrength: 0.3,
+    magnetStrength: 0.5,
     visible: false
 };
 
@@ -2564,7 +3158,7 @@ function toggleVirtualMouse() {
         // Center cursor on screen
         virtualMouse.x = window.innerWidth / 2;
         virtualMouse.y = window.innerHeight / 2;
-        logMessage('Virtual Mouse: ACTIVE (Left Stick=Move, D-Pad=Jump to button, A=Click, SELECT=Exit)');
+        logMessage('Virtual Mouse: ACTIVE (L-Stick=Move, R-Stick=Scroll, D-Pad=Jump, A=Click, SELECT=Exit)');
     } else {
         logMessage('Virtual Mouse: INACTIVE');
     }
@@ -2579,6 +3173,9 @@ window.addEventListener('gamepadconnected', (e) => {
     gamepadIndex = e.gamepad.index;
     logMessage(`Controller connected: ${e.gamepad.id.substring(0, 30)}`);
     
+    // Update input method to gamepad
+    setInputMethod('gamepad');
+    
     // Show controller tutorial briefly
     showControllerHint();
 });
@@ -2589,6 +3186,9 @@ window.addEventListener('gamepaddisconnected', (e) => {
         gamepadConnected = false;
         gamepadIndex = null;
         logMessage('Controller disconnected');
+        
+        // Revert to touch or keyboard depending on device
+        setInputMethod(isTouchDevice ? 'touch' : 'keyboard');
     }
 });
 
@@ -2629,17 +3229,240 @@ function updateGamepad() {
     
     if (!gamepad) return;
     
-    // Don't process controller input if game is paused
-    if (gameState.isPaused) return;
-    
-    // Don't process game input while editing ship name
-    if (isEditingShipName) return;
+    // Don't process game input while editing ship name or typing in console
+    if (isEditingShipName || isTypingInConsole) return;
     
     const DEADZONE = 0.15; // Ignore small stick movements
     const HOLD_DURATION = 2000; // 2 seconds in milliseconds
     
     // Track if any gamepad input is detected this frame
     let gamepadInputDetected = false;
+    
+    // ====================
+    // SELECT/BACK Button (Button 8) - Toggle Virtual Mouse (works even when paused)
+    // ====================
+    const selectButton = gamepad.buttons[8] && gamepad.buttons[8].pressed;
+    const selectButtonJustPressed = selectButton && !lastGamepadState.selectPressed;
+    
+    if (selectButtonJustPressed) {
+        gamepadInputDetected = true;
+        toggleVirtualMouse();
+    }
+    
+    // Update SELECT button state
+    lastGamepadState.selectPressed = selectButton;
+    
+    // ====================
+    // Start/Options Button - Pause Menu (works even when paused)
+    // ====================
+    const startButton = gamepad.buttons[9] && gamepad.buttons[9].pressed;
+    const startButtonJustPressed = startButton && !(lastGamepadState.buttons[9]);
+    
+    if (startButtonJustPressed) {
+        gamepadInputDetected = true;
+        const pauseModal = document.getElementById('pauseModal');
+        pauseModal.classList.toggle('active');
+        gameState.isPaused = !gameState.isPaused;
+    }
+    
+    // ====================
+    // VIRTUAL MOUSE MODE (works even when paused for menu interaction)
+    // ====================
+    if (virtualMouseActive) {
+        // LEFT STICK - Smooth analog movement
+        const leftX = Math.abs(gamepad.axes[0]) > DEADZONE ? gamepad.axes[0] : 0;
+        const leftY = Math.abs(gamepad.axes[1]) > DEADZONE ? gamepad.axes[1] : 0;
+        
+        if (leftX !== 0 || leftY !== 0) {
+            gamepadInputDetected = true;
+            
+            // Smooth movement based on stick position
+            let moveSpeed = 8; // Base speed for virtual mouse
+            
+            // Check proximity to buttons for slowdown effect
+            const nearest = findNearestButton();
+            if (nearest && nearest.dist < virtualMouse.magnetRange) {
+                // Calculate slowdown factor based on distance (closer = slower)
+                // At distance 0: slowdown = 0.3 (30% speed)
+                // At magnetRange: slowdown = 1.0 (100% speed)
+                const distanceRatio = nearest.dist / virtualMouse.magnetRange;
+                const minSpeedFactor = 0.3; // Minimum 30% speed when very close
+                const slowdownFactor = minSpeedFactor + (1.0 - minSpeedFactor) * distanceRatio;
+                moveSpeed *= slowdownFactor;
+            }
+            
+            const moveX = leftX * moveSpeed;
+            const moveY = leftY * moveSpeed;
+            
+            // Check if we're moving toward a button before applying magnetism
+            if (nearest && nearest.dist < virtualMouse.magnetRange) {
+                // Calculate direction to nearest button
+                const toButtonX = nearest.x - virtualMouse.x;
+                const toButtonY = nearest.y - virtualMouse.y;
+                
+                // Calculate dot product to see if we're moving toward the button
+                const dotProduct = (moveX * toButtonX + moveY * toButtonY);
+                
+                // Only apply magnetism if moving toward the button (positive dot product)
+                if (dotProduct > 0) {
+                    const pullX = toButtonX * virtualMouse.magnetStrength;
+                    const pullY = toButtonY * virtualMouse.magnetStrength;
+                    virtualMouse.x += moveX + pullX;
+                    virtualMouse.y += moveY + pullY;
+                } else {
+                    // Moving away - no magnetism
+                    virtualMouse.x += moveX;
+                    virtualMouse.y += moveY;
+                }
+            } else {
+                // No nearby buttons - normal movement
+                virtualMouse.x += moveX;
+                virtualMouse.y += moveY;
+            }
+            
+            // Clamp to screen bounds
+            virtualMouse.x = Math.max(0, Math.min(window.innerWidth, virtualMouse.x));
+            virtualMouse.y = Math.max(0, Math.min(window.innerHeight, virtualMouse.y));
+        }
+        
+        // RIGHT STICK - Scroll up/down (for scrollable elements)
+        const rightY = Math.abs(gamepad.axes[3]) > DEADZONE ? gamepad.axes[3] : 0;
+        
+        if (rightY !== 0) {
+            gamepadInputDetected = true;
+            
+            // Find the element under the virtual mouse cursor
+            const elementUnderCursor = document.elementFromPoint(virtualMouse.x, virtualMouse.y);
+            
+            if (elementUnderCursor) {
+                // Find the nearest scrollable parent element
+                let scrollableElement = elementUnderCursor;
+                
+                // Walk up the DOM tree to find a scrollable element
+                while (scrollableElement && scrollableElement !== document.body) {
+                    const computedStyle = window.getComputedStyle(scrollableElement);
+                    const overflowY = computedStyle.overflowY;
+                    const isScrollable = (overflowY === 'auto' || overflowY === 'scroll') && 
+                                        scrollableElement.scrollHeight > scrollableElement.clientHeight;
+                    
+                    if (isScrollable) {
+                        break;
+                    }
+                    scrollableElement = scrollableElement.parentElement;
+                }
+                
+                // If we found a scrollable element, scroll it
+                if (scrollableElement && scrollableElement !== document.body) {
+                    const scrollSpeed = 15; // Pixels per frame
+                    scrollableElement.scrollTop += rightY * scrollSpeed;
+                } else {
+                    // If no scrollable element found, scroll the window
+                    const scrollSpeed = 15;
+                    window.scrollBy(0, rightY * scrollSpeed);
+                }
+            }
+        }
+        
+        // D-PAD - Jump to nearest button in direction
+        const dpadLeft = gamepad.buttons[14] && gamepad.buttons[14].pressed;
+        const dpadRight = gamepad.buttons[15] && gamepad.buttons[15].pressed;
+        const dpadUp = gamepad.buttons[12] && gamepad.buttons[12].pressed;
+        const dpadDown = gamepad.buttons[13] && gamepad.buttons[13].pressed;
+        
+        // Track D-pad button presses to only jump once per press
+        const dpadLeftJustPressed = dpadLeft && !lastGamepadState.dpadLeftPressed;
+        const dpadRightJustPressed = dpadRight && !lastGamepadState.dpadRightPressed;
+        const dpadUpJustPressed = dpadUp && !lastGamepadState.dpadUpPressed;
+        const dpadDownJustPressed = dpadDown && !lastGamepadState.dpadDownPressed;
+        
+        // Jump to button in direction
+        if (dpadLeftJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('left');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadRightJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('right');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadUpJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('up');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        if (dpadDownJustPressed) {
+            gamepadInputDetected = true;
+            const target = findButtonInDirection('down');
+            if (target) {
+                virtualMouse.x = target.x;
+                virtualMouse.y = target.y;
+            }
+        }
+        
+        // Update D-pad state tracking
+        lastGamepadState.dpadLeftPressed = dpadLeft;
+        lastGamepadState.dpadRightPressed = dpadRight;
+        lastGamepadState.dpadUpPressed = dpadUp;
+        lastGamepadState.dpadDownPressed = dpadDown;
+        
+        // A button clicks the element under cursor (only on button down, not hold)
+        const aButton = gamepad.buttons[0] && gamepad.buttons[0].pressed;
+        const aButtonJustPressed = aButton && !(lastGamepadState.buttons[0]);
+        const nearest = findNearestButton();
+        if (aButtonJustPressed && nearest && nearest.dist < 50) {
+            gamepadInputDetected = true;
+            // Simulate click on the element
+            nearest.element.click();
+            
+            // For input fields, also focus them so user can type
+            if (nearest.element.tagName === 'INPUT' || nearest.element.tagName === 'TEXTAREA') {
+                nearest.element.focus();
+            }
+            
+            // Visual feedback
+            const cursor = document.getElementById('virtualMouseCursor');
+            if (cursor) {
+                cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
+                setTimeout(() => {
+                    cursor.style.transform = 'translate(-50%, -50%) scale(1.3)';
+                }, 100);
+            }
+        }
+        
+        // Update A button state tracking
+        lastGamepadState.buttons[0] = aButton;
+        
+        // Update cursor visual
+        updateVirtualMouseCursor();
+        
+        // Update input method if any gamepad input was detected
+        if (gamepadInputDetected) {
+            setInputMethod('gamepad');
+        }
+        
+        // Save button states for next frame
+        lastGamepadState.buttons[9] = startButton; // Save START button state
+        
+        // In virtual mouse mode, disable game controls
+        return;
+    }
+    
+    // Don't process game controls if paused (but virtual mouse above still works)
+    if (gameState.isPaused) {
+        // Save button states for next frame before returning
+        lastGamepadState.buttons[9] = startButton;
+        return;
+    }
     
     // ====================
     // NOTE: Left stick movement is now handled in updatePlayer() 
@@ -2708,132 +3531,7 @@ function updateGamepad() {
     }
     
     // ====================
-    // SELECT/BACK Button (Button 8) - Toggle Virtual Mouse
-    // ====================
-    const selectButton = gamepad.buttons[8] && gamepad.buttons[8].pressed;
-    const selectButtonJustPressed = selectButton && !lastGamepadState.selectPressed;
-    
-    if (selectButtonJustPressed) {
-        gamepadInputDetected = true;
-        toggleVirtualMouse();
-    }
-    
-    // Update SELECT button state
-    lastGamepadState.selectPressed = selectButton;
-    
-    // ====================
-    // VIRTUAL MOUSE MODE
-    // ====================
-    if (virtualMouseActive) {
-        // LEFT STICK - Smooth analog movement
-        const leftX = Math.abs(gamepad.axes[0]) > DEADZONE ? gamepad.axes[0] : 0;
-        const leftY = Math.abs(gamepad.axes[1]) > DEADZONE ? gamepad.axes[1] : 0;
-        
-        if (leftX !== 0 || leftY !== 0) {
-            gamepadInputDetected = true;
-            
-            // Smooth movement based on stick position
-            const moveSpeed = 12; // Base speed for virtual mouse
-            virtualMouse.x += leftX * moveSpeed;
-            virtualMouse.y += leftY * moveSpeed;
-            
-            // Magnetize to nearest button
-            const nearest = findNearestButton();
-            if (nearest && nearest.dist < virtualMouse.magnetRange) {
-                const pullX = (nearest.x - virtualMouse.x) * virtualMouse.magnetStrength;
-                const pullY = (nearest.y - virtualMouse.y) * virtualMouse.magnetStrength;
-                virtualMouse.x += pullX;
-                virtualMouse.y += pullY;
-            }
-            
-            // Clamp to screen bounds
-            virtualMouse.x = Math.max(0, Math.min(window.innerWidth, virtualMouse.x));
-            virtualMouse.y = Math.max(0, Math.min(window.innerHeight, virtualMouse.y));
-        }
-        
-        // D-PAD - Jump to nearest button in direction
-        const dpadLeft = gamepad.buttons[14] && gamepad.buttons[14].pressed;
-        const dpadRight = gamepad.buttons[15] && gamepad.buttons[15].pressed;
-        const dpadUp = gamepad.buttons[12] && gamepad.buttons[12].pressed;
-        const dpadDown = gamepad.buttons[13] && gamepad.buttons[13].pressed;
-        
-        // Track D-pad button presses to only jump once per press
-        const dpadLeftJustPressed = dpadLeft && !lastGamepadState.dpadLeftPressed;
-        const dpadRightJustPressed = dpadRight && !lastGamepadState.dpadRightPressed;
-        const dpadUpJustPressed = dpadUp && !lastGamepadState.dpadUpPressed;
-        const dpadDownJustPressed = dpadDown && !lastGamepadState.dpadDownPressed;
-        
-        // Jump to button in direction
-        if (dpadLeftJustPressed) {
-            gamepadInputDetected = true;
-            const target = findButtonInDirection('left');
-            if (target) {
-                virtualMouse.x = target.x;
-                virtualMouse.y = target.y;
-            }
-        }
-        if (dpadRightJustPressed) {
-            gamepadInputDetected = true;
-            const target = findButtonInDirection('right');
-            if (target) {
-                virtualMouse.x = target.x;
-                virtualMouse.y = target.y;
-            }
-        }
-        if (dpadUpJustPressed) {
-            gamepadInputDetected = true;
-            const target = findButtonInDirection('up');
-            if (target) {
-                virtualMouse.x = target.x;
-                virtualMouse.y = target.y;
-            }
-        }
-        if (dpadDownJustPressed) {
-            gamepadInputDetected = true;
-            const target = findButtonInDirection('down');
-            if (target) {
-                virtualMouse.x = target.x;
-                virtualMouse.y = target.y;
-            }
-        }
-        
-        // Update D-pad state tracking
-        lastGamepadState.dpadLeftPressed = dpadLeft;
-        lastGamepadState.dpadRightPressed = dpadRight;
-        lastGamepadState.dpadUpPressed = dpadUp;
-        lastGamepadState.dpadDownPressed = dpadDown;
-        
-        // A button clicks the element under cursor (only on button down, not hold)
-        const aButton = gamepad.buttons[0] && gamepad.buttons[0].pressed;
-        const aButtonJustPressed = aButton && !(lastGamepadState.buttons[0]);
-        const nearest = findNearestButton();
-        if (aButtonJustPressed && nearest && nearest.dist < 50) {
-            gamepadInputDetected = true;
-            // Simulate click on the element
-            nearest.element.click();
-            
-            // Visual feedback
-            const cursor = document.getElementById('virtualMouseCursor');
-            if (cursor) {
-                cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
-                setTimeout(() => {
-                    cursor.style.transform = 'translate(-50%, -50%) scale(1.3)';
-                }, 100);
-            }
-        }
-        
-        // Update A button state tracking
-        lastGamepadState.buttons[0] = aButton;
-        
-        // Update cursor visual
-        updateVirtualMouseCursor();
-        
-        // In virtual mouse mode, disable game controls
-        return;
-    }
-    
-    // ====================
-    // GAME CONTROLS (Only when virtual mouse is inactive)
+    // GAME CONTROLS (Only when virtual mouse is inactive and game not paused)
     // ====================
     
     // ====================
@@ -2897,19 +3595,6 @@ function updateGamepad() {
         lastGamepadState.dpadUpPressed = false;
     }
     
-    // ====================
-    // Start/Options Button - Pause Menu
-    // ====================
-    const startButton = gamepad.buttons[9] && gamepad.buttons[9].pressed;
-    const startButtonJustPressed = startButton && !(lastGamepadState.buttons[9]);
-    
-    if (startButtonJustPressed) {
-        gamepadInputDetected = true;
-        const pauseModal = document.getElementById('pauseModal');
-        pauseModal.classList.add('active');
-        gameState.isPaused = true;
-    }
-    
     // Update input method if any gamepad input was detected
     if (gamepadInputDetected) {
         setInputMethod('gamepad');
@@ -2959,10 +3644,11 @@ function initUpgrades() {
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200],
+        multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
         advancedScanner: [50], // One-time purchase
         scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
-        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400]
+        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
+        cargoDrone: [5000] // One-time purchase
     };
     
     // Initialize collapsible upgrade categories
@@ -3011,38 +3697,56 @@ function initUpgrades() {
             
             const level = gameState.upgrades[upgradeType];
             
-            // Special handling for advanced scanner (one-time purchase)
-            if (upgradeType === 'advancedScanner') {
-                console.log(`Advanced scanner clicked. Level: ${level}, Credits: ${gameState.credits}, Cost: ${upgradeCosts[upgradeType][0]}`);
-                console.log(`Level check: level >= 1 is ${level >= 1}`);
+            // Special handling for one-time purchases (advanced scanner, cargo drone)
+            if (upgradeType === 'advancedScanner' || upgradeType === 'cargoDrone') {
+                console.log(`=== ${upgradeType.toUpperCase()} DEBUG ===`);
+                console.log(`Current level: ${level}`);
+                console.log(`Current credits: ${gameState.credits}`);
+                console.log(`Cost: ${upgradeCosts[upgradeType][0]}`);
+                console.log(`Is docked: ${isDockedAtAnyStation()}`);
+                console.log(`Level >= 1: ${level >= 1}`);
                 
                 if (level >= 1) {
-                    logMessage('Advanced scanner already purchased.');
-                    console.log('Scanner already purchased - exiting');
+                    logMessage(`${upgradeType === 'advancedScanner' ? 'Advanced scanner' : 'Cargo drone'} already purchased.`);
+                    console.log('Already purchased - exiting');
                     return;
                 }
                 
                 const cost = upgradeCosts[upgradeType][0]; // First (and only) cost
                 
+                console.log(`Checking if credits (${gameState.credits}) >= cost (${cost}): ${gameState.credits >= cost}`);
+                
                 if (gameState.credits >= cost) {
+                    console.log('Purchasing...');
                     gameState.credits -= cost;
                     gameState.upgrades[upgradeType] = 1;
+                    
+                    console.log(`New level: ${gameState.upgrades[upgradeType]}`);
                     
                     // Apply upgrade effects
                     applyUpgradeEffects(upgradeType);
                     
-                    logMessage(`Purchased ADVANCED SCANNER`);
-                    createFloatingText(player.x, player.y - 30, `+ADVANCED SCANNER`, '#00ff00');
+                    const displayName = upgradeType === 'advancedScanner' ? 'ADVANCED SCANNER' : 'CARGO DRONE';
+                    logMessage(`Purchased ${displayName}`);
+                    createFloatingText(player.x, player.y - 30, `+${displayName}`, '#00ff00');
                     
                     updateUI();
+                    console.log('Purchase complete!');
                 } else {
+                    console.log('Insufficient credits!');
                     logMessage(`Insufficient credits. Need ${cost}¢`);
                 }
+                console.log(`=== END DEBUG ===`);
                 return;
             }
             
-            // Regular upgrades (level 1-10)
-            if (level >= 10) return;
+            // Regular upgrades (level 1-10, except multiMining which caps at 6)
+            const maxLevel = (upgradeType === 'multiMining') ? 6 : 10;
+            
+            if (level >= maxLevel) {
+                logMessage(`${upgradeType.toUpperCase()} is already at maximum level.`);
+                return;
+            }
             
             const cost = upgradeCosts[upgradeType][level - 1];
             
@@ -3082,10 +3786,14 @@ function initUpgrades() {
     });
     
     document.getElementById('callForHelp').addEventListener('click', () => {
-        if (gameState.credits >= 100 && !rescueShip) {
+        // Calculate rescue cost (1.5x fuel needed)
+        const fuelNeeded = gameState.maxFuel - gameState.fuel;
+        const rescueCost = Math.ceil(fuelNeeded * 1.5);
+        
+        if (gameState.credits >= rescueCost && !rescueShip) {
             showConfirm(
                 'CALL FOR HELP',
-                'Send a rescue ship from the station to refuel your vessel?\n\nCOST: 100 Credits\n\nThe rescue ship will fly to your position, refuel your ship, then return to the station.',
+                `Send a rescue ship from the station to refuel your vessel?\n\nCOST: ${rescueCost} Credits (1.5x fuel cost)\n\nThe rescue ship will fly to your position, refuel your ship, then return to the station.`,
                 () => {
                     callForHelp();
                 }
@@ -3094,8 +3802,8 @@ function initUpgrades() {
     });
     
     document.getElementById('nextSector').addEventListener('click', () => {
-        if (gameState.credits < 10000) {
-            logMessage('Insufficient credits for sector jump. Need 10,000¢');
+        if (gameState.credits < 1000) {
+            logMessage('Insufficient credits for sector jump. Need 1,000¢');
             return;
         }
         
@@ -3104,19 +3812,38 @@ function initUpgrades() {
             return;
         }
         
-        const nextSectorNum = gameState.sector + 1;
+        const currentSector = gameState.sector;
+        const nextSectorNum = currentSector + 1;
         const nextSectorName = `ALPHA-${String(nextSectorNum).padStart(3, '0')}`;
+        
+        // Calculate current sector stats
+        const currentAsteroids = 30 + currentSector * 5;
+        const currentHazards = Math.floor(2 + currentSector * 0.5);
+        const currentRareChance = (currentSector - 1) * 10; // As percentage
+        const currentSpawnRate = (currentSector - 1) * 10; // As percentage above base
+        
+        // Calculate next sector stats
+        const nextAsteroids = 30 + nextSectorNum * 5;
+        const nextHazards = Math.floor(2 + nextSectorNum * 0.5);
+        const nextRareChance = (nextSectorNum - 1) * 10; // As percentage
+        const nextSpawnRate = (nextSectorNum - 1) * 10; // As percentage above base
+        
+        // Calculate differences
+        const asteroidIncrease = nextAsteroids - currentAsteroids;
+        const hazardIncrease = nextHazards - currentHazards;
+        const rareChanceIncrease = nextRareChance - currentRareChance;
+        const spawnRateIncrease = nextSpawnRate - currentSpawnRate;
         
         showConfirm(
             'JUMP TO NEXT SECTOR',
             `SECTOR JUMP ANALYSIS:\n\n` +
             `Destination: ${nextSectorName}\n` +
-            `Cost: 10,000 Credits + 50 Fuel\n\n` +
+            `Cost: 1,000 Credits + 50 Fuel\n\n` +
             `SECTOR DIFFICULTY INCREASE:\n` +
-            `• Asteroid density: +${5 * nextSectorNum} objects\n` +
-            `• Hazard encounters: +${Math.floor(nextSectorNum * 0.5)} threats\n` +
-            `• Rare asteroid chance: +${Math.floor(nextSectorNum * 10)}%\n` +
-            `• Spawn rate increase: +${Math.floor(nextSectorNum * 10)}%\n\n` +
+            `• Asteroid density: ${currentAsteroids} → ${nextAsteroids} (+${asteroidIncrease})\n` +
+            `• Hazard encounters: ${currentHazards} → ${nextHazards} (+${hazardIncrease})\n` +
+            `• Rare asteroid chance: ${currentRareChance}% → ${nextRareChance}% (+${rareChanceIncrease}%)\n` +
+            `• Spawn rate bonus: +${currentSpawnRate}% → +${nextSpawnRate}% (+${spawnRateIncrease}%)\n\n` +
             `WARNING: Higher sectors contain more valuable\n` +
             `resources but significantly increased danger.\n\n` +
             `Proceed with sector jump?`,
@@ -3128,7 +3855,17 @@ function initUpgrades() {
     
     // Station service buttons
     document.getElementById('sellCargoBtn').addEventListener('click', () => {
-        sellCargo();
+        // Check if player is docked - if so, sell normally
+        if (isDockedAtAnyStation()) {
+            sellCargo();
+        } else {
+            // If not docked, check if cargo drone is available
+            if (gameState.upgrades.cargoDrone >= 1) {
+                deployCargoDrone();
+            } else {
+                logMessage('Must be docked at station to sell cargo, or purchase Cargo Drone upgrade.');
+            }
+        }
     });
     
     document.getElementById('refuelShipBtn').addEventListener('click', () => {
@@ -3278,34 +4015,40 @@ function closeShipCustomization() {
 function applyColorPreset(presetName) {
     const presets = {
         default: {
-            primary: '#00ffff',
-            secondary: '#00aaaa',
-            accent: '#ffff00',
-            thruster: '#ff9600'
+            primary: '#e0e0e0',
+            secondary: '#808080',
+            accent: '#c0c0c0',
+            thruster: '#ff6600'
         },
-        stealth: {
-            primary: '#1a1a2e',
-            secondary: '#0f0f1a',
-            accent: '#16213e',
-            thruster: '#4a5568'
+        normandy: {
+            primary: '#2c3e50',
+            secondary: '#1a252f',
+            accent: '#e74c3c',
+            thruster: '#3498db'
         },
-        military: {
+        spartan: {
             primary: '#2d5016',
             secondary: '#1a3010',
             accent: '#7cb342',
             thruster: '#ff6b35'
         },
-        luxury: {
-            primary: '#9b59b6',
-            secondary: '#6c3483',
-            accent: '#f1c40f',
-            thruster: '#e74c3c'
+        arwing: {
+            primary: '#e8e8e8',
+            secondary: '#7f8c8d',
+            accent: '#3498db',
+            thruster: '#e67e22'
         },
-        danger: {
+        atlas: {
             primary: '#c0392b',
             secondary: '#7f1d1d',
+            accent: '#e74c3c',
+            thruster: '#ff6b6b'
+        },
+        viper: {
+            primary: '#34495e',
+            secondary: '#2c3e50',
             accent: '#f39c12',
-            thruster: '#ff00ff'
+            thruster: '#00d4ff'
         }
     };
     
@@ -3377,6 +4120,10 @@ function applyUpgradeEffects(upgradeType) {
             const scanCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (gameState.upgrades.scanCooldown - 1) * SCAN_CONFIG.cooldownReduction);
             logMessage(`Scanner cooldown reduced to ${scanCooldown / 1000}s`);
             break;
+        case 'cargoDrone':
+            // Cargo drone allows remote selling
+            logMessage('Cargo drone installed: Use "Sell Cargo" button when not docked to deploy remotely');
+            break;
     }
 }
 
@@ -3409,8 +4156,8 @@ function performPrestige() {
     player.y = CONFIG.worldHeight / 2;
     
     // Re-center viewport on player
-    viewport.x = player.x - canvas.width / (2 * viewport.zoom);
-    viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+    viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+    viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
     logMessage(`PRESTIGE COMPLETE! Bonus: +${gameState.prestigeBonus}% to all gains`);
     generateSector();
@@ -3466,8 +4213,12 @@ function findNearestStation(x, y) {
 }
 
 function callForHelp() {
-    if (gameState.credits < 100) {
-        logMessage('Insufficient credits for rescue service.');
+    // Calculate rescue cost (1.5x fuel needed)
+    const fuelNeeded = gameState.maxFuel - gameState.fuel;
+    const rescueCost = Math.ceil(fuelNeeded * 1.5);
+    
+    if (gameState.credits < rescueCost) {
+        logMessage(`Insufficient credits for rescue service. Need ${rescueCost}¢.`);
         return;
     }
     
@@ -3477,7 +4228,7 @@ function callForHelp() {
     }
     
     // Deduct cost
-    gameState.credits -= 100;
+    gameState.credits -= rescueCost;
     
     // Find nearest station to player
     const nearestStation = findNearestStation(player.x, player.y);
@@ -3496,7 +4247,7 @@ function callForHelp() {
         sourceStation: nearestStation // Remember which station it came from
     };
     
-    logMessage(`Rescue ship dispatched from ${nearestStation.name}. ETA: calculating...`);
+    logMessage(`Rescue ship dispatched from ${nearestStation.name} for ${rescueCost}¢. ETA: calculating...`);
 }
 
 function updateRescueShip(dt = 1) {
@@ -3578,7 +4329,11 @@ function jumpToNextSector() {
         return;
     }
     
-    gameState.fuel -= 50;
+    if (godModeActive) {
+        gameState.fuel = gameState.maxFuel;
+    } else {
+        gameState.fuel -= 50;
+    }
     gameState.credits -= 10000;
     gameState.sector++;
     gameState.sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
@@ -3588,8 +4343,8 @@ function jumpToNextSector() {
     player.y = CONFIG.worldHeight / 2;
     
     // Re-center viewport on player
-    viewport.x = player.x - canvas.width / (2 * viewport.zoom);
-    viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+    viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+    viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
     // Clear stations before generating new sector (each sector has new stations)
     stations = [];
@@ -3606,13 +4361,319 @@ function jumpToNextSector() {
 
 function generateStars() {
     stars = [];
-    for (let i = 0; i < 800; i++) {
+    
+    // Generate many more stars distributed across screen space
+    // These will tile and scroll at different rates for parallax
+    const viewportWidth = VIEWPORT_REFERENCE.WIDTH;
+    const viewportHeight = VIEWPORT_REFERENCE.HEIGHT;
+    
+    // Ultra-far layer (1000 stars) - barely any movement, smallest, dimmest
+    for (let i = 0; i < 1000; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.005 + 0.001; // 0.001-0.006 pixels per second
         stars.push({
-            x: Math.random() * CONFIG.worldWidth,
-            y: Math.random() * CONFIG.worldHeight,
-            size: Math.random() * 2,
-            brightness: Math.random()
+            // Position in a tileable pattern
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 0.8 + 0.3, // 0.3-1.1
+            brightness: Math.random() * 0.25 + 0.15, // 0.15-0.4
+            layer: 0,
+            parallaxFactor: 0.05 // Barely moves - very distant
         });
+    }
+
+    // Very far layer (800 stars) - extremely slow movement
+    for (let i = 0; i < 800; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.008 + 0.002; // 0.002-0.01 pixels per second
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 0.9 + 0.4, // 0.4-1.3
+            brightness: Math.random() * 0.27 + 0.2, // 0.2-0.47
+            layer: 0.5,
+            parallaxFactor: 0.12 // Between ultra-far and far
+        });
+    }
+    
+    // Far layer (600 stars) - slow movement
+    for (let i = 0; i < 600; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.01 + 0.003; // 0.003-0.013 pixels per second
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 1 + 0.5, // 0.5-1.5
+            brightness: Math.random() * 0.3 + 0.25, // 0.25-0.55
+            layer: 1,
+            parallaxFactor: 0.2 // Slow movement
+        });
+    }
+    
+    // Mid-far layer (450 stars) - moderate-slow movement
+    for (let i = 0; i < 450; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.012 + 0.005; // 0.005-0.017 pixels per second
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 1.3 + 0.5, // 0.5-1.8
+            brightness: Math.random() * 0.35 + 0.3, // 0.3-0.65
+            layer: 1.5,
+            parallaxFactor: 0.35 // Between far and medium
+        });
+    }
+    
+    // Medium layer (300 stars) - medium movement
+    for (let i = 0; i < 300; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.015 + 0.007; // 0.007-0.022 pixels per second
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 1.5 + 0.5, // 0.5-2
+            brightness: Math.random() * 0.4 + 0.35, // 0.35-0.75
+            layer: 2,
+            parallaxFactor: 0.45 // Medium speed
+        });
+    }
+    
+    // Near layer (200 stars) - faster movement, larger, brighter
+    for (let i = 0; i < 200; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.02 + 0.01; // 0.01-0.03 pixels per second
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 2 + 0.5, // 0.5-2.5
+            brightness: Math.random() * 0.5 + 0.5, // 0.5-1.0
+            layer: 3,
+            parallaxFactor: 0.65 // Moves almost with viewport
+        });
+    }
+
+    // Shooting stars layer (5 stars) - extremely rare, very fast, brightest
+    for (let i = 0; i < 3; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2 + 8; // 8-10 pixels per second (FAST!)
+        stars.push({
+            x: Math.random() * viewportWidth * 2,
+            y: Math.random() * viewportHeight * 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 1.5 + 5, // 5-6.5 (slightly smaller but bright)
+            brightness: Math.random() * 0.3 + 0.7, // 0.7-1.0 (very bright)
+            layer: 4,
+            parallaxFactor: 0.95 // Moves almost exactly with viewport (closest)
+        });
+    }
+    
+    // Initialize star worker with the generated stars
+    initStarWorker();
+    
+    // Initialize physics and collision workers
+    initPhysicsWorker();
+    initCollisionWorker();
+    
+    // Initialize FPS worker
+    initFPSWorker();
+}
+
+function initStarWorker() {
+    try {
+        // Create the worker
+        starWorker = new Worker('asteroid-miner-stars-worker.js');
+        
+        // Handle messages from worker
+        starWorker.onmessage = function(e) {
+            const { type, data, stars: updatedStars } = e.data;
+            
+            if (type === 'starsUpdated') {
+                // Update main thread's star data
+                stars = updatedStars;
+            } else if (type === 'renderData') {
+                // Store pre-calculated render data
+                starRenderData = data;
+            }
+        };
+        
+        starWorker.onerror = function(error) {
+            console.error('Star worker error:', error);
+            starWorkerReady = false;
+        };
+        
+        // Send initial star data to worker
+        starWorker.postMessage({
+            type: 'init',
+            data: { stars: stars }
+        });
+        
+        starWorkerReady = true;
+        console.log('Star worker initialized with', stars.length, 'stars');
+        
+    } catch (error) {
+        console.warn('Could not initialize star worker, using main thread:', error);
+        starWorkerReady = false;
+    }
+}
+
+function initPhysicsWorker() {
+    try {
+        // Create the worker
+        physicsWorker = new Worker('asteroid-miner-physics-worker.js');
+        
+        // Handle messages from worker
+        physicsWorker.onmessage = function(e) {
+            const { type, data } = e.data;
+            
+            if (type === 'ready') {
+                physicsWorkerReady = true;
+                console.log('Physics worker ready');
+            } else if (type === 'allUpdated') {
+                // Update main thread's physics data
+                // Note: Asteroids are updated on main thread to preserve object references for mining
+                // asteroids = data.asteroids; // DISABLED - breaks mining references
+                hazards = data.hazards;
+                
+                // Filter out dead particles
+                particles = data.particles.filter(p => !p.dead);
+                
+                pendingPhysicsUpdate = false;
+            }
+        };
+        
+        physicsWorker.onerror = function(error) {
+            console.error('Physics worker error:', error);
+            physicsWorkerReady = false;
+            pendingPhysicsUpdate = false;
+        };
+        
+        // Send initial config to worker
+        physicsWorker.postMessage({
+            type: 'init',
+            data: { 
+                worldWidth: CONFIG.worldWidth,
+                worldHeight: CONFIG.worldHeight 
+            }
+        });
+        
+        console.log('Physics worker initialized');
+        
+    } catch (error) {
+        console.warn('Could not initialize physics worker, using main thread:', error);
+        physicsWorkerReady = false;
+    }
+}
+
+function initCollisionWorker() {
+    try {
+        // Create the worker
+        collisionWorker = new Worker('asteroid-miner-collision-worker.js');
+        
+        // Handle messages from worker
+        collisionWorker.onmessage = function(e) {
+            const { type, data } = e.data;
+            
+            if (type === 'batchCollisionResults') {
+                // Process hazard collisions
+                const { hazardCollisions, miningRange } = data;
+                
+                // Apply vortex pulls
+                if (hazardCollisions.vortexPulls) {
+                    for (const pull of hazardCollisions.vortexPulls) {
+                        player.vx += pull.vx;
+                        player.vy += pull.vy;
+                    }
+                }
+                
+                // Process collisions and damage
+                if (hazardCollisions.collisions) {
+                    for (const collision of hazardCollisions.collisions) {
+                        // Only apply damage every 30 frames (same as before)
+                        if (frameCount % 30 === 0) {
+                            damagePlayer(collision.damage);
+                        }
+                        
+                        // Remove hazard if needed
+                        if (collision.removeHazard && collision.index < hazards.length) {
+                            hazards.splice(collision.index, 1);
+                            
+                            // Create explosion particles
+                            for (let j = 0; j < 20; j++) {
+                                createParticle(collision.x, collision.y, collision.color);
+                            }
+                        }
+                    }
+                }
+                
+                // Store mining range result for use in mining logic
+                player.asteroidInRange = miningRange.asteroidInRange;
+                player.closestAsteroidData = miningRange.closestAsteroid;
+                
+                pendingCollisionCheck = false;
+            }
+        };
+        
+        collisionWorker.onerror = function(error) {
+            console.error('Collision worker error:', error);
+            collisionWorkerReady = false;
+            pendingCollisionCheck = false;
+        };
+        
+        console.log('Collision worker initialized');
+        
+    } catch (error) {
+        console.warn('Could not initialize collision worker, using main thread:', error);
+        collisionWorkerReady = false;
+    }
+}
+
+function initFPSWorker() {
+    try {
+        // Create the worker
+        fpsWorker = new Worker('asteroid-miner-fps-worker.js');
+        
+        // Handle messages from worker
+        fpsWorker.onmessage = function(e) {
+            const { type, fps } = e.data;
+            
+            if (type === 'ready') {
+                fpsWorkerReady = true;
+                console.log('FPS worker ready');
+            } else if (type === 'fpsUpdate') {
+                // Update the display with the FPS value from the worker
+                const fpsCounter = document.getElementById('fpsCounter');
+                if (fpsCounter && fpsCounterEnabled) {
+                    fpsCounter.textContent = `FPS: ${fps}`;
+                }
+            }
+        };
+        
+        fpsWorker.onerror = function(error) {
+            console.error('FPS worker error:', error);
+            fpsWorkerReady = false;
+        };
+        
+        // Initialize the worker
+        fpsWorker.postMessage({ type: 'init', timestamp: performance.now() });
+        
+        console.log('FPS worker initialized');
+        
+    } catch (error) {
+        console.warn('Could not initialize FPS worker, FPS counter may have minor overhead:', error);
+        fpsWorkerReady = false;
     }
 }
 
@@ -3766,11 +4827,31 @@ function initGame() {
     initInput();
     initUpgrades();
     initMinimapScanner();
+    initConsoleInput();
     
     document.getElementById('clearConsole').addEventListener('click', clearConsole);
     
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    
+    // Debounced resize handler for better consistency
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        // Clear any pending resize
+        if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
+        }
+        
+        // Wait for layout to stabilize, then resize twice to ensure proper dimensions
+        resizeTimeout = setTimeout(() => {
+            requestAnimationFrame(() => {
+                resizeCanvas();
+                // Do it again after a frame to catch any delayed flex calculations
+                requestAnimationFrame(() => {
+                    resizeCanvas();
+                });
+            });
+        }, 50); // 50ms debounce
+    });
     
     generateStars();
     
@@ -3809,8 +4890,8 @@ function initGame() {
         viewport.targetZoom = 1.0;
     }
     // Always recalculate viewport position based on player location
-    viewport.x = player.x - canvas.width / (2 * viewport.zoom);
-    viewport.y = player.y - canvas.height / (2 * viewport.zoom);
+    viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+    viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
     updateUI();
     
@@ -3842,6 +4923,9 @@ function gameLoop(currentTime = 0) {
         deltaTime = 16.67; // Default to 60 FPS
     }
     
+    // Store delta time for use in render functions
+    currentDeltaTime = deltaTime;
+    
     if (!gameState.isPaused) {
         // Update gamepad input
         updateGamepad();
@@ -3864,6 +4948,11 @@ function gameLoop(currentTime = 0) {
         gameState.stats.playTime++;
     }
     
+    // Send frame notification to FPS worker (zero overhead on main thread)
+    if (fpsCounterEnabled && fpsWorkerReady && fpsWorker) {
+        fpsWorker.postMessage({ type: 'frame', timestamp: currentTime });
+    }
+    
     // Auto-save every 30 seconds
     if (currentTime - lastAutoSaveTime >= AUTO_SAVE_INTERVAL) {
         saveGame('AutoSave');
@@ -3881,17 +4970,7 @@ function triggerScan() {
         logMessage(`Scan recharging... ${Math.ceil(scanState.cooldown / 1000)}s remaining`);
         return;
     }
-    
-    // Check if enough fuel
-    const scanFuelCost = 5;
-    if (gameState.fuel < scanFuelCost) {
-        logMessage('Insufficient fuel for scan');
-        return;
-    }
-    
-    // Consume fuel
-    gameState.fuel -= scanFuelCost;
-    
+
     // Calculate upgraded values
     const scanRange = SCAN_CONFIG.baseRange + (gameState.upgrades.scanRange - 1) * SCAN_CONFIG.rangePerLevel;
     const scanCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (gameState.upgrades.scanCooldown - 1) * SCAN_CONFIG.cooldownReduction);
@@ -4006,6 +5085,237 @@ function updateScan(deltaTime) {
     }
 }
 
+// ================================
+// CARGO DRONE SYSTEM
+// ================================
+
+function deployCargoDrone() {
+    // Check if upgrade is purchased
+    if (gameState.upgrades.cargoDrone < 1) {
+        logMessage('Cargo drone not installed. Purchase from External upgrades.');
+        return;
+    }
+    
+    // Check if drone is already active
+    if (cargoDrone !== null) {
+        logMessage('Cargo drone already deployed.');
+        return;
+    }
+    
+    // Check if player has cargo to sell
+    if (gameState.cargo === 0) {
+        logMessage('No cargo to sell.');
+        return;
+    }
+    
+    // Find nearest station
+    const nearestStation = findNearestStation();
+    if (!nearestStation) {
+        logMessage('No station found in this sector.');
+        return;
+    }
+    
+    console.log('Deploying cargo drone:');
+    console.log('- Nearest station:', nearestStation.name);
+    console.log('- Station position:', nearestStation.x, nearestStation.y);
+    console.log('- Player position:', player.x, player.y);
+    console.log('- Player angle:', player.angle);
+    
+    // Create cargo inventory snapshot
+    const cargoToSell = { ...gameState.inventory };
+    const cargoAmount = gameState.cargo;
+    
+    // Clear player cargo
+    gameState.inventory = {};
+    gameState.cargo = 0;
+    updateUI();
+    
+    // Spawn drone at ship's exact location
+    // It will immediately start moving toward the station
+    const spawnX = player.x;
+    const spawnY = player.y;
+    
+    // Deploy drone
+    cargoDrone = {
+        x: spawnX,
+        y: spawnY,
+        vx: 0,
+        vy: 0,
+        targetStation: nearestStation,
+        state: 'traveling', // 'traveling', 'docked', 'returning'
+        cargo: cargoToSell,
+        cargoAmount: cargoAmount,
+        credits: 0,
+        dockTime: 0,
+        dockDuration: 1000, // 1 second at station
+        size: 15,
+        speed: 3.5 // Faster than player
+    };
+    
+    logMessage(`Cargo drone deployed with ${cargoAmount} units. Heading to ${nearestStation.name}.`);
+    createFloatingText(player.x, player.y - 30, 'DRONE DEPLOYED', '#00ff00');
+}
+
+function findNearestStation() {
+    let nearest = null;
+    let minDist = Infinity;
+    
+    for (let station of stations) {
+        const dx = station.x - player.x;
+        const dy = station.y - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = station;
+        }
+    }
+    
+    return nearest;
+}
+
+function updateCargoDrone(dt) {
+    if (cargoDrone === null) return;
+    
+    const drone = cargoDrone;
+    
+    if (drone.state === 'traveling') {
+        // Move toward target station
+        const dx = drone.targetStation.x - drone.x;
+        const dy = drone.targetStation.y - drone.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Debug: Log distance to target every 60 frames (once per second at 60fps)
+        if (frameCount % 60 === 0) {
+            console.log(`Drone traveling - Distance to ${drone.targetStation.name}: ${dist.toFixed(2)}`);
+        }
+        
+        if (dist < 50) {
+            // Arrived at station
+            drone.state = 'docked';
+            drone.dockTime = Date.now();
+            logMessage(`Drone docked at ${drone.targetStation.name}. Selling cargo...`);
+        } else {
+            // Move toward station
+            const angle = Math.atan2(dy, dx);
+            drone.vx = Math.cos(angle) * drone.speed;
+            drone.vy = Math.sin(angle) * drone.speed;
+            drone.x += drone.vx * dt;
+            drone.y += drone.vy * dt;
+        }
+    } else if (drone.state === 'docked') {
+        // Wait at station
+        const elapsed = Date.now() - drone.dockTime;
+        
+        if (elapsed >= drone.dockDuration) {
+            // Sell cargo and get credits
+            let totalValue = 0;
+            for (let type in drone.cargo) {
+                const quantity = drone.cargo[type];
+                const asteroidData = ASTEROID_TYPES[type];
+                if (asteroidData) {
+                    totalValue += asteroidData.value * quantity;
+                }
+            }
+            
+            drone.credits = totalValue;
+            drone.state = 'returning';
+            logMessage(`Drone sold cargo for ${totalValue}¢. Returning to ship.`);
+        }
+    } else if (drone.state === 'returning') {
+        // Move back toward player
+        const dx = player.x - drone.x;
+        const dy = player.y - drone.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < 50) {
+            // Arrived back at player
+            gameState.credits += drone.credits;
+            logMessage(`Drone returned with ${drone.credits}¢!`);
+            createFloatingText(player.x, player.y - 30, `+${drone.credits}¢`, '#00ff00');
+            updateUI();
+            
+            // Remove drone
+            cargoDrone = null;
+        } else {
+            // Move toward player
+            const angle = Math.atan2(dy, dx);
+            drone.vx = Math.cos(angle) * drone.speed;
+            drone.vy = Math.sin(angle) * drone.speed;
+            drone.x += drone.vx * dt;
+            drone.y += drone.vy * dt;
+        }
+    }
+}
+
+function renderCargoDrone(ctx) {
+    if (cargoDrone === null) return;
+    
+    const drone = cargoDrone;
+    
+    // Render in world space (like other game objects)
+    ctx.save();
+    ctx.translate(drone.x, drone.y);
+    
+    // Calculate angle based on velocity
+    let angle = 0;
+    if (drone.vx !== 0 || drone.vy !== 0) {
+        angle = Math.atan2(drone.vy, drone.vx);
+    }
+    ctx.rotate(angle);
+    
+    // Draw small rectangle body using player colors
+    ctx.fillStyle = player.colors.primary;
+    ctx.strokeStyle = player.colors.secondary;
+    ctx.lineWidth = 1.5;
+    
+    ctx.fillRect(-drone.size * 0.6, -drone.size * 0.3, drone.size * 1.2, drone.size * 0.6);
+    ctx.strokeRect(-drone.size * 0.6, -drone.size * 0.3, drone.size * 1.2, drone.size * 0.6);
+    
+    // Draw cargo indicator (if carrying cargo) - using accent color
+    if (drone.state === 'traveling' || drone.state === 'docked') {
+        ctx.fillStyle = player.colors.accent;
+        ctx.fillRect(-drone.size * 0.3, -drone.size * 0.2, drone.size * 0.6, drone.size * 0.4);
+    }
+    
+    // Draw credits indicator (if carrying credits) - using accent color
+    if (drone.state === 'returning') {
+        ctx.fillStyle = player.colors.accent;
+        ctx.fillRect(-drone.size * 0.3, -drone.size * 0.2, drone.size * 0.6, drone.size * 0.4);
+    }
+    
+    // Draw thruster flame if moving - using player thruster color
+    if (drone.vx !== 0 || drone.vy !== 0) {
+        const speed = Math.sqrt(drone.vx * drone.vx + drone.vy * drone.vy);
+        const flameLength = speed * 3;
+        
+        ctx.fillStyle = player.colors.thruster;
+        ctx.beginPath();
+        ctx.moveTo(-drone.size * 0.6, 0);
+        ctx.lineTo(-drone.size * 0.6 - flameLength, -drone.size * 0.15);
+        ctx.lineTo(-drone.size * 0.6 - flameLength * 0.7, 0);
+        ctx.lineTo(-drone.size * 0.6 - flameLength, drone.size * 0.15);
+        ctx.closePath();
+        ctx.fill();
+    }
+    
+    ctx.restore();
+    
+    // Draw status label in world space above the drone
+    ctx.save();
+    ctx.translate(drone.x, drone.y - drone.size);
+    ctx.scale(1 / viewport.zoom, 1 / viewport.zoom); // Keep text size consistent
+    ctx.fillStyle = player.colors.accent;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    let statusText = '';
+    if (drone.state === 'traveling') statusText = 'TRAVELING';
+    else if (drone.state === 'docked') statusText = 'SELLING';
+    else if (drone.state === 'returning') statusText = `RETURNING (${drone.credits}¢)`;
+    ctx.fillText(statusText, 0, 0);
+    ctx.restore();
+}
+
 function renderScan() {
     // Render expanding wave
     if (scanState.active) {
@@ -4042,35 +5352,53 @@ function renderScan() {
                 const currentX = item.object.x;
                 const currentY = item.object.y;
                 
-                // Scale diagonal and horizontal lengths with zoom for consistent screen size
+                // Scale diagonal length with zoom for consistent screen size
                 const scaledLabelOffset = SCAN_CONFIG.labelOffset / viewport.zoom;
-                const scaledHorizontalLength = SCAN_CONFIG.horizontalLength / viewport.zoom;
+                
+                // Set up bold font first to measure text width
+                ctx.font = `bold ${SCAN_CONFIG.fontSize / viewport.zoom}px 'Courier New', monospace`;
+                
+                // Measure the name text width
+                const nameWidth = ctx.measureText(item.name).width;
+                
+                // Measure value/danger text width if Advanced Scanner is active
+                let valueWidth = 0;
+                if (gameState.upgrades.advancedScanner >= 1) {
+                    if (item.type === 'asteroid') {
+                        valueWidth = ctx.measureText(`${item.value}¢`).width;
+                    } else if (item.type === 'hazard') {
+                        valueWidth = ctx.measureText('DANGER!!').width;
+                    }
+                }
+                
+                // Use the longest text width to determine horizontal line length
+                const maxTextWidth = Math.max(nameWidth, valueWidth);
+                const textHorizontalOffset = 5 / viewport.zoom;
+                const scaledHorizontalLength = maxTextWidth + textHorizontalOffset * 2; // Add padding on both sides
                 
                 // Draw diagonal line up-right from current position
                 const diagonalEndX = currentX + scaledLabelOffset;
                 const diagonalEndY = currentY - scaledLabelOffset;
                 
                 ctx.strokeStyle = item.color;
-                ctx.lineWidth = 1 / viewport.zoom; // Scale line width with zoom
+                ctx.lineWidth = 2 / viewport.zoom; // Thicker lines to match bold text
                 ctx.beginPath();
                 ctx.moveTo(currentX, currentY);
                 ctx.lineTo(diagonalEndX, diagonalEndY);
                 ctx.stroke();
                 
-                // Draw horizontal line
+                // Draw horizontal line based on text width
                 const horizontalEndX = diagonalEndX + scaledHorizontalLength;
                 ctx.beginPath();
                 ctx.moveTo(diagonalEndX, diagonalEndY);
                 ctx.lineTo(horizontalEndX, diagonalEndY);
                 ctx.stroke();
                 
-                // Draw labels
+                // Draw labels with bold font
                 ctx.fillStyle = item.color;
-                ctx.font = `${SCAN_CONFIG.fontSize / viewport.zoom}px 'Courier New', monospace`; // Scale font with zoom
                 ctx.textAlign = 'left';
                 
                 // Scale spacing with zoom for consistency
-                const textHorizontalOffset = 5 / viewport.zoom;
                 const textVerticalSpacing = 5 / viewport.zoom;
                 const textLineSpacing = 12 / viewport.zoom;
                 
@@ -4108,6 +5436,9 @@ function update(deltaTime) {
     // Update scan system
     updateScan(deltaTime);
     
+    // Update cargo drone
+    updateCargoDrone(dt);
+    
     // Update station
     updateStation(dt);
     
@@ -4117,20 +5448,37 @@ function update(deltaTime) {
     // Update player
     updatePlayer(dt);
     
-    // Update asteroids
+    // Update asteroids on main thread (preserves object references for mining)
     updateAsteroids(dt);
     
-    // Update hazards
-    updateHazards(dt);
-    
-    // Update particles
-    updateParticles(dt);
+    // Update hazards and particles using worker if available
+    if (physicsWorkerReady && !pendingPhysicsUpdate) {
+        // Send to worker for parallel processing
+        // Note: Asteroids are updated on main thread to preserve object references
+        pendingPhysicsUpdate = true;
+        physicsWorker.postMessage({
+            type: 'updateAll',
+            data: {
+                asteroids: [], // Don't send asteroids to worker
+                hazards: hazards,
+                particles: particles,
+                dt: dt
+            }
+        });
+    } else {
+        // Fallback to main thread if worker not ready or still processing
+        updateHazards(dt);
+        updateParticles(dt);
+    }
     
     // Update floating text
     updateFloatingText(dt);
     
     // Update viewport
     updateViewport(dt);
+    
+    // Update star positions (slow drift)
+    updateStars(dt);
     
     // Spawn new objects (time-consistent spawning)
     // Scale spawn chances by deltaTime to maintain consistent spawn rates
@@ -4222,7 +5570,8 @@ function updatePlayer(dt = 1) {
     
     // Touch Controls - canvas acts as directional joystick
     if (touchActive) {
-        // Calculate ship's position on screen (accounting for viewport)
+        // Calculate ship position in viewport reference space
+        // This accounts for viewport clamping at world edges
         const shipScreenX = (player.x - viewport.x) * viewport.zoom;
         const shipScreenY = (player.y - viewport.y) * viewport.zoom;
         
@@ -4234,7 +5583,7 @@ function updatePlayer(dt = 1) {
         // Only apply movement if touch is not too close to ship (dead zone)
         if (distance > 30) {
             // Normalize to -1 to 1 range with smooth scaling
-            const maxDistance = Math.min(canvas.width, canvas.height) / 2;
+            const maxDistance = Math.min(VIEWPORT_REFERENCE.WIDTH, VIEWPORT_REFERENCE.HEIGHT) / 2;
             const normalizedDistance = Math.min(distance / maxDistance, 1);
             
             moveX = (dx / distance) * normalizedDistance;
@@ -4242,10 +5591,10 @@ function updatePlayer(dt = 1) {
         }
     }
     
-    // Auto-mining on touch devices - automatically mine when asteroids are in range
+    // Auto-mining toggle for touch devices - automatically mine when asteroids are in range
     let playerWantsToMine = keys['space'];
-    if (isTouchDevice && !isDockedAtAnyStation()) {
-        // Automatically attempt mining on touch devices
+    if (isTouchDevice && autoMiningEnabled && !isDockedAtAnyStation()) {
+        // Automatically attempt mining on touch devices when toggle is ON
         playerWantsToMine = true;
     }
     
@@ -4329,10 +5678,14 @@ function updatePlayer(dt = 1) {
             player.x += player.vx * dt;
             player.y += player.vy * dt;
             
-            // Consume fuel (only if not docked)
+            // Consume fuel during autopilot movement (only if not docked)
             if (!isDockedAtAnyStation()) {
-                const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
-                gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+                if (godModeActive) {
+                    gameState.fuel = gameState.maxFuel;
+                } else {
+                    const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
+                    gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+                }
                 gameState.stats.distanceTraveled += currentSpeed * dt;
             }
             
@@ -4352,8 +5705,30 @@ function updatePlayer(dt = 1) {
                 player.miningProgress = 0;
             }
             
-            // Check hazard collisions during autopilot
-            checkHazardCollisions();
+            // Check hazard collisions during autopilot using worker if available
+            if (collisionWorkerReady && !pendingCollisionCheck) {
+                const miningRange = CONFIG.miningRange + (gameState.upgrades.range - 1) * 10;
+                pendingCollisionCheck = true;
+                collisionWorker.postMessage({
+                    type: 'checkBatchCollisions',
+                    data: {
+                        player: {
+                            x: player.x,
+                            y: player.y,
+                            size: player.size,
+                            vx: player.vx,
+                            vy: player.vy
+                        },
+                        asteroids: asteroids,
+                        hazards: hazards,
+                        dt: dt,
+                        miningRange: miningRange
+                    }
+                });
+            } else {
+                // Fallback to main thread if worker not ready
+                checkHazardCollisions(dt);
+            }
             
             // Set manual control to false since auto-pilot is controlling
             player.isManuallyControlled = false;
@@ -4393,10 +5768,14 @@ function updatePlayer(dt = 1) {
         player.x += player.vx * dt;
         player.y += player.vy * dt;
         
-        // Consume fuel (time-consistent) - only if not docked
-        if (!isDockedAtAnyStation()) {
-            const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
-            gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+        // Consume fuel ONLY when player is manually controlling (providing input) - not from gravity/momentum
+        if (!isDockedAtAnyStation() && player.isManuallyControlled) {
+            if (godModeActive) {
+                gameState.fuel = gameState.maxFuel;
+            } else {
+                const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
+                gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+            }
             
             gameState.stats.distanceTraveled += currentSpeed * dt;
         }
@@ -4436,13 +5815,37 @@ function updatePlayer(dt = 1) {
         player.miningProgress = 0;
     }
     
-    // Check hazard collisions
-    checkHazardCollisions();
+    // Check hazard collisions using worker if available
+    if (collisionWorkerReady && !pendingCollisionCheck) {
+        const miningRange = CONFIG.miningRange + (gameState.upgrades.range - 1) * 10;
+        pendingCollisionCheck = true;
+        collisionWorker.postMessage({
+            type: 'checkBatchCollisions',
+            data: {
+                player: {
+                    x: player.x,
+                    y: player.y,
+                    size: player.size,
+                    vx: player.vx,
+                    vy: player.vy
+                },
+                asteroids: asteroids,
+                hazards: hazards,
+                dt: dt,
+                miningRange: miningRange
+            }
+        });
+    } else {
+        // Fallback to main thread if worker not ready
+        checkHazardCollisions(dt);
+    }
     
     // Out of fuel warning and game over check
     if (gameState.fuel <= 0) {
-        // Check if player can afford rescue (100 credits) or is docked
-        const canAffordRescue = gameState.credits >= 100;
+        // Check if player can afford rescue (1.5x fuel needed) or is docked
+        const fuelNeeded = gameState.maxFuel - gameState.fuel;
+        const rescueCost = Math.ceil(fuelNeeded * 1.5);
+        const canAffordRescue = gameState.credits >= rescueCost;
         const isDocked = isDockedAtAnyStation();
         
         // If player cannot afford rescue and is not docked, game over
@@ -4473,12 +5876,6 @@ function updateStation(dt = 1) {
         station.x += station.vx * dt;
         station.y += station.vy * dt;
         
-        // Wrap around world bounds
-        if (station.x < 0) station.x = CONFIG.worldWidth;
-        if (station.x > CONFIG.worldWidth) station.x = 0;
-        if (station.y < 0) station.y = CONFIG.worldHeight;
-        if (station.y > CONFIG.worldHeight) station.y = 0;
-        
         // Update hexagon vertices for collision detection
         station.vertices = [];
         for (let i = 0; i < 6; i++) {
@@ -4487,6 +5884,86 @@ function updateStation(dt = 1) {
                 x: station.x + Math.cos(angle) * station.size,
                 y: station.y + Math.sin(angle) * station.size
             });
+        }
+        
+        // Realistic bouncing using hexagon geometry
+        // Check each vertex against world boundaries
+        let hitLeft = false, hitRight = false, hitTop = false, hitBottom = false;
+        let maxLeftPenetration = 0, maxRightPenetration = 0;
+        let maxTopPenetration = 0, maxBottomPenetration = 0;
+        
+        for (const vertex of station.vertices) {
+            // Check horizontal boundaries
+            if (vertex.x < 0) {
+                hitLeft = true;
+                maxLeftPenetration = Math.max(maxLeftPenetration, -vertex.x);
+            } else if (vertex.x > CONFIG.worldWidth) {
+                hitRight = true;
+                maxRightPenetration = Math.max(maxRightPenetration, vertex.x - CONFIG.worldWidth);
+            }
+            
+            // Check vertical boundaries
+            if (vertex.y < 0) {
+                hitTop = true;
+                maxTopPenetration = Math.max(maxTopPenetration, -vertex.y);
+            } else if (vertex.y > CONFIG.worldHeight) {
+                hitBottom = true;
+                maxBottomPenetration = Math.max(maxBottomPenetration, vertex.y - CONFIG.worldHeight);
+            }
+        }
+        
+        // Store current speed to maintain it after bounce
+        const currentSpeed = Math.sqrt(station.vx * station.vx + station.vy * station.vy);
+        
+        // Handle horizontal collisions
+        if (hitLeft) {
+            // Push station away from left wall
+            station.x += maxLeftPenetration;
+            // Reflect velocity (reverse horizontal component)
+            station.vx = Math.abs(station.vx);
+            // Add rotational impulse from wall collision
+            station.rotationSpeed += (Math.random() - 0.5) * 0.002;
+        } else if (hitRight) {
+            // Push station away from right wall
+            station.x -= maxRightPenetration;
+            // Reflect velocity (reverse horizontal component)
+            station.vx = -Math.abs(station.vx);
+            // Add rotational impulse from wall collision
+            station.rotationSpeed += (Math.random() - 0.5) * 0.002;
+        }
+        
+        // Handle vertical collisions
+        if (hitTop) {
+            // Push station away from top wall
+            station.y += maxTopPenetration;
+            // Reflect velocity (reverse vertical component)
+            station.vy = Math.abs(station.vy);
+            // Add rotational impulse from wall collision
+            station.rotationSpeed += (Math.random() - 0.5) * 0.002;
+        } else if (hitBottom) {
+            // Push station away from bottom wall
+            station.y -= maxBottomPenetration;
+            // Reflect velocity (reverse vertical component)
+            station.vy = -Math.abs(station.vy);
+            // Add rotational impulse from wall collision
+            station.rotationSpeed += (Math.random() - 0.5) * 0.002;
+        }
+        
+        // Normalize velocity to maintain original speed after bounce
+        // This prevents speed loss from bouncing at angles
+        if (hitLeft || hitRight || hitTop || hitBottom) {
+            const newSpeed = Math.sqrt(station.vx * station.vx + station.vy * station.vy);
+            if (newSpeed > 0) {
+                const speedRatio = currentSpeed / newSpeed;
+                station.vx *= speedRatio;
+                station.vy *= speedRatio;
+            }
+        }
+        
+        // Cap rotation speed to prevent excessive spinning
+        const maxRotationSpeed = 0.01; // Maximum rotation speed
+        if (Math.abs(station.rotationSpeed) > maxRotationSpeed) {
+            station.rotationSpeed = Math.sign(station.rotationSpeed) * maxRotationSpeed;
         }
     });
     
@@ -4605,6 +6082,12 @@ function updateStation(dt = 1) {
                 // Station destroys the hazard
                 hazards.splice(i, 1);
                 
+                // Add rotational impulse from hazard collision
+                // Direction based on collision angle
+                const collisionAngle = Math.atan2(dy, dx);
+                const rotationImpulse = Math.sin(collisionAngle) * 0.003;
+                currentStation.rotationSpeed += rotationImpulse;
+                
                 // Create explosion effect
                 for (let j = 0; j < 15; j++) {
                     createParticle(hazard.x, hazard.y, hazardData.color);
@@ -4668,6 +6151,19 @@ function updateStation(dt = 1) {
                     station2.vx -= impulseX;
                     station2.vy -= impulseY;
                     
+                    // Add rotational impulse based on collision geometry
+                    // Calculate tangent component (perpendicular to collision normal)
+                    const tangentX = -ny;
+                    const tangentY = nx;
+                    
+                    // Calculate relative velocity along tangent (creates rotation)
+                    const tangentVel = relVx * tangentX + relVy * tangentY;
+                    
+                    // Apply rotational impulse proportional to tangent velocity
+                    const rotationImpulse = tangentVel * 0.0002;
+                    station1.rotationSpeed += rotationImpulse;
+                    station2.rotationSpeed -= rotationImpulse;
+                    
                     // Create visual feedback
                     const collisionX = station1.x + dx * 0.5;
                     const collisionY = station1.y + dy * 0.5;
@@ -4684,6 +6180,14 @@ function updateStation(dt = 1) {
             }
         }
     }
+    
+    // Apply rotation speed cap to all stations after all collisions
+    const maxRotationSpeed = 0.01; // Maximum rotation speed
+    stations.forEach(station => {
+        if (Math.abs(station.rotationSpeed) > maxRotationSpeed) {
+            station.rotationSpeed = Math.sign(station.rotationSpeed) * maxRotationSpeed;
+        }
+    });
 }
 
 function checkStationAsteroidCollision(asteroid) {
@@ -4926,6 +6430,7 @@ function attemptMining(dt = 1) {
         if (frameCount % 60 === 0) {
             logMessage('Cargo hold full! Return to station to sell.');
         }
+        
         player.isMining = false;
         player.miningTarget = null;
         player.miningProgress = 0;
@@ -4933,22 +6438,117 @@ function attemptMining(dt = 1) {
         return;
     }
     
-    // Calculate how many asteroids we can mine simultaneously
+    // Calculate how many lasers we have available
     const maxTargets = gameState.upgrades.multiMining;
     const miningRange = CONFIG.miningRange + (gameState.upgrades.range - 1) * 10;
     const miningSpeed = CONFIG.baseMiningSpeed * (1 - (gameState.upgrades.mining - 1) * 0.1);
     const miningRangeSq = miningRange * miningRange; // Squared for faster comparison
     
-    // Find nearest asteroids in range (optimized with for loop and squared distance)
+    // Define laser positions relative to ship (matching rendering positions)
+    const getLaserWorldPositions = () => {
+        const positions = [];
+        
+        // Tank dimensions (MUST match the rendering code exactly)
+        const cargoLevel = gameState.upgrades.cargo || 1;
+        const fuelLevel = gameState.upgrades.fuel || 1;
+        const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
+        const tankStartX = -tankLength / 2;
+        const tankEndX = tankLength / 2;
+        
+        // These must match the rendering positions in renderMiningLaser()
+        if (maxTargets >= 1) positions.push({ x: tankEndX, y: 0.47 }); // Front fuel
+        if (maxTargets >= 2) positions.push({ x: tankEndX, y: -0.47 }); // Front cargo
+        if (maxTargets >= 3) positions.push({ x: 0.0, y: 0.47 }); // Center fuel outer
+        if (maxTargets >= 4) positions.push({ x: 0.0, y: -0.47 }); // Center cargo outer
+        if (maxTargets >= 5) positions.push({ x: tankStartX, y: 0.47 }); // Rear fuel
+        if (maxTargets >= 6) positions.push({ x: tankStartX, y: -0.47 }); // Rear cargo
+        
+        // Convert to world coordinates
+        const cos = Math.cos(player.angle);
+        const sin = Math.sin(player.angle);
+        
+        return positions.map(pos => {
+            const localX = player.size * pos.x;
+            const localY = player.size * pos.y;
+            
+            // Rotate and translate to world position
+            return {
+                x: player.x + (localX * cos - localY * sin),
+                y: player.y + (localX * sin + localY * cos)
+            };
+        });
+    };
+    
+    const laserWorldPositions = getLaserWorldPositions();
+    
+    // Initialize miningTargets array if needed (maintain laser slots)
+    if (!player.miningTargets || player.miningTargets.length !== maxTargets) {
+        const oldTargets = player.miningTargets || [];
+        player.miningTargets = new Array(maxTargets).fill(null).map((_, i) => {
+            // Preserve existing targets when resizing
+            if (i < oldTargets.length && oldTargets[i]) {
+                return oldTargets[i];
+            }
+            return {
+                asteroid: null,
+                progress: 0
+            };
+        });
+    }
+    
+    // First pass: Clean up invalid targets and check if they're still in range
+    for (let i = 0; i < maxTargets; i++) {
+        const target = player.miningTargets[i];
+        
+        // Safety check - ensure target object exists
+        if (!target) {
+            player.miningTargets[i] = { asteroid: null, progress: 0 };
+            continue;
+        }
+        
+        if (target.asteroid) {
+            // Check if asteroid is destroyed or out of range
+            const asteroid = target.asteroid;
+            if (asteroid.destroyed || !asteroids.includes(asteroid)) {
+                // Free up this laser slot
+                target.asteroid = null;
+                target.progress = 0;
+            } else {
+                // Check if still in range
+                const dx = asteroid.x - player.x;
+                const dy = asteroid.y - player.y;
+                const distSq = dx * dx + dy * dy;
+                
+                if (distSq >= miningRangeSq) {
+                    // Out of range, free up this laser slot
+                    target.asteroid = null;
+                    target.progress = 0;
+                }
+            }
+        }
+    }
+    
+    // Second pass: Find new targets for idle lasers
+    // Build list of asteroids in range that aren't already being mined
     const asteroidsInRange = [];
     const len = asteroids.length;
     
+    // Get set of asteroids already being targeted
+    const targetedAsteroids = new Set();
+    for (let i = 0; i < maxTargets; i++) {
+        if (player.miningTargets[i].asteroid) {
+            targetedAsteroids.add(player.miningTargets[i].asteroid);
+        }
+    }
+    
+    // Find available asteroids
     for (let i = 0; i < len; i++) {
         const asteroid = asteroids[i];
         
-        // Skip destroyed asteroids
-        if (asteroid.destroyed) continue;
+        // Skip destroyed asteroids or ones already being mined
+        if (asteroid.destroyed || targetedAsteroids.has(asteroid)) continue;
         
+        // Calculate distance from ship center
         const dx = asteroid.x - player.x;
         const dy = asteroid.y - player.y;
         const distSq = dx * dx + dy * dy;
@@ -4956,98 +6556,221 @@ function attemptMining(dt = 1) {
         if (distSq < miningRangeSq) {
             asteroidsInRange.push({ 
                 asteroid, 
-                distSq: distSq,
-                dist: Math.sqrt(distSq) // Only calculate when needed for sorting
+                distSq: distSq
             });
         }
     }
     
-    // Sort by distance and take the closest ones up to maxTargets
-    if (asteroidsInRange.length > maxTargets) {
-        asteroidsInRange.sort((a, b) => a.distSq - b.distSq);
-    }
-    const targetAsteroids = asteroidsInRange.slice(0, maxTargets);
+    // Sort available asteroids by distance
+    asteroidsInRange.sort((a, b) => a.distSq - b.distSq);
     
-    if (targetAsteroids.length > 0) {
-        player.isMining = true;
-        
-        // Update miningTargets array
-        // Remove targets that are no longer valid or out of range
-        player.miningTargets = player.miningTargets.filter(mt => {
-            return !mt.asteroid.destroyed && 
-                   asteroids.includes(mt.asteroid) && 
-                   targetAsteroids.some(ta => ta.asteroid === mt.asteroid);
-        });
-        
-        // Add new targets
-        const targetsLen = targetAsteroids.length;
-        for (let i = 0; i < targetsLen; i++) {
-            const ta = targetAsteroids[i];
-            const existingTarget = player.miningTargets.find(mt => mt.asteroid === ta.asteroid);
-            if (!existingTarget) {
-                player.miningTargets.push({
-                    asteroid: ta.asteroid,
-                    progress: 0
-                });
+    // Assign new targets to idle laser slots using closest-laser matching
+    // For each available asteroid, find the closest idle laser
+    for (const asteroidData of asteroidsInRange) {
+        // Find all idle lasers
+        const idleLasers = [];
+        for (let i = 0; i < maxTargets; i++) {
+            if (!player.miningTargets[i].asteroid) {
+                idleLasers.push(i);
             }
         }
         
-        // Process each mining target - use for loop to safely handle removal during iteration
-        for (let i = player.miningTargets.length - 1; i >= 0; i--) {
-            const target = player.miningTargets[i];
-            const asteroid = target.asteroid;
+        // If no idle lasers, we're done
+        if (idleLasers.length === 0) break;
+        
+        // Find the closest idle laser to this asteroid
+        let closestLaser = idleLasers[0];
+        let closestDistSq = Infinity;
+        
+        for (const laserIndex of idleLasers) {
+            const laserPos = laserWorldPositions[laserIndex];
+            const dx = asteroidData.asteroid.x - laserPos.x;
+            const dy = asteroidData.asteroid.y - laserPos.y;
+            const distSq = dx * dx + dy * dy;
             
-            // Safety check: ensure asteroid still exists and isn't destroyed
-            if (!asteroid || asteroid.destroyed || !asteroids.includes(asteroid)) {
-                player.miningTargets.splice(i, 1);
-                continue;
+            if (distSq < closestDistSq) {
+                closestDistSq = distSq;
+                closestLaser = laserIndex;
             }
+        }
+        
+        // Assign this asteroid to the closest idle laser
+        player.miningTargets[closestLaser].asteroid = asteroidData.asteroid;
+        player.miningTargets[closestLaser].progress = 0;
+    }
+    
+    // Third pass: Process mining for each laser that has a target
+    let activeLasers = 0;
+    
+    for (let i = 0; i < maxTargets; i++) {
+        const target = player.miningTargets[i];
+        
+        // Safety check - ensure target exists
+        if (!target) continue;
+        
+        const asteroid = target.asteroid;
+        
+        // Skip idle lasers
+        if (!asteroid) continue;
+        
+        // Additional safety check - ensure asteroid still exists
+        if (asteroid.destroyed || !asteroids.includes(asteroid)) {
+            target.asteroid = null;
+            target.progress = 0;
+            continue;
+        }
+        
+        activeLasers++;
+        
+        // Calculate laser position for this target (matching renderMiningLaser logic)
+        const cargoLevel = gameState.upgrades.cargo || 1;
+        const fuelLevel = gameState.upgrades.fuel || 1;
+        const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
+        const tankWidth = 0.22;
+        const tankStartX = -tankLength / 2;
+        const tankEndX = tankLength / 2;
+        
+        // Determine laser position based on laser index
+        let laserLocalX = 0;
+        let laserLocalY = 0;
+        
+        // Match the laser positions from renderMiningLaser
+        switch (i) {
+            // Laser 1: Front of fuel tank
+            case 0:
+                laserLocalX = tankEndX;
+                laserLocalY = 0.47;
+                break;
+            case 1:
+                // Laser 2: Front of cargo tank
+                laserLocalX = tankEndX;
+                laserLocalY = -0.47;
+                break;
+            case 2:
+                // Laser 3: Center, far side of fuel tank
+                laserLocalX = 0.0;
+                laserLocalY = 0.47;
+                break;
+            case 3:
+                // Laser 4: Center, far side of cargo tank
+                laserLocalX = 0.0;
+                laserLocalY = -0.47;
+                break;
+            case 4:
+                // Laser 5: Back of fuel tank
+                laserLocalX = tankStartX;
+                laserLocalY = 0.47;
+                break;
+            case 5:
+                // Laser 6: Back of cargo tank
+                laserLocalX = tankStartX;
+                laserLocalY = -0.47;
+                break;
+        }
+        
+        // Calculate pull target: radial position outward from ship center through laser
+        // Direction vector from ship center to laser (in local coordinates)
+        const laserDirLength = Math.sqrt(laserLocalX * laserLocalX + laserLocalY * laserLocalY);
+        const pullDistance = player.size * 0.5; // How far beyond the laser to pull asteroids
+        
+        // Normalized direction in local space
+        const dirX = laserLocalX / laserDirLength;
+        const dirY = laserLocalY / laserDirLength;
+        
+        // Pull target in local space (laser position + outward extension)
+        const targetLocalX = (laserLocalX + dirX * pullDistance / player.size) * player.size;
+        const targetLocalY = (laserLocalY + dirY * pullDistance / player.size) * player.size;
+        
+        // Transform to world coordinates
+        const pullTargetX = player.x + Math.cos(player.angle) * targetLocalX - Math.sin(player.angle) * targetLocalY;
+        const pullTargetY = player.y + Math.sin(player.angle) * targetLocalX + Math.cos(player.angle) * targetLocalY;
+        
+        const dx = pullTargetX - asteroid.x;
+        const dy = pullTargetY - asteroid.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Tractor beam effect - consistent force-based attraction (time-consistent)
+        const normalizedDist = Math.min(dist / miningRange, 1);
+        
+        if (dist > 3) {
+            // Calculate direction to target
+            const dirX = dx / dist;
+            const dirY = dy / dist;
             
-            const dx = player.x - asteroid.x;
-            const dy = player.y - asteroid.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            // Base pull force - inversely proportional to distance (stronger when closer)
+            // This creates more reliable pulling behavior
+            const distanceFactor = 1 / (1 + normalizedDist * 2); // 1.0 at target, 0.33 at max range
+            const basePullForce = 0.15 * distanceFactor * dt;
             
-            // Tractor beam effect - pull asteroid toward player (time-consistent)
-            const normalizedDist = Math.min(dist / miningRange, 1);
-            const pullStrength = 0.0167 * normalizedDist * dt;
+            // Apply tractor beam force toward target
+            asteroid.vx += dirX * basePullForce;
+            asteroid.vy += dirY * basePullForce;
             
-            if (dist > 5) {
-                asteroid.vx += (dx / dist) * pullStrength;
-                asteroid.vy += (dy / dist) * pullStrength;
+            // Calculate velocity toward target (dot product)
+            const velocityTowardTarget = asteroid.vx * dirX + asteroid.vy * dirY;
+            
+            // Velocity-based damping: stronger when moving fast toward target
+            // This prevents overshooting and creates smooth convergence
+            if (velocityTowardTarget > 0) {
+                // Damping proportional to velocity toward target and proximity
+                const velocityDamping = Math.min(velocityTowardTarget * 0.08 * (1 - normalizedDist), 0.95);
+                const dampingFactor = Math.pow(1 - velocityDamping, dt);
                 
-                const dragFactor = Math.pow(1 - (0.02 * (1 - normalizedDist)), dt);
-                asteroid.vx *= dragFactor;
-                asteroid.vy *= dragFactor;
+                // Apply damping only to velocity component toward target
+                asteroid.vx -= dirX * velocityTowardTarget * (1 - dampingFactor);
+                asteroid.vy -= dirY * velocityTowardTarget * (1 - dampingFactor);
             }
             
-            // Create laser particles
-            if (frameCount % 3 === 0) {
-                createLaserParticle(player.x, player.y, asteroid.x, asteroid.y);
-            }
+            // General velocity damping for stability (small constant drag)
+            const stabilityDamping = Math.pow(0.98, dt);
+            asteroid.vx *= stabilityDamping;
+            asteroid.vy *= stabilityDamping;
+        }
+        
+        // Calculate laser world position for particles
+        const laserWorldX = player.x + Math.cos(player.angle) * laserLocalX * player.size - Math.sin(player.angle) * laserLocalY * player.size;
+        const laserWorldY = player.y + Math.sin(player.angle) * laserLocalX * player.size + Math.cos(player.angle) * laserLocalY * player.size;
+        
+        // Create laser particles from the actual laser position
+        if (frameCount % 3 === 0) {
+            createLaserParticle(laserWorldX, laserWorldY, asteroid.x, asteroid.y);
+        }
+        
+        // Increment mining progress (time-consistent)
+        target.progress += dt;
+        
+        // Check if mining cycle is complete
+        if (target.progress >= miningSpeed) {
+            mineAsteroid(asteroid);
             
-            // Increment mining progress (time-consistent)
-            target.progress += dt;
-            
-            // Check if mining cycle is complete
-            if (target.progress >= miningSpeed) {
-                mineAsteroid(asteroid);
+            // Clean up if asteroid was destroyed - free up this laser slot
+            if (asteroid.destroyed) {
+                target.asteroid = null;
                 target.progress = 0;
-                
-                // Clean up if asteroid was destroyed
-                if (asteroid.destroyed) {
-                    player.miningTargets.splice(i, 1);
-                }
+            } else {
+                // Reset progress for next mining cycle
+                target.progress = 0;
             }
         }
+    }
+    
+    // Update player mining state
+    if (activeLasers > 0) {
+        player.isMining = true;
         
         // Consume fuel (once per frame, not per target) (time-consistent) - only if not docked
         if (!isDockedAtAnyStation()) {
-            gameState.fuel = Math.max(0, gameState.fuel - CONFIG.miningFuelCost * dt);
+            if (godModeActive) {
+                gameState.fuel = gameState.maxFuel;
+            } else {
+                gameState.fuel = Math.max(0, gameState.fuel - CONFIG.miningFuelCost * dt);
+            }
         }
         
-        // Update backward compatibility properties (use first target)
-        player.miningTarget = player.miningTargets[0]?.asteroid || null;
-        player.miningProgress = player.miningTargets[0]?.progress || 0;
+        // Update backward compatibility properties (use first active target)
+        const firstActiveTarget = player.miningTargets.find(t => t.asteroid);
+        player.miningTarget = firstActiveTarget?.asteroid || null;
+        player.miningProgress = firstActiveTarget?.progress || 0;
     } else {
         player.isMining = false;
         player.miningTarget = null;
@@ -5132,7 +6855,7 @@ function mineAsteroid(asteroid) {
     }
 }
 
-function checkHazardCollisions() {
+function checkHazardCollisions(dt = 1) {
     // Optimized with for loop instead of forEach
     const len = hazards.length;
     
@@ -5146,11 +6869,15 @@ function checkHazardCollisions() {
         if (hazard.type === 'vortex') {
             const pullRadiusSq = (hazardData.size * 3) * (hazardData.size * 3);
             
-            // Gravity pull
+            // Gravity pull - now properly scaled with deltaTime for consistent behavior across frame rates
             if (distSq < pullRadiusSq) {
+                const dist = Math.sqrt(distSq);
                 const angle = Math.atan2(dy, dx);
-                player.vx += Math.cos(angle) * hazardData.pullForce;
-                player.vy += Math.sin(angle) * hazardData.pullForce;
+                // Pull force decreases with distance (inverse square law)
+                const distanceFactor = 1 - (dist / (hazardData.size * 3));
+                const pullStrength = hazardData.pullForce * distanceFactor * dt;
+                player.vx += Math.cos(angle) * pullStrength;
+                player.vy += Math.sin(angle) * pullStrength;
             }
             
             // Damage if too close
@@ -5180,6 +6907,12 @@ function checkHazardCollisions() {
 }
 
 function damagePlayer(amount) {
+    // God mode prevents all damage
+    if (godModeActive) {
+        gameState.hull = gameState.maxHull;
+        return;
+    }
+    
     gameState.hull = Math.max(0, gameState.hull - amount);
     createFloatingText(player.x, player.y - 20, `-${amount} HP`, '#ff0000');
     
@@ -5313,24 +7046,48 @@ function updateViewport(dt = 1) {
         viewport.zoom += (viewport.targetZoom - viewport.zoom) * smoothingFactor;
         
         // Adjust viewport position to keep the center point fixed during zoom
-        const centerWorldX = viewport.x + canvas.width / (2 * oldZoom);
-        const centerWorldY = viewport.y + canvas.height / (2 * oldZoom);
+        const centerWorldX = viewport.x + VIEWPORT_REFERENCE.WIDTH / (2 * oldZoom);
+        const centerWorldY = viewport.y + VIEWPORT_REFERENCE.HEIGHT / (2 * oldZoom);
         
-        viewport.x = centerWorldX - canvas.width / (2 * viewport.zoom);
-        viewport.y = centerWorldY - canvas.height / (2 * viewport.zoom);
+        viewport.x = centerWorldX - VIEWPORT_REFERENCE.WIDTH / (2 * viewport.zoom);
+        viewport.y = centerWorldY - VIEWPORT_REFERENCE.HEIGHT / (2 * viewport.zoom);
     }
     
     // Center camera on player with smoothing (time-consistent)
-    const targetX = player.x - canvas.width / (2 * viewport.zoom);
-    const targetY = player.y - canvas.height / (2 * viewport.zoom);
+    const targetX = player.x - VIEWPORT_REFERENCE.WIDTH / (2 * viewport.zoom);
+    const targetY = player.y - VIEWPORT_REFERENCE.HEIGHT / (2 * viewport.zoom);
     
     const smoothingFactor = 1 - Math.pow(1 - viewport.smoothing, dt);
     viewport.x += (targetX - viewport.x) * smoothingFactor;
     viewport.y += (targetY - viewport.y) * smoothingFactor;
     
     // Clamp viewport to world bounds
-    viewport.x = Math.max(0, Math.min(CONFIG.worldWidth - canvas.width / viewport.zoom, viewport.x));
-    viewport.y = Math.max(0, Math.min(CONFIG.worldHeight - canvas.height / viewport.zoom, viewport.y));
+    viewport.x = Math.max(0, Math.min(CONFIG.worldWidth - VIEWPORT_REFERENCE.WIDTH / viewport.zoom, viewport.x));
+    viewport.y = Math.max(0, Math.min(CONFIG.worldHeight - VIEWPORT_REFERENCE.HEIGHT / viewport.zoom, viewport.y));
+}
+
+function updateStars(dt = 1) {
+    if (starWorkerReady && starWorker) {
+        // Send update request to worker
+        starWorker.postMessage({
+            type: 'update',
+            data: { dt: dt }
+        });
+    } else {
+        // Fallback to main thread if worker not available
+        const tileWidth = VIEWPORT_REFERENCE.WIDTH * 2;
+        const tileHeight = VIEWPORT_REFERENCE.HEIGHT * 2;
+        
+        stars.forEach(star => {
+            // Update star position based on velocity and delta time
+            star.x += star.vx * dt;
+            star.y += star.vy * dt;
+            
+            // Wrap stars within tile boundaries
+            star.x = ((star.x % tileWidth) + tileWidth) % tileWidth;
+            star.y = ((star.y % tileHeight) + tileHeight) % tileHeight;
+        });
+    }
 }
 
 // ================================
@@ -5433,12 +7190,17 @@ function render() {
     
     ctx.save();
     
+    // Apply canvas scaling to maintain consistent viewport across all screen sizes
+    // This ensures the game shows the same world space regardless of physical canvas size
+    const renderScale = canvas.renderScale || 1;
+    ctx.scale(renderScale, renderScale);
+    
+    // Render stars BEFORE camera transform for proper parallax effect
+    renderStars();
+    
     // Apply camera transform
     ctx.translate(-viewport.x * viewport.zoom, -viewport.y * viewport.zoom);
     ctx.scale(viewport.zoom, viewport.zoom);
-    
-    // Render stars (background)
-    renderStars();
     
     // Render space station
     renderStation();
@@ -5465,6 +7227,9 @@ function render() {
     // Render player (on top of mining laser)
     renderPlayer();
     
+    // Render cargo drone
+    renderCargoDrone(ctx);
+    
     // Render scan system (on top of everything in world space)
     renderScan();
     
@@ -5472,6 +7237,11 @@ function render() {
     renderFloatingText();
     
     ctx.restore();
+    
+    // Apply phosphor decay effect if CRT mode is enabled
+    if (crtEnabled) {
+        applyPhosphorDecay();
+    }
     
     // Render minimap
     renderMinimap();
@@ -5482,11 +7252,120 @@ function render() {
     }
 }
 
+// ================================
+// PHOSPHOR DECAY EFFECT (CRT)
+// ================================
+
+function applyPhosphorDecay() {
+    // Save a clean copy of the current frame BEFORE applying any effects
+    cleanFrameCtx.clearRect(0, 0, cleanFrameCanvas.width, cleanFrameCanvas.height);
+    cleanFrameCtx.drawImage(canvas, 0, 0);
+    
+    // Enhanced phosphor decay that preserves color saturation and contrast
+    // Calculate time-consistent decay rate
+    const baseDecayPerFrame = 0.08; // Reduced from 0.12 - slower decay for longer trails
+    const targetFrameTime = 16.67; // 60 FPS in milliseconds
+    const decayPerSecond = (baseDecayPerFrame * 1000) / targetFrameTime;
+    const timeScaledDecay = (decayPerSecond * currentDeltaTime) / 1000;
+    const actualDecay = Math.min(Math.max(timeScaledDecay, 0.01), 0.99);
+    
+    // First pass: Fade the phosphor layer
+    phosphorCtx.globalCompositeOperation = 'destination-out';
+    phosphorCtx.globalAlpha = actualDecay * 0.5; // Slower decay for longer trails
+    phosphorCtx.fillStyle = '#000000';
+    phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
+    
+    // Second pass: Add CLEAN current frame to phosphor layer (not the filtered canvas)
+    phosphorCtx.globalCompositeOperation = 'lighter';
+    phosphorCtx.globalAlpha = 0.7; // More visible trails
+    phosphorCtx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame to avoid feedback loop
+    
+    // Third pass: Darken to control brightness
+    phosphorCtx.globalCompositeOperation = 'multiply';
+    phosphorCtx.globalAlpha = 0.08; // Subtle darkening
+    phosphorCtx.fillStyle = '#1a1a28'; // Dark blue-grey for CRT feel
+    phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
+    
+    // Fourth pass: Overlay trails onto main canvas
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.5; // Visible trails
+    ctx.drawImage(phosphorCanvas, 0, 0);
+    
+    // Fifth pass: Boost color saturation using the CLEAN untouched frame
+    ctx.globalCompositeOperation = 'overlay'; // Enhances saturation and contrast
+    ctx.globalAlpha = 0.15; // Subtle saturation boost
+    ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame, not filtered canvas
+    
+    // Sixth pass: Enhance contrast by darkening with the clean frame
+    ctx.globalCompositeOperation = 'multiply'; // Darkens and adds contrast
+    ctx.globalAlpha = 0.25; // Moderate darkening for punchier contrast
+    ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame for contrast definition
+    
+    // Reset composite operation
+    ctx.globalAlpha = 1.0;
+    ctx.globalCompositeOperation = 'source-over';
+}
+
 function renderStars() {
-    stars.forEach(star => {
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
-        ctx.fillRect(star.x, star.y, star.size, star.size);
-    });
+    const renderScale = canvas.renderScale || 1;
+    const scaledWidth = canvas.width / renderScale;
+    const scaledHeight = canvas.height / renderScale;
+    
+    // Request render data calculation from worker (non-blocking)
+    if (starWorkerReady && starWorker) {
+        starWorker.postMessage({
+            type: 'updateViewport',
+            data: { viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom } }
+        });
+        
+        starWorker.postMessage({
+            type: 'calculateRenderData',
+            data: { scaledWidth, scaledHeight }
+        });
+        
+        // Render using pre-calculated data from previous frame
+        // This is one frame behind but imperceptible and keeps rendering smooth
+        for (let i = 0; i < starRenderData.length; i++) {
+            const star = starRenderData[i];
+            ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+            ctx.fillRect(star.x, star.y, star.size, star.size);
+        }
+    } else {
+        // Fallback to main thread rendering if worker not available
+        const tileWidth = VIEWPORT_REFERENCE.WIDTH * 2;
+        const tileHeight = VIEWPORT_REFERENCE.HEIGHT * 2;
+        
+        const viewportCenterX = viewport.x + (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
+        const viewportCenterY = viewport.y + (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
+        
+        stars.forEach(star => {
+            const scrollX = viewportCenterX * star.parallaxFactor;
+            const scrollY = viewportCenterY * star.parallaxFactor;
+            
+            let starX = star.x - scrollX;
+            let starY = star.y - scrollY;
+            
+            starX = ((starX % tileWidth) + tileWidth) % tileWidth;
+            starY = ((starY % tileHeight) + tileHeight) % tileHeight;
+            
+            const centerX = scaledWidth / 2;
+            const centerY = scaledHeight / 2;
+            
+            for (let tx = -1; tx <= 1; tx++) {
+                for (let ty = -1; ty <= 1; ty++) {
+                    const screenX = centerX - tileWidth/2 + starX + tx * tileWidth;
+                    const screenY = centerY - tileHeight/2 + starY + ty * tileHeight;
+                    
+                    if (screenX >= -10 && screenX <= scaledWidth + 10 &&
+                        screenY >= -10 && screenY <= scaledHeight + 10) {
+                        
+                        ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+                        ctx.fillRect(screenX, screenY, star.size, star.size);
+                    }
+                }
+            }
+        });
+    }
 }
 
 function renderStation() {
@@ -5765,181 +7644,362 @@ function renderPlayer() {
     if (showThruster) {
         const speedLevel = gameState.upgrades.speed || 1;
         const thrusterCount = Math.min(Math.floor(speedLevel / 3) + 1, 3); // 1-3 thrusters based on speed
-        const thrusterLength = Math.min(currentSpeed * 3, player.size * 1.5);
+        const thrusterLength = Math.min(currentSpeed * 15, player.size * 8); // Even longer: 15x speed, 8x max size
         const flicker = Math.random() * 0.3 + 0.7;
         
         // Enhanced thrusters based on speed upgrade - use player's thruster color
         const thrusterIntensity = Math.min(speedLevel / 10, 1);
+        
         // Parse the player's thruster color to create gradient variations
         const baseColor = player.colors.thruster;
-        const thrusterColor = `${baseColor}${Math.floor(flicker * 204 + 51).toString(16).padStart(2, '0')}`; // Add alpha
-        const innerColor = `rgba(255, 255, ${100 + Math.floor(thrusterIntensity * 155)}, ${flicker})`;
+        
+        // Extract RGB from hex color
+        const r = parseInt(baseColor.substr(1, 2), 16);
+        const g = parseInt(baseColor.substr(3, 2), 16);
+        const b = parseInt(baseColor.substr(5, 2), 16);
+        
+        // Outer flame - uses base color with flickering alpha
+        const thrusterColor = `${baseColor}${Math.floor(flicker * 204 + 51).toString(16).padStart(2, '0')}`;
+        
+        // Inner flame - lighter/brighter version of base color with flickering alpha
+        const lightenFactor = 0.6 + (thrusterIntensity * 0.4); // 0.6 to 1.0
+        const innerR = Math.min(255, Math.floor(r + (255 - r) * lightenFactor));
+        const innerG = Math.min(255, Math.floor(g + (255 - g) * lightenFactor));
+        const innerB = Math.min(255, Math.floor(b + (255 - b) * lightenFactor));
+        const innerColor = `rgba(${innerR}, ${innerG}, ${innerB}, ${flicker})`;
         
         for (let i = 0; i < thrusterCount; i++) {
-            const offset = (i - (thrusterCount - 1) / 2) * player.size * 0.3;
+            const offset = (i - (thrusterCount - 1) / 2) * player.size * 0.25;
             
             ctx.fillStyle = thrusterColor;
             ctx.beginPath();
-            ctx.moveTo(-player.size * 0.6, -player.size * 0.3 + offset);
-            ctx.lineTo(-player.size - thrusterLength, offset);
-            ctx.lineTo(-player.size * 0.6, player.size * 0.3 + offset);
+            // Flames start from tapered trapezoid rear edge - wider opening (±0.2 instead of ±0.15)
+            ctx.moveTo(-player.size * 0.75, -player.size * 0.2 + offset);
+            ctx.lineTo(-player.size * 0.75 - thrusterLength, offset);
+            ctx.lineTo(-player.size * 0.75, player.size * 0.2 + offset);
             ctx.closePath();
             ctx.fill();
             
-            // Inner flame
+            // Inner flame - bigger core
             ctx.fillStyle = innerColor;
             ctx.beginPath();
-            ctx.moveTo(-player.size * 0.6, -player.size * 0.2 + offset);
-            ctx.lineTo(-player.size - thrusterLength * 0.6, offset);
-            ctx.lineTo(-player.size * 0.6, player.size * 0.2 + offset);
+            ctx.moveTo(-player.size * 0.75, -player.size * 0.15 + offset);
+            ctx.lineTo(-player.size * 0.75 - thrusterLength * 0.7, offset);
+            ctx.lineTo(-player.size * 0.75, player.size * 0.15 + offset);
             ctx.closePath();
             ctx.fill();
         }
     }
     
-    // Main ship body - Mining Vessel design - use player's custom colors
+    // Main ship body - Mining Vessel design (Design #6: Sleek Frigate)
+    // Ship structure: Triangle nose -> Rectangular body with side tanks -> Triangle rear
+    /*
+        /\
+     []/__\[]
+     | |()| |
+     | |  | |
+     |_|  |_|
+       \  /
+        \/
+    */
+    
     ctx.fillStyle = player.colors.primary;
     ctx.strokeStyle = player.colors.secondary;
     ctx.lineWidth = 2;
     
-    // Central hull (triangle)
+    // ===== FRONT: Triangle Nose =====
     ctx.beginPath();
-    ctx.moveTo(player.size * 0.8, 0);
-    ctx.lineTo(-player.size * 0.4, -player.size * 0.5);
-    ctx.lineTo(-player.size * 0.4, player.size * 0.5);
+    ctx.moveTo(player.size * 0.85, 0);                          // Nose tip (pointed)
+    ctx.lineTo(player.size * 0.4, -player.size * 0.25);         // Top-left of nose (matches body width)
+    ctx.lineTo(player.size * 0.4, player.size * 0.25);          // Bottom-left of nose (matches body width)
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     
-    // Cargo pods (side attachments) - scale with cargo upgrade
-    const cargoLevel = gameState.upgrades.cargo || 1;
-    const podSize = Math.min(0.3 + (cargoLevel - 1) * 0.03, 0.6); // Grows from 0.3 to 0.6
-    const podOpacity = Math.min(0.3 + cargoLevel * 0.07, 1);
-    
-    ctx.fillStyle = `rgba(0, 200, 200, ${podOpacity})`;
-    ctx.strokeStyle = '#00aaaa';
-    ctx.lineWidth = 1.5;
-    
-    // Left cargo pod
+    // ===== MIDDLE: Rectangular Main Body (elongated) =====
     ctx.beginPath();
-    ctx.rect(-player.size * 0.3, -player.size * (0.5 + podSize * 0.5), player.size * 0.6, player.size * podSize);
+    ctx.rect(-player.size * 0.4, -player.size * 0.25, player.size * 0.8, player.size * 0.5);
     ctx.fill();
     ctx.stroke();
     
-    // Right cargo pod
+    // ===== REAR: Trapezoid Thruster Section (wide at body, tapers to rear) =====
     ctx.beginPath();
-    ctx.rect(-player.size * 0.3, player.size * (0.5 - podSize * 0.5), player.size * 0.6, player.size * podSize);
+    ctx.moveTo(-player.size * 0.4, -player.size * 0.25);        // Top-right of body (matches body width)
+    ctx.lineTo(-player.size * 0.75, -player.size * 0.15);       // Top-rear (tapered narrower)
+    ctx.lineTo(-player.size * 0.75, player.size * 0.15);        // Bottom-rear (tapered narrower)
+    ctx.lineTo(-player.size * 0.4, player.size * 0.25);         // Bottom-right of body (matches body width)
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
     
-    // Hull reinforcement lines - appears with hull upgrades
-    const hullLevel = gameState.upgrades.hull || 1;
-    if (hullLevel >= 3) {
-        ctx.strokeStyle = '#00dddd';
+    // ===== THRUSTER NACELLES (Speed upgrade visual) =====
+    const speedLevel = gameState.upgrades.speed || 1;
+    if (speedLevel >= 3) {
+        const nacelleOpacity = Math.min(0.3 + (speedLevel - 3) * 0.07, 0.9);
+        ctx.fillStyle = `rgba(80, 100, 120, ${nacelleOpacity})`;
+        ctx.strokeStyle = player.colors.secondary;
         ctx.lineWidth = 1;
-        const reinforcementLines = Math.min(Math.floor(hullLevel / 2), 5);
-        for (let i = 0; i < reinforcementLines; i++) {
-            const x = player.size * 0.6 - (i * player.size * 0.25);
+        
+        // Number of nacelles based on speed level
+        const nacelleCount = Math.min(Math.floor((speedLevel - 2) / 3) + 1, 3);
+        const nacelleSize = player.size * 0.12;
+        
+        for (let i = 0; i < nacelleCount; i++) {
+            const offset = (i - (nacelleCount - 1) / 2) * player.size * 0.25;
+            
+            // Nacelle body
             ctx.beginPath();
-            ctx.moveTo(x, -player.size * 0.4);
-            ctx.lineTo(x, player.size * 0.4);
+            ctx.rect(-player.size * 0.55, offset - nacelleSize / 2, player.size * 0.2, nacelleSize);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Thruster port (glowing)
+            ctx.fillStyle = player.colors.thruster;
+            ctx.beginPath();
+            ctx.arc(-player.size * 0.55, offset, nacelleSize * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = `rgba(80, 100, 120, ${nacelleOpacity})`;
+        }
+    }
+    
+    // ===== SIDE TANKS (Cargo/Fuel Pods) - Running parallel alongside body =====
+    const cargoLevel = gameState.upgrades.cargo || 1;
+    const fuelLevel = gameState.upgrades.fuel || 1;
+    const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1); // Longer base + grows with upgrades
+    const tankWidth = player.size * 0.22; // Much wider tanks
+    
+    // Calculate tank start position to center it at 0.0
+    const tankStartX = -tankLength / 2;
+    
+    // Left tank is CARGO (left side of ship)
+    const cargoFillPercent = gameState.cargo / gameState.maxCargo;
+    const cargoFillWidth = player.size * tankLength * cargoFillPercent;
+    
+    // Cargo fill - DRAW FIRST (behind) - fills from front to back
+    // Parse accent color and create semi-transparent version
+    const accentR = parseInt(player.colors.accent.substr(1, 2), 16);
+    const accentG = parseInt(player.colors.accent.substr(3, 2), 16);
+    const accentB = parseInt(player.colors.accent.substr(5, 2), 16);
+    ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${0.6 + cargoLevel * 0.04})`;
+    ctx.beginPath();
+    ctx.rect(
+        player.size * tankStartX, 
+        -player.size * 0.47,
+        cargoFillWidth,
+        tankWidth
+    );
+    ctx.fill();
+    
+    // Cargo tank outline - DRAW SECOND (on top)
+    ctx.strokeStyle = player.colors.secondary;
+    ctx.lineWidth = 1.5;
+    ctx.fillStyle = 'rgba(0, 50, 50, 0.3)'; // Dark background
+    ctx.beginPath();
+    ctx.rect(player.size * tankStartX, -player.size * 0.47, player.size * tankLength, tankWidth);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Right tank is FUEL (right side of ship)
+    const fuelFillPercent = gameState.fuel / gameState.maxFuel;
+    const fuelFillWidth = player.size * tankLength * fuelFillPercent;
+    
+    // Fuel fill - DRAW FIRST (behind) - fills from front to back
+    // Parse thruster color and create semi-transparent version
+    const thrusterR = parseInt(player.colors.thruster.substr(1, 2), 16);
+    const thrusterG = parseInt(player.colors.thruster.substr(3, 2), 16);
+    const thrusterB = parseInt(player.colors.thruster.substr(5, 2), 16);
+    ctx.fillStyle = `rgba(${thrusterR}, ${thrusterG}, ${thrusterB}, ${0.6 + fuelLevel * 0.04})`;
+    ctx.beginPath();
+    ctx.rect(
+        player.size * tankStartX,
+        player.size * 0.47 - tankWidth,
+        fuelFillWidth,
+        tankWidth
+    );
+    ctx.fill();
+    
+    // Fuel tank outline - DRAW SECOND (on top)
+    ctx.fillStyle = 'rgba(0, 50, 80, 0.3)'; // Dark background
+    ctx.beginPath();
+    ctx.rect(player.size * tankStartX, player.size * 0.47 - tankWidth, player.size * tankLength, tankWidth);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Tank connection struts - connecting tanks to main body
+    ctx.strokeStyle = player.colors.secondary;
+    ctx.lineWidth = 1;
+    // Front struts
+    ctx.beginPath();
+    ctx.moveTo(player.size * 0.3, -player.size * 0.25);
+    ctx.lineTo(player.size * 0.3, -player.size * 0.47);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(player.size * 0.3, player.size * 0.25);
+    ctx.lineTo(player.size * 0.3, player.size * 0.47 - tankWidth);
+    ctx.stroke();
+    // Rear struts
+    ctx.beginPath();
+    ctx.moveTo(-player.size * 0.3, -player.size * 0.25);
+    ctx.lineTo(-player.size * 0.3, -player.size * 0.47);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-player.size * 0.3, player.size * 0.25);
+    ctx.lineTo(-player.size * 0.3, player.size * 0.47 - tankWidth);
+    ctx.stroke();
+    
+    // ===== COCKPIT WINDOW (Center of body) =====
+    ctx.fillStyle = '#00ddff';
+    ctx.strokeStyle = player.colors.accent;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(player.size * 0.15, 0, player.size * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Cockpit inner window (glowing)
+    ctx.fillStyle = '#00ffff';
+    ctx.beginPath();
+    ctx.arc(player.size * 0.15, 0, player.size * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // ===== DETAIL LINES (Body paneling) =====
+    ctx.strokeStyle = player.colors.secondary;
+    ctx.lineWidth = 1;
+    
+    // Horizontal center line
+    ctx.beginPath();
+    ctx.moveTo(-player.size * 0.4, 0);
+    ctx.lineTo(player.size * 0.4, 0);
+    ctx.stroke();
+    
+    // Vertical separation lines (between sections)
+    ctx.beginPath();
+    ctx.moveTo(player.size * 0.4, -player.size * 0.25);
+    ctx.lineTo(player.size * 0.4, player.size * 0.25);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(-player.size * 0.4, -player.size * 0.25);
+    ctx.lineTo(-player.size * 0.4, player.size * 0.25);
+    ctx.stroke();
+    
+    // ===== HULL REINFORCEMENT (Armor Plating) =====
+    const hullLevel = gameState.upgrades.hull || 1;
+    
+    // Armor plating appears at level 2+ with increasing visibility
+    if (hullLevel >= 2) {
+        const armorOpacity = Math.min(0.2 + (hullLevel - 2) * 0.08, 0.8);
+        ctx.fillStyle = `rgba(100, 120, 140, ${armorOpacity})`;
+        ctx.strokeStyle = player.colors.secondary;
+        ctx.lineWidth = 1.5;
+        
+        // Armor plates on main body
+        const plateCount = Math.min(Math.floor((hullLevel - 1) / 2), 3);
+        for (let i = 0; i < plateCount; i++) {
+            const x = player.size * 0.15 - (i * player.size * 0.2);
+            const plateWidth = player.size * 0.15;
+            const plateHeight = player.size * 0.4;
+            
+            ctx.beginPath();
+            ctx.rect(x - plateWidth / 2, -plateHeight / 2, plateWidth, plateHeight);
+            ctx.fill();
             ctx.stroke();
         }
     }
     
-    // Mining lasers (front-mounted) - based on multiMining upgrade - use player's accent color
+    // Reinforcement lines at level 5+
+    if (hullLevel >= 5) {
+        ctx.strokeStyle = player.colors.accent;
+        ctx.lineWidth = 2;
+        const reinforcementLines = Math.min(Math.floor((hullLevel - 4) / 2), 3);
+        for (let i = 0; i < reinforcementLines; i++) {
+            const x = player.size * 0.1 - (i * player.size * 0.15);
+            ctx.beginPath();
+            ctx.moveTo(x, -player.size * 0.2);
+            ctx.lineTo(x, player.size * 0.2);
+            ctx.stroke();
+        }
+    }
+    
+    // ===== MINING LASERS (Tank-mounted) =====
     const miningLasers = gameState.upgrades.multiMining || 1;
+    const tankEndX = tankLength / 2;
+    
     ctx.fillStyle = player.colors.accent;
     ctx.strokeStyle = player.colors.secondary;
     ctx.lineWidth = 1;
     
-    for (let i = 0; i < Math.min(miningLasers, 4); i++) {
-        const angle = (i - (miningLasers - 1) / 2) * 0.4;
-        const laserX = player.size * 0.6 * Math.cos(angle);
-        const laserY = player.size * 0.6 * Math.sin(angle);
+    // Define laser positions on tanks (reusing tank variables from above)
+    const laserPositions = [];
+    if (miningLasers >= 1) laserPositions.push({ x: tankEndX, y: 0.47 }); // Front fuel
+    if (miningLasers >= 2) laserPositions.push({ x: tankEndX, y: -0.47 }); // Front cargo
+    if (miningLasers >= 3) laserPositions.push({ x: 0.0, y: 0.47 /*+ (tankWidth / player.size) */}); // Center fuel outer
+    if (miningLasers >= 4) laserPositions.push({ x: 0.0, y: -0.47 /*- (tankWidth / player.size) */}); // Center cargo outer
+    if (miningLasers >= 5) laserPositions.push({ x: tankStartX, y: 0.47 }); // Rear fuel
+    if (miningLasers >= 6) laserPositions.push({ x: tankStartX, y: -0.47 }); // Rear cargo
+    
+    laserPositions.forEach((pos, i) => {
+        const laserX = player.size * pos.x;
+        const laserY = player.size * pos.y;
         
         ctx.beginPath();
-        ctx.arc(laserX, laserY, player.size * 0.12, 0, Math.PI * 2);
+        ctx.arc(laserX, laserY, player.size * 0.1, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         
-        // Laser glow when actively mining
-        if (player.isMining && i < player.miningTargets.length) {
-            ctx.fillStyle = `${player.colors.accent}80`; // Use accent color with transparency
+        // Laser glow when actively mining AND this specific laser has a target
+        if (player.isMining && i < player.miningTargets.length && player.miningTargets[i] && player.miningTargets[i].asteroid) {
+            ctx.fillStyle = `${player.colors.accent}80`;
             ctx.beginPath();
-            ctx.arc(laserX, laserY, player.size * 0.2, 0, Math.PI * 2);
+            ctx.arc(laserX, laserY, player.size * 0.18, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = player.colors.accent;
         }
-    }
+    });
     
-    // Scanner dish - only if advanced scanner purchased
+    // ===== ADVANCED SCANNER ANTENNA (Nose mount) =====
     if (gameState.upgrades.advancedScanner >= 1) {
-        ctx.strokeStyle = '#00ff00';
-        ctx.fillStyle = '#004400';
-        ctx.lineWidth = 1.5;
+        // Pulsing glow effect
+        const pulseSpeed = 2; // Pulses per second
+        const pulsePhase = (Date.now() / 1000) * pulseSpeed;
+        const pulseIntensity = (Math.sin(pulsePhase * Math.PI * 2) + 1) / 2; // 0 to 1
         
-        // Dish mount (top of ship)
+        const noseX = player.size * 0.85; // At the tip of the nose
+        const noseY = 0;
+        const baseRadius = 2; // Half the previous size (was 4)
+        const glowRadius = baseRadius + (pulseIntensity * 1.5); // Grows from 2 to 3.5
+        
+        // Convert accent color to RGB for gradient
+        const accentColor = player.colors.accent;
+        const r = parseInt(accentColor.slice(1, 3), 16);
+        const g = parseInt(accentColor.slice(3, 5), 16);
+        const b = parseInt(accentColor.slice(5, 7), 16);
+        
+        // Outer glow (pulsing)
+        const gradient = ctx.createRadialGradient(noseX, noseY, 0, noseX, noseY, glowRadius);
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.8 * pulseIntensity})`);
+        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${0.4 * pulseIntensity})`);
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        
+        ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.rect(-player.size * 0.1, -player.size * 0.8, player.size * 0.2, player.size * 0.3);
+        ctx.arc(noseX, noseY, glowRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
         
-        // Dish (rotating slightly)
-        const dishAngle = Math.sin(Date.now() / 1000) * 0.2;
-        ctx.save();
-        ctx.translate(0, -player.size * 0.65);
-        ctx.rotate(dishAngle);
-        
-        ctx.fillStyle = '#006600';
+        // Core circle (accent color)
+        ctx.fillStyle = player.colors.accent;
         ctx.beginPath();
-        ctx.ellipse(0, 0, player.size * 0.25, player.size * 0.15, 0, 0, Math.PI * 2);
+        ctx.arc(noseX, noseY, baseRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
         
-        // Scanner pulse when scanning
-        if (scanState.active) {
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-            ctx.lineWidth = 2;
-            const pulseRadius = (scanState.duration / SCAN_CONFIG.scanDuration) * player.size * 0.4;
-            ctx.beginPath();
-            ctx.arc(0, 0, pulseRadius, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-        
-        ctx.restore();
+        // Bright inner core
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(noseX, noseY, baseRadius * 0.5, 0, Math.PI * 2);
+        ctx.fill();
     }
     
-    // Fuel tanks (bottom attachment) - scale with fuel upgrade
-    const fuelLevel = gameState.upgrades.fuel || 1;
-    if (fuelLevel >= 3) {
-        const tankSize = Math.min(0.15 + (fuelLevel - 3) * 0.02, 0.3);
-        ctx.fillStyle = '#0088ff';
-        ctx.strokeStyle = '#0066cc';
-        ctx.lineWidth = 1;
-        
-        ctx.beginPath();
-        ctx.rect(-player.size * 0.6, -player.size * (tankSize / 2), player.size * 0.3, player.size * tankSize);
-        ctx.fill();
-        ctx.stroke();
-    }
-    
-    // Cockpit (central detail)
-    ctx.fillStyle = '#008888';
-    ctx.strokeStyle = '#00aaaa';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(player.size * 0.3, 0, player.size * 0.25, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Cockpit window
-    ctx.fillStyle = '#00ddff';
-    ctx.beginPath();
-    ctx.arc(player.size * 0.35, 0, player.size * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Range indicator lines (mining range upgrade visual)
+    // ===== MINING LASERS (Front-mounted on nose) =====
     const rangeLevel = gameState.upgrades.range || 1;
     if (rangeLevel >= 5) {
         ctx.strokeStyle = 'rgba(255, 255, 0, 0.2)';
@@ -5968,6 +8028,138 @@ function renderPlayer() {
         ctx.beginPath();
         ctx.arc(0, 0, player.size * 1.5, 0, Math.PI * 2);
         ctx.stroke();
+    }
+    
+    // ===== FUEL WARNING INDICATORS =====
+    const fuelPercentage = (gameState.fuel / gameState.maxFuel) * 100;
+    const currentTime = Date.now();
+    
+    // Track when warnings are triggered
+    if (fuelPercentage <= 40 && fuelPercentage > 20 && !fuelWarnings.warning50.triggered) {
+        fuelWarnings.warning50.triggered = true;
+        fuelWarnings.warning50.timestamp = currentTime;
+    }
+    if (fuelPercentage <= 20 && fuelPercentage > 10 && !fuelWarnings.warning25.triggered) {
+        fuelWarnings.warning25.triggered = true;
+        fuelWarnings.warning25.timestamp = currentTime;
+    }
+    
+    // Reset warnings if fuel goes back above threshold (refueling)
+    if (fuelPercentage > 40) {
+        fuelWarnings.warning50.triggered = false;
+    }
+    if (fuelPercentage > 20) {
+        fuelWarnings.warning25.triggered = false;
+    }
+    
+    if (fuelPercentage <= 40) {
+        // Save current rotation state and reset to upright
+        ctx.save();
+        ctx.rotate(-player.angle); // Counter-rotate to make warning upright
+        
+        if (fuelPercentage > 20) {
+            // 40% warning - yellow caution (1 sec display + 1 sec fade)
+            const timeSinceTriggered = currentTime - fuelWarnings.warning50.timestamp;
+            let warningAlpha = 0;
+            
+            if (timeSinceTriggered < 1000) {
+                // First second: full visibility
+                warningAlpha = 1.0;
+            } else if (timeSinceTriggered < 2000) {
+                // Second second: fade out
+                warningAlpha = 1.0 - ((timeSinceTriggered - 1000) / 1000);
+            }
+            
+            if (warningAlpha > 0) {
+                const pulse = Math.sin(Date.now() / 1000) * 0.3 + 0.7; // Slow pulse
+                ctx.fillStyle = `rgba(255, 200, 0, ${pulse * warningAlpha})`;
+                ctx.font = `bold ${player.size * 0.4}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('FUEL AT 40%', 0, -player.size * 1.2);
+                
+                // Small indicator triangle
+                ctx.strokeStyle = `rgba(255, 200, 0, ${pulse * warningAlpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-player.size * 0.15, -player.size * 0.95);
+                ctx.lineTo(0, -player.size * 1.05);
+                ctx.lineTo(player.size * 0.15, -player.size * 0.95);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        } else if (fuelPercentage > 15) {
+            // 20% warning - orange urgent (1 sec display + 1 sec fade)
+            const timeSinceTriggered = currentTime - fuelWarnings.warning25.timestamp;
+            let warningAlpha = 0;
+            
+            if (timeSinceTriggered < 1000) {
+                // First second: full visibility
+                warningAlpha = 1.0;
+            } else if (timeSinceTriggered < 2000) {
+                // Second second: fade out
+                warningAlpha = 1.0 - ((timeSinceTriggered - 1000) / 1000);
+            }
+            
+            if (warningAlpha > 0) {
+                const pulse = Math.sin(Date.now() / 500) * 0.4 + 0.6; // Faster pulse
+                ctx.fillStyle = `rgba(255, 120, 0, ${pulse * warningAlpha})`;
+                ctx.font = `bold ${player.size * 0.45}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('⚠ FUEL AT 20%', 0, -player.size * 1.25);
+                
+                // Double warning triangles
+                ctx.strokeStyle = `rgba(255, 120, 0, ${pulse * warningAlpha})`;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(-player.size * 0.25, -player.size * 0.95);
+                ctx.lineTo(-player.size * 0.1, -player.size * 1.05);
+                ctx.lineTo(player.size * 0.05, -player.size * 0.95);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(-player.size * 0.05, -player.size * 0.95);
+                ctx.lineTo(player.size * 0.1, -player.size * 1.05);
+                ctx.lineTo(player.size * 0.25, -player.size * 0.95);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        } else {
+            // Critical warning - red persistent with fast flash
+            const flash = Math.sin(Date.now() / 200) * 0.5 + 0.5; // Fast flash
+            ctx.fillStyle = `rgba(255, 0, 0, ${0.8 + flash * 0.2})`;
+            ctx.font = `bold ${player.size * 0.5}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('FUEL CRITICAL!', 0, -player.size * 1.3);
+            
+            // Critical background box
+            ctx.fillStyle = `rgba(255, 0, 0, ${0.2 + flash * 0.15})`;
+            ctx.fillRect(-player.size * 0.6, -player.size * 1.5, player.size * 1.2, player.size * 0.35);
+            
+            // Re-render text on top of box
+            ctx.fillStyle = `rgba(255, 0, 0, ${0.8 + flash * 0.2})`;
+            ctx.fillText('FUEL CRITICAL!', 0, -player.size * 1.3);
+            
+            // Triple warning triangles
+            ctx.strokeStyle = `rgba(255, 0, 0, ${0.8 + flash * 0.2})`;
+            ctx.lineWidth = 3;
+            for (let i = 0; i < 3; i++) {
+                const offsetX = (i - 1) * player.size * 0.22;
+                ctx.beginPath();
+                ctx.moveTo(offsetX - player.size * 0.08, -player.size * 0.95);
+                ctx.lineTo(offsetX, -player.size * 1.05);
+                ctx.lineTo(offsetX + player.size * 0.08, -player.size * 0.95);
+                ctx.closePath();
+                ctx.stroke();
+            }
+            
+            // Fuel percentage display
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = `bold ${player.size * 0.35}px monospace`;
+            ctx.fillText(`${fuelPercentage.toFixed(1)}%`, 0, -player.size * 0.7);
+        }
+        
+        // Restore rotation state
+        ctx.restore();
     }
     
     ctx.restore();
@@ -6103,14 +8295,87 @@ function renderHazards() {
         ctx.translate(hazard.x, hazard.y);
         ctx.rotate(hazard.rotation);
         
-        // Hazard sprite
+        // Draw hazard as geometric shape instead of text (for consistent cross-platform rendering)
         ctx.fillStyle = data.color;
-        ctx.font = `${data.size * 2}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(data.icon, 0, 0);
+        ctx.strokeStyle = data.color;
+        ctx.lineWidth = 2;
         
-        // Vortex effect (only for visible vortexes)
+        if (hazard.type === 'debris') {
+            // Space Debris: X shape with rotating fragments
+            const size = data.size;
+            ctx.beginPath();
+            // Diagonal line 1
+            ctx.moveTo(-size * 0.6, -size * 0.6);
+            ctx.lineTo(size * 0.6, size * 0.6);
+            // Diagonal line 2
+            ctx.moveTo(size * 0.6, -size * 0.6);
+            ctx.lineTo(-size * 0.6, size * 0.6);
+            ctx.stroke();
+            
+            // Add small squares at the ends for detail
+            const squareSize = size * 0.2;
+            ctx.fillRect(-size * 0.6 - squareSize/2, -size * 0.6 - squareSize/2, squareSize, squareSize);
+            ctx.fillRect(size * 0.6 - squareSize/2, size * 0.6 - squareSize/2, squareSize, squareSize);
+            ctx.fillRect(size * 0.6 - squareSize/2, -size * 0.6 - squareSize/2, squareSize, squareSize);
+            ctx.fillRect(-size * 0.6 - squareSize/2, size * 0.6 - squareSize/2, squareSize, squareSize);
+            
+        } else if (hazard.type === 'mine') {
+            // Proximity Mine: Circle with spikes
+            const size = data.size;
+            
+            // Central circle
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Spikes around the mine
+            const spikeCount = 8;
+            for (let s = 0; s < spikeCount; s++) {
+                const angle = (s / spikeCount) * Math.PI * 2;
+                const innerRadius = size * 0.5;
+                const outerRadius = size * 0.9;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+                ctx.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
+                ctx.stroke();
+            }
+            
+            // Inner ring for detail
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.3, 0, Math.PI * 2);
+            ctx.strokeStyle = '#880000';
+            ctx.stroke();
+            
+        } else if (hazard.type === 'vortex') {
+            // Gravity Vortex: Spiral pattern
+            const size = data.size;
+            
+            // Draw swirling spiral
+            ctx.strokeStyle = data.color;
+            ctx.lineWidth = 3;
+            const spiralTurns = 3;
+            ctx.beginPath();
+            for (let t = 0; t < spiralTurns; t += 0.1) {
+                const angle = t * Math.PI * 2;
+                const radius = (size * 0.6) * (t / spiralTurns);
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                if (t === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Center dot
+            ctx.fillStyle = data.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.15, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Vortex effect (animated rings for vortex only)
         if (hazard.type === 'vortex') {
             ctx.strokeStyle = `rgba(136, 0, 255, ${0.3 + Math.sin(frameCount * 0.1) * 0.2})`;
             ctx.lineWidth = 2;
@@ -6149,22 +8414,83 @@ function renderParticles() {
 }
 
 function renderMiningLaser() {
-    // Draw lasers for all mining targets
-    player.miningTargets.forEach(target => {
-        // Safety check: ensure asteroid still exists and isn't destroyed
-        if (!target.asteroid || target.asteroid.destroyed || !asteroids.includes(target.asteroid)) {
+    // Calculate physical laser positions on the ship based on tank locations
+    const miningLasers = gameState.upgrades.multiMining || 1;
+    const laserPositions = [];
+    
+    // Tank dimensions (match the tank rendering code)
+    const cargoLevel = gameState.upgrades.cargo || 1;
+    const fuelLevel = gameState.upgrades.fuel || 1;
+    const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
+    const tankWidth = 0.22; // Relative to player.size
+    const tankStartX = -tankLength / 2;
+    const tankEndX = tankLength / 2;
+    
+    // Define laser positions in ship-local coordinates (before rotation)
+    const laserLocalPositions = [];
+    
+    if (miningLasers >= 1) {
+        // Laser 1: Front of fuel tank (bottom-front)
+        laserLocalPositions.push({ x: tankEndX, y: 0.47 });
+    }
+    if (miningLasers >= 2) {
+        // Laser 2: Front of cargo tank (top-front)
+        laserLocalPositions.push({ x: tankEndX, y: -0.47 });
+    }
+    if (miningLasers >= 3) {
+        // Laser 3: Center, far side of fuel tank (bottom-center, outer edge)
+        laserLocalPositions.push({ x: 0.0, y: 0.47 });
+    }
+    if (miningLasers >= 4) {
+        // Laser 4: Center, far side of cargo tank (top-center, outer edge)
+        laserLocalPositions.push({ x: 0.0, y: -0.47 });
+    }
+    if (miningLasers >= 5) {
+        // Laser 5: Back of fuel tank (bottom-rear)
+        laserLocalPositions.push({ x: tankStartX, y: 0.47 });
+    }
+    if (miningLasers >= 6) {
+        // Laser 6: Back of cargo tank (top-rear)
+        laserLocalPositions.push({ x: tankStartX, y: -0.47 });
+    }
+    
+    // Transform local coordinates to world coordinates using ship's rotation
+    laserLocalPositions.forEach(local => {
+        const localX = local.x * player.size;
+        const localY = local.y * player.size;
+        
+        const worldX = player.x + Math.cos(player.angle) * localX - Math.sin(player.angle) * localY;
+        const worldY = player.y + Math.sin(player.angle) * localX + Math.cos(player.angle) * localY;
+        
+        laserPositions.push({ x: worldX, y: worldY, localX: local.x, localY: local.y });
+    });
+    
+    // Draw lasers from physical laser positions to targets
+    player.miningTargets.forEach((target, index) => {
+        // Skip idle lasers (no target assigned)
+        if (!target || !target.asteroid) {
             return;
         }
         
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+        // Safety check: ensure asteroid still exists and isn't destroyed
+        if (target.asteroid.destroyed || !asteroids.includes(target.asteroid)) {
+            return;
+        }
+        
+        // Get the corresponding laser position for this laser index
+        const laserPos = laserPositions[index];
+        if (!laserPos) return; // Safety check
+        
+        // Use player's accent color for laser beam
+        ctx.strokeStyle = `${player.colors.accent}99`; // 60% opacity
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
+        ctx.moveTo(laserPos.x, laserPos.y);
         ctx.lineTo(target.asteroid.x, target.asteroid.y);
         ctx.stroke();
         
         // Glow effect
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.strokeStyle = `${player.colors.accent}4D`; // 30% opacity
         ctx.lineWidth = 4;
         ctx.stroke();
     });
@@ -6239,13 +8565,23 @@ function renderMinimap() {
         4, 4
     );
     
-    // Draw viewport bounds
+    // Draw cargo drone
+    if (cargoDrone !== null) {
+        minimapCtx.fillStyle = player.colors.accent;
+        minimapCtx.fillRect(
+            cargoDrone.x * scale - 2,
+            cargoDrone.y * scale - 2,
+            3, 3
+        );
+    }
+    
+    // Draw viewport bounds (using reference resolution for consistent viewport size)
     minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     minimapCtx.strokeRect(
         viewport.x * scale,
         viewport.y * scale,
-        (canvas.width / viewport.zoom) * scale,
-        (canvas.height / viewport.zoom) * scale
+        (VIEWPORT_REFERENCE.WIDTH / viewport.zoom) * scale,
+        (VIEWPORT_REFERENCE.HEIGHT / viewport.zoom) * scale
     );
     
     // Scanner indicator - show if scanner is ready
@@ -6264,7 +8600,15 @@ function renderTouchIndicator() {
     // Draw touch position indicator
     ctx.save();
     
-    // Calculate ship's position on screen (accounting for viewport)
+    // Get the render scale to convert from viewport reference to canvas coordinates
+    const renderScale = canvas.renderScale || 1;
+    const scaledWidth = canvas.width / renderScale;
+    const scaledHeight = canvas.height / renderScale;
+    
+    // Apply the same scaling as the main render
+    ctx.scale(renderScale, renderScale);
+    
+    // Calculate ship position in scaled canvas coordinates
     const shipScreenX = (player.x - viewport.x) * viewport.zoom;
     const shipScreenY = (player.y - viewport.y) * viewport.zoom;
     
@@ -6395,8 +8739,12 @@ function updateUI() {
     
     document.getElementById('returnToStation').disabled = withinStationRange;
     
-    // Call for Help button - only enabled if have credits and no rescue ship active
-    document.getElementById('callForHelp').disabled = gameState.credits < 100 || rescueShip !== null;
+    // Call for Help button - cost is 1.5x fuel needed
+    const fuelNeededForRescue = gameState.maxFuel - gameState.fuel;
+    const rescueCost = Math.ceil(fuelNeededForRescue * 1.5);
+    const callForHelpBtn = document.getElementById('callForHelp');
+    callForHelpBtn.disabled = gameState.credits < rescueCost || rescueShip !== null;
+    callForHelpBtn.querySelector('.btn-text').textContent = `CALL FOR HELP - ${rescueCost} CR`;
     
     // Next Sector button - requires both fuel and credits
     document.getElementById('nextSector').disabled = gameState.fuel < 50 || gameState.credits < 10000;
@@ -6443,7 +8791,7 @@ function updateStationInterface() {
         }
     });
     
-    document.getElementById('cargoValue').textContent = `${formatNumber(cargoValue)}¢`;
+    document.getElementById('cargoValueCredits').textContent = `${formatNumber(cargoValue)}¢`;
     
     const fuelNeeded = gameState.maxFuel - gameState.fuel;
     const hullNeeded = gameState.maxHull - gameState.hull;
@@ -6452,28 +8800,40 @@ function updateStationInterface() {
     const fuelCost = Math.ceil(fuelNeeded * 1);
     const hullCost = Math.ceil(hullNeeded * 2);
     
-    // Display fuel needed with cost
+    // Display fuel needed with cost (as percentage of max)
     if (fuelNeeded > 0) {
-        document.getElementById('fuelNeeded').textContent = `${Math.ceil(fuelNeeded)}% (${fuelCost}¢)`;
+        const fuelNeededPercent = Math.ceil((fuelNeeded / gameState.maxFuel) * 100);
+        document.getElementById('fuelNeeded').textContent = `${fuelNeededPercent}% (${fuelCost}¢)`;
     } else {
         document.getElementById('fuelNeeded').textContent = `0%`;
     }
     
-    // Display hull repairs with cost
+    // Display hull repairs with cost (as percentage of max)
     if (hullNeeded > 0) {
-        document.getElementById('hullNeeded').textContent = `${Math.ceil(hullNeeded)}% (${hullCost}¢)`;
+        const hullNeededPercent = Math.ceil((hullNeeded / gameState.maxHull) * 100);
+        document.getElementById('hullNeeded').textContent = `${hullNeededPercent}% (${hullCost}¢)`;
     } else {
         document.getElementById('hullNeeded').textContent = `0%`;
     }
     
     // Enable/disable buttons based on docking status and availability
     if (isDockedAtAnyStation()) {
+        // Normal docked behavior
         sellCargoBtn.disabled = gameState.cargo === 0;
+        sellCargoBtn.querySelector('.btn-text').textContent = 'SELL CARGO';
         refuelShipBtn.disabled = fuelNeeded === 0 && hullNeeded === 0;
         customizeShipBtn.disabled = false; // Always available when docked
     } else {
-        // Disable all station service buttons when not docked
-        sellCargoBtn.disabled = true;
+        // Not docked - check if cargo drone is available
+        if (gameState.upgrades.cargoDrone >= 1) {
+            // Cargo drone available - change button text and enable if player has cargo and no drone is active
+            sellCargoBtn.querySelector('.btn-text').textContent = 'SELL CARGO REMOTELY';
+            sellCargoBtn.disabled = gameState.cargo === 0 || cargoDrone !== null;
+        } else {
+            // No cargo drone - disable button
+            sellCargoBtn.querySelector('.btn-text').textContent = 'SELL CARGO';
+            sellCargoBtn.disabled = true;
+        }
         refuelShipBtn.disabled = true;
         customizeShipBtn.disabled = true;
     }
@@ -6497,7 +8857,7 @@ function updateMiningLasersDisplay() {
         
         let barContent, color;
         
-        if (target && player.isMining) {
+        if (target && target.asteroid && player.isMining) {
             // Active laser - show progress
             const progress = target.progress / miningSpeed;
             const filledLength = Math.floor(progress * barLength);
@@ -6584,10 +8944,11 @@ function updateUpgradeButtons() {
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600, 19200, 38400, 76800, 153600, 307200],
+        multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
         advancedScanner: [50],
         scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
-        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400]
+        scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
+        cargoDrone: [5000]
     };
     
     Object.keys(gameState.upgrades).forEach(upgradeType => {
@@ -6597,73 +8958,92 @@ function updateUpgradeButtons() {
         const valueDisplay = document.getElementById(`${upgradeType}Value`);
         const btn = document.getElementById(`upgrade${upgradeType.charAt(0).toUpperCase() + upgradeType.slice(1)}`);
         
-        if (!levelDisplay || !costDisplay || !btn) return; // Skip if elements don't exist
+        if (!btn) {
+            return; // Skip if button doesn't exist
+        }
         
         // Update value displays
         if (valueDisplay) {
             switch(upgradeType) {
                 case 'speed':
+                    const currentSpeedPercent = 100 + (level - 1) * 20;
+                    const nextSpeedPercent = 100 + level * 20;
                     if (level >= 10) {
-                        valueDisplay.textContent = `SPEED: ${100 + (level - 1) * 20}%`;
+                        valueDisplay.textContent = `${currentSpeedPercent}% (MAX)`;
                     } else {
-                        valueDisplay.textContent = `SPEED: +20%`;
+                        valueDisplay.textContent = `${currentSpeedPercent}% → ${nextSpeedPercent}%`;
                     }
                     break;
                 case 'cargo':
+                    const currentCargo = 100 + (level - 1) * 50;
+                    const nextCargo = 100 + level * 50;
                     if (level >= 10) {
-                        valueDisplay.textContent = `CAPACITY: ${100 + (level - 1) * 50}`;
+                        valueDisplay.textContent = `${currentCargo} (MAX)`;
                     } else {
-                        valueDisplay.textContent = `CAPACITY: +50`;
+                        valueDisplay.textContent = `${currentCargo} → ${nextCargo}`;
                     }
                     break;
                 case 'mining':
+                    const currentMiningBonus = (level - 1) * 10;
+                    const nextMiningBonus = level * 10;
                     if (level >= 10) {
-                        valueDisplay.textContent = `MINING: +${(level - 1) * 10}%`;
+                        valueDisplay.textContent = `+${currentMiningBonus}% (MAX)`;
                     } else {
-                        valueDisplay.textContent = `MINING: +10%`;
+                        valueDisplay.textContent = `+${currentMiningBonus}% → +${nextMiningBonus}%`;
                     }
                     break;
                 case 'hull':
+                    const currentHull = 100 + (level - 1) * 25;
+                    const nextHull = 100 + level * 25;
                     if (level >= 10) {
-                        valueDisplay.textContent = `MAX HULL: ${100 + (level - 1) * 25} HP`;
+                        valueDisplay.textContent = `${currentHull} HP (MAX)`;
                     } else {
-                        valueDisplay.textContent = `MAX HULL: +25 HP`;
+                        valueDisplay.textContent = `${currentHull} → ${nextHull} HP`;
                     }
                     break;
                 case 'fuel':
+                    const currentFuelPercent = 100 + (level - 1) * 20;
+                    const nextFuelPercent = 100 + level * 20;
                     if (level >= 10) {
-                        valueDisplay.textContent = `MAX FUEL: ${100 + (level - 1) * 20}%`;
+                        valueDisplay.textContent = `${currentFuelPercent}% (MAX)`;
                     } else {
-                        valueDisplay.textContent = `MAX FUEL: +20%`;
+                        valueDisplay.textContent = `${currentFuelPercent}% → ${nextFuelPercent}%`;
                     }
                     break;
                 case 'range':
+                    const currentRange = 75 + (level - 1) * 10;
+                    const nextRange = 75 + level * 10;
                     if (level >= 10) {
-                        valueDisplay.textContent = `RANGE: ${50 + (level - 1) * 10}`;
+                        valueDisplay.textContent = `${currentRange} (MAX)`;
                     } else {
-                        valueDisplay.textContent = `RANGE: +10`;
+                        valueDisplay.textContent = `${currentRange} → ${nextRange}`;
                     }
                     break;
                 case 'multiMining':
-                    if (level >= 10) {
-                        valueDisplay.textContent = `TARGETS: ${level}`;
+                    const currentTargets = level;
+                    const nextTargets = level + 1;
+                    if (level >= 6) {
+                        valueDisplay.textContent = `${currentTargets} (MAX)`;
                     } else {
-                        valueDisplay.textContent = `TARGETS: +1`;
+                        valueDisplay.textContent = `${currentTargets} → ${nextTargets}`;
                     }
                     break;
                 case 'scanRange':
+                    const currentScanRange = SCAN_CONFIG.baseRange + (level - 1) * SCAN_CONFIG.rangePerLevel;
+                    const nextScanRange = SCAN_CONFIG.baseRange + level * SCAN_CONFIG.rangePerLevel;
                     if (level >= 10) {
-                        valueDisplay.textContent = `RANGE: ${SCAN_CONFIG.baseRange + (level - 1) * SCAN_CONFIG.rangePerLevel}`;
+                        valueDisplay.textContent = `${currentScanRange} (MAX)`;
                     } else {
-                        valueDisplay.textContent = `RANGE: +${SCAN_CONFIG.rangePerLevel}`;
+                        valueDisplay.textContent = `${currentScanRange} → ${nextScanRange}`;
                     }
                     break;
                 case 'scanCooldown':
+                    const currentCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (level - 1) * SCAN_CONFIG.cooldownReduction);
+                    const nextCooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - level * SCAN_CONFIG.cooldownReduction);
                     if (level >= 10) {
-                        const cooldown = Math.max(2000, SCAN_CONFIG.baseCooldown - (level - 1) * SCAN_CONFIG.cooldownReduction);
-                        valueDisplay.textContent = `COOLDOWN: ${(cooldown / 1000).toFixed(1)}s`;
+                        valueDisplay.textContent = `${(currentCooldown / 1000).toFixed(1)}s (MAX)`;
                     } else {
-                        valueDisplay.textContent = `COOLDOWN: -0.8s`;
+                        valueDisplay.textContent = `${(currentCooldown / 1000).toFixed(1)}s → ${(nextCooldown / 1000).toFixed(1)}s`;
                     }
                     break;
                 case 'advancedScanner':
@@ -6672,35 +9052,47 @@ function updateUpgradeButtons() {
                         valueDisplay.textContent = 'Value & Danger Display';
                     }
                     break;
+                case 'cargoDrone':
+                    // Keep the description static for one-time purchase
+                    if (valueDisplay) {
+                        valueDisplay.textContent = 'Remote Cargo Selling';
+                    }
+                    break;
             }
         }
         
         // Special handling for one-time purchases
-        if (upgradeType === 'advancedScanner') {
+        if (upgradeType === 'advancedScanner' || upgradeType === 'cargoDrone') {
             if (level >= 1) {
-                levelDisplay.textContent = 'PURCHASED';
-                costDisplay.textContent = '-';
+                if (levelDisplay) levelDisplay.textContent = 'PURCHASED';
+                if (costDisplay) costDisplay.textContent = '-';
                 btn.disabled = true;
-                btn.querySelector('.btn-text').textContent = 'PURCHASED';
+                const btnText = btn.querySelector('.btn-text');
+                if (btnText) btnText.textContent = 'PURCHASED';
             } else {
-                levelDisplay.textContent = 'NOT PURCHASED';
+                if (levelDisplay) levelDisplay.textContent = 'NOT PURCHASED';
                 const cost = upgradeCosts[upgradeType][0];
-                costDisplay.textContent = cost;
-                const isDocked = stations.some(s => s.isDocked);
+                if (costDisplay) costDisplay.textContent = cost;
+                const isDocked = isDockedAtAnyStation();
                 btn.disabled = !isDocked || gameState.credits < cost;
-                btn.querySelector('.btn-text').textContent = `PURCHASE: ${cost}¢`;
+                const btnText = btn.querySelector('.btn-text');
+                if (btnText) btnText.textContent = `PURCHASE: ${cost}¢`;
             }
         } else {
             // Normal multi-level upgrades
-            levelDisplay.textContent = level;
+            if (levelDisplay) levelDisplay.textContent = level;
             
-            if (level >= 10) {
-                costDisplay.textContent = 'MAX';
+            // Check max level (6 for multiMining, 10 for others)
+            const maxLevel = (upgradeType === 'multiMining') ? 6 : 10;
+            
+            if (level >= maxLevel) {
+                if (costDisplay) costDisplay.textContent = 'MAX';
                 btn.disabled = true;
-                btn.querySelector('.btn-text').textContent = 'MAX LEVEL';
+                const btnText = btn.querySelector('.btn-text');
+                if (btnText) btnText.textContent = 'MAX LEVEL';
             } else {
                 const cost = upgradeCosts[upgradeType][level - 1];
-                costDisplay.textContent = cost;
+                if (costDisplay) costDisplay.textContent = cost;
                 // Disable upgrade buttons if not docked OR insufficient credits
                 btn.disabled = !isDockedAtAnyStation() || gameState.credits < cost;
             }
@@ -6724,6 +9116,9 @@ function formatNumber(num) {
 // ================================
 
 window.addEventListener('DOMContentLoaded', () => {
+    // Detect input method FIRST (before boot sequence)
+    detectInputMethod();
+    
     // Try to load AutoSave first (before boot sequence)
     const autoSaveLoaded = loadGameData('AutoSave');
     
