@@ -149,6 +149,12 @@ const fuelWarnings = {
 };
 
 // ================================
+// MINING DISPLAY TRACKING
+// ================================
+
+let wasMining = false; // Track previous mining state to know when to update display
+
+// ================================
 // VIEWPORT / CAMERA
 // ================================
 
@@ -2150,6 +2156,7 @@ function loadGame(saveName) {
         
         // Update UI
         updateUI();
+        updateMiningLasersDisplay(); // Initialize the laser display after loading
         
         return true;
     } catch (e) {
@@ -2596,6 +2603,7 @@ function resizeCanvas() {
     const containerHeight = canvasContainer.clientHeight;
     
     const aspectRatio = 4 / 3;
+    const isMobile = window.innerWidth <= 768; // Detect mobile screens
     
     const oldWidth = canvas.width;
     const oldHeight = canvas.height;
@@ -2609,7 +2617,10 @@ function resizeCanvas() {
         canvasContainer.style.height = '';
         if (centerPanel) {
             centerPanel.style.height = '';
-            centerPanel.classList.remove('width-constrained');
+            // Don't remove width-constrained on mobile (CSS handles it differently)
+            if (!isMobile) {
+                centerPanel.classList.remove('width-constrained');
+            }
         }
     } else {
         // Width-constrained: fill width, adjust height to maintain aspect ratio
@@ -2623,7 +2634,10 @@ function resizeCanvas() {
             // Don't set height on center-panel - let it fill the screen
             // The canvas-container height constraint is sufficient
             centerPanel.style.height = '';
-            centerPanel.classList.add('width-constrained');
+            // Don't add width-constrained class on mobile (CSS handles layout differently)
+            if (!isMobile) {
+                centerPanel.classList.add('width-constrained');
+            }
         }
     }
     
@@ -4103,6 +4117,8 @@ function applyUpgradeEffects(upgradeType) {
             // Effect: +1 simultaneous target per level
             const targets = gameState.upgrades.multiMining;
             logMessage(`Can now mine ${targets} asteroid${targets > 1 ? 's' : ''} simultaneously`);
+            // Update the mining lasers display to show new laser slots
+            updateMiningLasersDisplay();
             break;
         case 'advancedScanner':
             // Advanced scanner enables value/danger display on scans
@@ -4894,6 +4910,7 @@ function initGame() {
     viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
     updateUI();
+    updateMiningLasersDisplay(); // Initialize the laser display
     
     logMessage('All systems online. Ready for mining operations.');
     logMessage('Use WASD to move, SPACE to mine asteroids.');
@@ -8712,8 +8729,11 @@ function updateUI() {
         fuelDisplayEl.style.animation = '';
     }
     
-    // Mining Lasers Display
-    updateMiningLasersDisplay();
+    // Mining Lasers Display - update when actively mining OR when mining state changes
+    if (player.isMining || wasMining !== player.isMining) {
+        updateMiningLasersDisplay();
+        wasMining = player.isMining;
+    }
     
     // Scan System Display
     updateScanDisplay();
@@ -8850,10 +8870,14 @@ function updateMiningLasersDisplay() {
     const maxLasers = gameState.upgrades.multiMining;
     const miningSpeed = CONFIG.baseMiningSpeed * (1 - (gameState.upgrades.mining - 1) * 0.1);
     
+    // Use shorter labels and bars on small screens
+    const isSmallScreen = window.innerWidth <= 768;
+    const laserLabel = isSmallScreen ? 'LSR' : 'LASER';
+    const barLength = isSmallScreen ? 17 : 20; // Shorter bar for small screens
+    
     // Show all available laser slots
     for (let i = 0; i < maxLasers; i++) {
         const target = player.miningTargets && player.miningTargets[i];
-        const barLength = 20; // Total characters for the progress bar
         
         let barContent, color;
         
@@ -8880,8 +8904,9 @@ function updateMiningLasersDisplay() {
         const laserItem = document.createElement('div');
         laserItem.className = 'stat-item';
         laserItem.style.marginBottom = '4px';
+        
         laserItem.innerHTML = `
-            <span class="stat-label">LASER ${i + 1}:</span>
+            <span class="stat-label">${laserLabel} ${i + 1}:</span>
             <span class="stat-value" style="color: ${color}; font-family: monospace;">${barContent}</span>
         `;
         lasersList.appendChild(laserItem);

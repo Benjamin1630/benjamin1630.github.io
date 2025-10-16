@@ -190,19 +190,30 @@ body.booting {
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--term-shadow);
+    position: relative; /* For absolute positioning of center */
 }
 
 .header-left,
 .header-right {
+    min-height: 40px;
     display: flex;
     gap: var(--space-sm);
     align-items: center;
+    flex: 1; /* Both take equal space */
+    z-index: 1; /* Above center element */
+}
+
+.header-right {
+    justify-content: flex-end; /* Align right content to the right */
 }
 
 .header-center {
-    flex: 1;
+    position: absolute; /* Position absolutely for true centering */
+    left: 50%; /* Start at 50% */
+    transform: translateX(-50%); /* Shift back by half its width */
     display: flex;
     justify-content: center;
+    pointer-events: none; /* Allow clicks to pass through to buttons behind */
 }
 
 .title-box {
@@ -975,16 +986,18 @@ body.crt-mode .canvas-container::before {
 .console-input-area {
     display: flex;
     align-items: center;
-    padding: var(--space-xs) var(--space-sm);
+    padding: 2px var(--space-xs); /* Much thinner padding */
     border-top: 1px solid var(--term-dim);
     background-color: rgba(0, 0, 0, 0.2);
     gap: var(--space-xs);
+    min-height: 24px; /* Minimal height */
 }
 
 .console-prompt {
     color: var(--term-bright);
     font-weight: bold;
     font-size: var(--font-size-sm);
+    line-height: 1; /* Tighter line height */
 }
 
 .console-input {
@@ -996,6 +1009,8 @@ body.crt-mode .canvas-container::before {
     font-family: var(--font-main);
     font-size: var(--font-size-sm);
     padding: 2px 4px;
+    line-height: 1.2; /* Tighter line height */
+    min-height: 20px; /* Minimal input height */
 }
 
 .console-input::placeholder {
@@ -1790,15 +1805,42 @@ body.crt-mode .canvas-container::before {
         flex: unset; /* Don't take full height */
         width: 100%; /* Take full width for first row */
         order: 1; /* Canvas and log first */
+        min-height: 400px; /* Ensure there's space for canvas and console on mobile */
+        max-height: 60vh; /* Don't take too much vertical space */
+        display: flex; /* Keep flex display */
+        flex-direction: column; /* Stack canvas and console vertically */
+    }
+    
+    /* Override width-constrained class on mobile */
+    .center-panel.width-constrained {
+        flex: unset !important; /* Don't let width-constrained override mobile layout */
+        width: 100% !important;
+        min-height: 400px;
+        max-height: 60vh;
+    }
+    
+    .center-panel.width-constrained .game-wrapper {
+        flex: 1 !important; /* Ensure game-wrapper can grow on mobile */
+        min-height: 300px;
+    }
+    
+    .game-wrapper {
+        flex: 1; /* Allow it to grow */
+        display: flex; /* Keep flex display */
+        flex-direction: column; /* Stack elements vertically */
+        min-height: 300px; /* Ensure minimum height */
     }
     
     .canvas-container {
-        flex: unset; /* Don't stretch to fill */
+        flex: 1; /* Allow it to grow and fill available space */
+        min-height: 200px; /* Ensure minimum height for canvas on mobile */
+        max-height: 400px; /* Prevent canvas from being too large */
         height: auto; /* Only as tall as the canvas */
         touch-action: none; /* Prevent default touch behaviors on canvas */
     }
     
     .console-messages {
+        min-height: 120px; /* Ensure minimum height for visibility */
         max-height: 170px; /* Limit system log height on mobile */
         height: auto;
         overflow-y: auto;
@@ -1836,7 +1878,7 @@ body.crt-mode .canvas-container::before {
     .modal-btn-confirm,
     .modal-btn-cancel,
     button {
-        min-height: 44px; /* Apple's recommended minimum touch target */
+        min-height: 24px; /* Apple's recommended minimum touch target */
         padding: var(--space-sm) var(--space-md);
         touch-action: manipulation; /* Prevent double-tap zoom */
         -webkit-tap-highlight-color: rgba(0, 255, 0, 0.2); /* Visual feedback on tap */
@@ -1913,6 +1955,53 @@ body.crt-mode .canvas-container::before {
         scale: 0.9;
         top: var(--space-sm);
         left: var(--space-sm);
+    }
+    
+    /* Make console input area thinner on mobile to save space */
+    .console-input-area {
+        padding: 3px 6px !important; /* Balanced padding */
+        min-height: 26px !important; /* Balanced height */
+        gap: 6px; /* Balanced gap between prompt and input */
+    }
+    
+    .console-prompt {
+        line-height: 1.1 !important; /* Slightly relaxed line height */
+        font-size: 13px; /* Readable font size */
+    }
+    
+    .console-input {
+        line-height: 1.2 !important; /* Slightly relaxed line height */
+        min-height: 20px !important; /* Balanced input height */
+        font-size: 14px !important; /* Readable but compact */
+        padding: 2px 4px !important; /* Minimal but usable padding */
+    }
+    
+    /* Make console header thinner on mobile to save space */
+    .console-header {
+        padding: 3px 6px !important; /* Minimal vertical padding */
+        min-height: 24px; /* Compact height */
+        font-size: 12px; /* Smaller font */
+    }
+    
+    .console-clear {
+        padding: 1px 4px !important; /* Smaller button padding */
+        font-size: 11px; /* Smaller font */
+        min-height: 20px; /* Compact button */
+    }
+    
+    /* Halve auto-mine button size on mobile */
+    .auto-mine-btn {
+        width: 60px !important; /* Half of 120px */
+        height: 60px !important; /* Half of 120px */
+    }
+    
+    .auto-mine-icon {
+        width: 24px !important; /* Half of 48px */
+        height: 24px !important; /* Half of 48px */
+    }
+    
+    .auto-mine-status {
+        font-size: 10px; /* Smaller status text */
     }
 }
 
