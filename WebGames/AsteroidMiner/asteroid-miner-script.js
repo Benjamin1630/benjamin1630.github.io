@@ -18,6 +18,9 @@
 // GAME STATE
 // ================================
 
+// Unique ID counters
+let nextHazardId = 1;
+
 const gameState = {
     // Player stats
     credits: 0,
@@ -34,7 +37,8 @@ const gameState = {
         cargo: 1,
         mining: 1,
         hull: 1,
-        fuel: 1,
+        fuelCapacity: 1,  // Renamed from 'fuel' - increases max fuel
+        fuelEfficiency: 1,  // NEW - reduces fuel consumption
         range: 1,
         multiMining: 1,
         scanRange: 1,
@@ -255,16 +259,16 @@ const HAZARD_TYPES = {
         icon: '⊗',
         damage: 25,
         size: 12,
-        speed: 0
+        speed: 0.2
     },
     vortex: {
         name: 'Gravity Vortex',
         color: '#8800ff',
         icon: '◉',
         damage: 5,
-        size: 30,
-        speed: 0,
-        pullForce: 0.08  // Reduced from 0.25 for more manageable gravity
+        size: 60,
+        speed: 0.1, // Fixed speed for vortex movement
+        pullForce: 0.4  // Reduced from 0.25 for more manageable gravity
     }
 };
 
@@ -311,7 +315,7 @@ const scanState = {
     active: false,
     waveRadius: 0,
     waveMaxRadius: 400, // Will be calculated based on upgrades
-    waveSpeed: 10,
+    waveSpeed: 5, // Reduced from 10 for slower scan wave expansion
     detectedItems: [],
     displayTime: 7000, // Will be calculated based on upgrades
     startTime: 0,
@@ -971,7 +975,7 @@ function initStationState() {
 // THEME MANAGEMENT
 // ================================
 
-let currentTheme = 'mono';
+let currentTheme = 'green';
 const themes = ['green', 'amber', 'blue', 'red', 'mono'];
 const themeNames = {
     'green': 'GREEN',
@@ -1009,11 +1013,11 @@ function initTheme() {
         }
         themeText.textContent = themeNames[currentTheme];
     } else {
-        // Apply default mono theme on first load
-        currentTheme = 'mono';
-        document.body.classList.add('theme-mono');
-        themeText.textContent = themeNames['mono'];
-        localStorage.setItem('asteroidMinerTheme', 'mono');
+        // Apply default green theme on first load
+        currentTheme = 'green';
+        // Green is the default, no need to add a theme class
+        themeText.textContent = themeNames['green'];
+        localStorage.setItem('asteroidMinerTheme', 'green');
     }
 }
 
@@ -1205,6 +1209,71 @@ function processCommand(commandString) {
             logMessage(`Teleported to ${nearestStation.name}`, 'success');
             break;
             
+        case 'SetUpgrade':
+            if (!sv_cheats) {
+                logMessage('Error: This command requires sv_cheats to be enabled', 'error');
+                return;
+            }
+            if (args.length < 2) {
+                logMessage('Error: SetUpgrade requires an upgrade name and level. Usage: SetUpgrade <upgrade> <level>', 'error');
+                return;
+            }
+            
+            const upgradeName = args[0];
+            const upgradeLevel = parseInt(args[1]);
+            
+            // Check if upgrade exists
+            if (!gameState.upgrades.hasOwnProperty(upgradeName)) {
+                logMessage(`Error: "${upgradeName}" is not an available upgrade.`, 'error');
+                logMessage('Available upgrades: speed, cargo, mining, hull, fuelCapacity, fuelEfficiency, range, multiMining, scanRange, scanCooldown, advancedScanner, cargoDrone', 'info');
+                return;
+            }
+            
+            // Check if level is a valid number
+            if (isNaN(upgradeLevel)) {
+                logMessage(`Error: "${args[1]}" is not a valid number.`, 'error');
+                return;
+            }
+            
+            // Determine max level for the upgrade
+            let minLevel = 1; // Default minimum is 1
+            let maxLevel;
+            
+            if (upgradeName === 'multiMining') {
+                maxLevel = 6;
+            } else if (upgradeName === 'advancedScanner' || upgradeName === 'cargoDrone') {
+                minLevel = 0;
+                maxLevel = 1;
+            } else if (upgradeName === 'cargo' || upgradeName === 'fuelCapacity') {
+                maxLevel = Infinity; // Infinite upgrades
+            } else {
+                maxLevel = 10;
+            }
+            
+            // Check if level is within valid range (minimum 1)
+            if (upgradeLevel < minLevel || upgradeLevel > maxLevel) {
+                if (maxLevel === Infinity) {
+                    logMessage(`Error: Level must be ${minLevel} or greater for ${upgradeName}.`, 'error');
+                } else {
+                    logMessage(`Error: "${upgradeLevel}" is not a compatible level. Valid range: ${minLevel}-${maxLevel}`, 'error');
+                }
+                return;
+            }
+            
+            // Set the upgrade level
+            const oldLevel = gameState.upgrades[upgradeName];
+            gameState.upgrades[upgradeName] = upgradeLevel;
+            
+            // Apply upgrade effects
+            applyUpgradeEffects(upgradeName);
+            
+            // Update UI
+            updateUI();
+            updateUpgradeButtons();
+            
+            logMessage(`Set ${upgradeName} from level ${oldLevel} to ${upgradeLevel}`, 'success');
+            break;
+            
         case 'Help':
             logMessage('Available commands:', 'info');
             if (sv_cheats) {
@@ -1212,6 +1281,7 @@ function processCommand(commandString) {
                 logMessage('"AddCredits <amount>" - Add credits to your account', 'info');
                 logMessage('"GodMode" - Toggle invincibility and unlimited fuel', 'info');
                 logMessage('"GoToStation" - Teleport to nearest space station', 'info');
+                logMessage('"SetUpgrade <upgrade> <level>" - Set upgrade level (e.g. SetUpgrade cargo 10)', 'info');
             }
             logMessage('"FPSToggle" - Toggle FPS counter display', 'info');
             logMessage('"Help" - Show this help message', 'info');
@@ -1499,7 +1569,7 @@ function initShipRename() {
 // CUSTOM MODAL SYSTEM
 // ================================
 
-function showConfirm(title, message, onConfirm, onCancel) {
+function showConfirm(title, message, onConfirm, onCancel, shouldDisableConfirm) {
     const modal = document.getElementById('confirmModal');
     const titleEl = document.getElementById('confirmTitle');
     const messageEl = document.getElementById('confirmMessage');
@@ -1507,10 +1577,18 @@ function showConfirm(title, message, onConfirm, onCancel) {
     const noBtn = document.getElementById('confirmNo');
     
     titleEl.textContent = `╔════ ${title} ════╗`;
-    messageEl.textContent = message;
+    // Use innerHTML to support HTML formatting (like bold/red text)
+    messageEl.innerHTML = message.replace(/\n/g, '<br>');
     
     modal.classList.add('active');
     gameState.isPaused = true;
+    
+    // Disable confirm button if validation function provided and returns true
+    if (typeof shouldDisableConfirm === 'function') {
+        yesBtn.disabled = shouldDisableConfirm();
+    } else {
+        yesBtn.disabled = false;
+    }
     
     const handleYes = () => {
         modal.classList.remove('active');
@@ -1835,7 +1913,8 @@ function saveGame(saveName) {
             cargo: gameState.upgrades.cargo,
             mining: gameState.upgrades.mining,
             hull: gameState.upgrades.hull,
-            fuel: gameState.upgrades.fuel,
+            fuelCapacity: gameState.upgrades.fuelCapacity,
+            fuelEfficiency: gameState.upgrades.fuelEfficiency,
             range: gameState.upgrades.range,
             multiMining: gameState.upgrades.multiMining,
             advancedScanner: gameState.upgrades.advancedScanner,
@@ -2031,7 +2110,9 @@ function loadGame(saveName) {
         gameState.upgrades.cargo = saveData.upgrades.cargo;
         gameState.upgrades.mining = saveData.upgrades.mining;
         gameState.upgrades.hull = saveData.upgrades.hull;
-        gameState.upgrades.fuel = saveData.upgrades.fuel;
+        // Handle old 'fuel' upgrade or new separate upgrades
+        gameState.upgrades.fuelCapacity = saveData.upgrades.fuelCapacity || saveData.upgrades.fuel || 1;
+        gameState.upgrades.fuelEfficiency = saveData.upgrades.fuelEfficiency || saveData.upgrades.fuel || 1;
         gameState.upgrades.range = saveData.upgrades.range;
         gameState.upgrades.multiMining = saveData.upgrades.multiMining;
         gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
@@ -2042,7 +2123,7 @@ function loadGame(saveName) {
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
         gameState.maxHull = 100 + (gameState.upgrades.hull - 1) * 25;
-        gameState.maxFuel = 100 + (gameState.upgrades.fuel - 1) * 20;
+        gameState.maxFuel = 100 + (gameState.upgrades.fuelCapacity - 1) * 20;
         
         // Restore resources
         gameState.hull = saveData.resources.hull;
@@ -2132,6 +2213,7 @@ function loadGame(saveName) {
             }));
             
             hazards = saveData.hazards.map(haz => ({
+                id: haz.id || nextHazardId++, // Use existing ID or assign new one
                 x: haz.x,
                 y: haz.y,
                 vx: haz.vx,
@@ -2260,7 +2342,9 @@ function loadGameData(saveName) {
         gameState.upgrades.cargo = saveData.upgrades.cargo;
         gameState.upgrades.mining = saveData.upgrades.mining;
         gameState.upgrades.hull = saveData.upgrades.hull;
-        gameState.upgrades.fuel = saveData.upgrades.fuel;
+        // Handle old 'fuel' upgrade or new separate upgrades
+        gameState.upgrades.fuelCapacity = saveData.upgrades.fuelCapacity || saveData.upgrades.fuel || 1;
+        gameState.upgrades.fuelEfficiency = saveData.upgrades.fuelEfficiency || saveData.upgrades.fuel || 1;
         gameState.upgrades.range = saveData.upgrades.range;
         gameState.upgrades.multiMining = saveData.upgrades.multiMining;
         gameState.upgrades.advancedScanner = saveData.upgrades.advancedScanner || 0;
@@ -2271,7 +2355,7 @@ function loadGameData(saveName) {
         // Recalculate max values based on upgrades
         gameState.maxCargo = 100 + (gameState.upgrades.cargo - 1) * 50;
         gameState.maxHull = 100 + (gameState.upgrades.hull - 1) * 25;
-        gameState.maxFuel = 100 + (gameState.upgrades.fuel - 1) * 20;
+        gameState.maxFuel = 100 + (gameState.upgrades.fuelCapacity - 1) * 20;
         
         // Restore resources
         gameState.hull = saveData.resources.hull;
@@ -2334,6 +2418,7 @@ function loadGameData(saveName) {
             }));
             
             hazards = saveData.hazards.map(haz => ({
+                id: haz.id || nextHazardId++, // Use existing ID or assign new one
                 x: haz.x,
                 y: haz.y,
                 vx: haz.vx,
@@ -3656,7 +3741,8 @@ function initUpgrades() {
         cargo: [150, 300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 76800],
         mining: [120, 240, 480, 960, 1920, 3840, 7680, 15360, 30720, 61440],
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
-        fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
+        fuelCapacity: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
+        fuelEfficiency: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
         multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
         advancedScanner: [50], // One-time purchase
@@ -3665,7 +3751,26 @@ function initUpgrades() {
         cargoDrone: [5000] // One-time purchase
     };
     
-    // Initialize collapsible upgrade categories
+    // Initialize master upgrades drawer toggle
+    const upgradesDrawerBtn = document.getElementById('upgradesDrawerBtn');
+    const upgradesDrawerContent = document.getElementById('upgradesDrawerContent');
+    const upgradesDrawerIcon = upgradesDrawerBtn.querySelector('.drawer-icon');
+    
+    upgradesDrawerBtn.addEventListener('click', () => {
+        const isOpen = upgradesDrawerContent.style.display !== 'none';
+        
+        if (isOpen) {
+            // Close the master drawer
+            upgradesDrawerContent.style.display = 'none';
+            upgradesDrawerIcon.textContent = '▶';
+        } else {
+            // Open the master drawer
+            upgradesDrawerContent.style.display = 'block';
+            upgradesDrawerIcon.textContent = '▼';
+        }
+    });
+    
+    // Initialize collapsible upgrade categories (inside the master drawer)
     const categoryHeaders = document.querySelectorAll('.category-header');
     categoryHeaders.forEach(header => {
         header.addEventListener('click', () => {
@@ -3754,15 +3859,32 @@ function initUpgrades() {
                 return;
             }
             
-            // Regular upgrades (level 1-10, except multiMining which caps at 6)
-            const maxLevel = (upgradeType === 'multiMining') ? 6 : 10;
+            // Regular upgrades (level 1-10, except multiMining which caps at 6, cargo and fuelCapacity are infinite)
+            let maxLevel;
+            if (upgradeType === 'multiMining') {
+                maxLevel = 6;
+            } else if (upgradeType === 'cargo' || upgradeType === 'fuelCapacity') {
+                maxLevel = Infinity; // Infinite upgrades for cargo and fuel capacity
+            } else {
+                maxLevel = 10;
+            }
             
             if (level >= maxLevel) {
                 logMessage(`${upgradeType.toUpperCase()} is already at maximum level.`);
                 return;
             }
             
-            const cost = upgradeCosts[upgradeType][level - 1];
+            // Calculate cost - use exponential scaling for levels beyond array
+            let cost;
+            if (level - 1 < upgradeCosts[upgradeType].length) {
+                cost = upgradeCosts[upgradeType][level - 1];
+            } else {
+                // For levels beyond the array, use exponential scaling
+                const lastCost = upgradeCosts[upgradeType][upgradeCosts[upgradeType].length - 1];
+                const costMultiplier = 2; // Double the cost each level
+                const levelsBeyond = level - upgradeCosts[upgradeType].length;
+                cost = Math.floor(lastCost * Math.pow(costMultiplier, levelsBeyond));
+            }
             
             if (gameState.credits >= cost) {
                 gameState.credits -= cost;
@@ -3783,7 +3905,7 @@ function initUpgrades() {
     
     // Prestige
     document.getElementById('prestigeBtn').addEventListener('click', () => {
-        if (gameState.credits >= 50000) {
+        if (gameState.credits >= 1000) {
             showConfirm(
                 'PRESTIGE',
                 'Prestige will reset all progress but grant permanent bonuses.\n\nYou will gain +10% to all earnings permanently.\n\nContinue?',
@@ -3816,16 +3938,6 @@ function initUpgrades() {
     });
     
     document.getElementById('nextSector').addEventListener('click', () => {
-        if (gameState.credits < 1000) {
-            logMessage('Insufficient credits for sector jump. Need 1,000¢');
-            return;
-        }
-        
-        if (gameState.fuel < 50) {
-            logMessage('Insufficient fuel for sector jump. Need 50 fuel.');
-            return;
-        }
-        
         const currentSector = gameState.sector;
         const nextSectorNum = currentSector + 1;
         const nextSectorName = `ALPHA-${String(nextSectorNum).padStart(3, '0')}`;
@@ -3848,6 +3960,21 @@ function initUpgrades() {
         const rareChanceIncrease = nextRareChance - currentRareChance;
         const spawnRateIncrease = nextSpawnRate - currentSpawnRate;
         
+        // Check for missing requirements
+        const missingCredits = gameState.credits < 1000;
+        const missingFuel = gameState.fuel < 50;
+        let warningText = '';
+        
+        if (missingCredits || missingFuel) {
+            warningText = '\n\n<b style="color: #ff0000;">INSUFFICIENT RESOURCES:</b>\n';
+            if (missingCredits) {
+                warningText += `<b style="color: #ff0000;">• Need ${1000 - gameState.credits} more credits</b>\n`;
+            }
+            if (missingFuel) {
+                warningText += `<b style="color: #ff0000;">• Need ${Math.ceil(50 - gameState.fuel)} more fuel</b>\n`;
+            }
+        }
+        
         showConfirm(
             'JUMP TO NEXT SECTOR',
             `SECTOR JUMP ANALYSIS:\n\n` +
@@ -3859,11 +3986,14 @@ function initUpgrades() {
             `• Rare asteroid chance: ${currentRareChance}% → ${nextRareChance}% (+${rareChanceIncrease}%)\n` +
             `• Spawn rate bonus: +${currentSpawnRate}% → +${nextSpawnRate}% (+${spawnRateIncrease}%)\n\n` +
             `WARNING: Higher sectors contain more valuable\n` +
-            `resources but significantly increased danger.\n\n` +
-            `Proceed with sector jump?`,
+            `resources but significantly increased danger.` +
+            warningText +
+            `\n\nProceed with sector jump?`,
             () => {
                 jumpToNextSector();
-            }
+            },
+            null,
+            () => gameState.fuel < 50 || gameState.credits < 1000 // Disable confirm if insufficient resources
         );
     });
     
@@ -4099,17 +4229,20 @@ function applyUpgradeEffects(upgradeType) {
             gameState.hull = Math.min(gameState.hull + (gameState.maxHull - oldMaxHull), gameState.maxHull);
             logMessage(`Max hull increased to ${gameState.maxHull}HP (+${gameState.maxHull - oldMaxHull}HP healed)`);
             break;
-        case 'fuel':
+        case 'fuelCapacity':
             const oldMaxFuel = gameState.maxFuel;
-            gameState.maxFuel = 100 + (gameState.upgrades.fuel - 1) * 20;
+            gameState.maxFuel = 100 + (gameState.upgrades.fuelCapacity - 1) * 20;
             gameState.fuel = Math.min(gameState.fuel + (gameState.maxFuel - oldMaxFuel), gameState.maxFuel);
-            const fuelEfficiency = (gameState.upgrades.fuel - 1) * 5;
-            logMessage(`Max fuel increased to ${gameState.maxFuel}% (+${fuelEfficiency}% efficiency)`);
+            logMessage(`Max fuel capacity increased to ${gameState.maxFuel}%`);
+            break;
+        case 'fuelEfficiency':
+            const efficiencyPercent = Math.round(Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1) * 100);
+            logMessage(`Fuel efficiency improved to ${efficiencyPercent}% consumption`);
             break;
         case 'range':
             // Mining range is calculated dynamically in attemptMining()
             // Effect: +10 units per level
-            const newRange = 50 + (gameState.upgrades.range - 1) * 10;
+            const newRange = CONFIG.miningRange + (gameState.upgrades.range - 1) * 10;
             logMessage(`Mining range increased to ${newRange} units`);
             break;
         case 'multiMining':
@@ -4340,8 +4473,8 @@ function jumpToNextSector() {
         return;
     }
     
-    if (gameState.credits < 10000) {
-        logMessage('Insufficient credits for sector jump. Need 10,000¢');
+    if (gameState.credits < 1000) {
+        logMessage('Insufficient credits for sector jump. Need 1,000¢');
         return;
     }
     
@@ -4350,7 +4483,7 @@ function jumpToNextSector() {
     } else {
         gameState.fuel -= 50;
     }
-    gameState.credits -= 10000;
+    gameState.credits -= 1000;
     gameState.sector++;
     gameState.sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
     gameState.stats.sectorsVisited++;
@@ -4559,9 +4692,9 @@ function initPhysicsWorker() {
                 console.log('Physics worker ready');
             } else if (type === 'allUpdated') {
                 // Update main thread's physics data
-                // Note: Asteroids are updated on main thread to preserve object references for mining
+                // Note: Asteroids and hazards are updated on main thread to preserve object references
                 // asteroids = data.asteroids; // DISABLED - breaks mining references
-                hazards = data.hazards;
+                // hazards = data.hazards; // DISABLED - breaks scan references
                 
                 // Filter out dead particles
                 particles = data.particles.filter(p => !p.dead);
@@ -4810,6 +4943,7 @@ function spawnHazard(x, y) {
     const hazardData = HAZARD_TYPES[type];
     
     hazards.push({
+        id: nextHazardId++, // Unique ID for tracking through physics worker updates
         x: x,
         y: y,
         type: type,
@@ -5012,6 +5146,29 @@ function updateScan(deltaTime) {
         if (scanState.cooldown < 0) scanState.cooldown = 0;
     }
     
+    // Clean up detected items that no longer exist (destroyed asteroids/hazards)
+    // This filter runs EVERY frame, even after scan completes, to immediately remove descriptions
+    if (scanState.detectedItems.length > 0) {
+        scanState.detectedItems = scanState.detectedItems.filter(item => {
+            if (item.type === 'asteroid') {
+                // Remove if asteroid is destroyed or no longer in the array
+                const stillExists = asteroids.includes(item.object);
+                const notDestroyed = !item.object || !item.object.destroyed;
+                return stillExists && notDestroyed;
+            } else if (item.type === 'hazard') {
+                // Remove if hazard no longer exists in the array
+                return hazards.includes(item.object);
+            }
+            return false;
+        });
+    }
+    
+    // Check if display time has expired
+    const elapsed = Date.now() - scanState.startTime;
+    if (elapsed > scanState.displayTime) {
+        scanState.detectedItems = [];
+    }
+    
     if (!scanState.active) return;
     
     // Expand wave
@@ -5082,23 +5239,6 @@ function updateScan(deltaTime) {
     if (scanState.waveRadius >= scanState.waveMaxRadius) {
         scanState.active = false;
         logMessage(`Scan complete. ${scanState.detectedItems.length} objects detected.`);
-    }
-    
-    // Clean up detected items that no longer exist (destroyed asteroids/hazards)
-    scanState.detectedItems = scanState.detectedItems.filter(item => {
-        if (item.type === 'asteroid') {
-            // Remove if asteroid is destroyed or no longer in the array
-            return asteroids.includes(item.object) && !item.object.destroyed;
-        } else if (item.type === 'hazard') {
-            return hazards.includes(item.object);
-        }
-        return false;
-    });
-    
-    // Check if display time has expired
-    const elapsed = Date.now() - scanState.startTime;
-    if (elapsed > scanState.displayTime) {
-        scanState.detectedItems = [];
     }
 }
 
@@ -5468,23 +5608,25 @@ function update(deltaTime) {
     // Update asteroids on main thread (preserves object references for mining)
     updateAsteroids(dt);
     
-    // Update hazards and particles using worker if available
+    // Update http://127.0.0.1:5500/WebAsteroidMiner.html hazards on main thread (preserves object references for scan system)
+    updateHazards(dt);
+    
+    // Update particles using worker if available
     if (physicsWorkerReady && !pendingPhysicsUpdate) {
         // Send to worker for parallel processing
-        // Note: Asteroids are updated on main thread to preserve object references
+        // Note: Asteroids and hazards are updated on main thread to preserve object references
         pendingPhysicsUpdate = true;
         physicsWorker.postMessage({
             type: 'updateAll',
             data: {
                 asteroids: [], // Don't send asteroids to worker
-                hazards: hazards,
+                hazards: [], // Don't send hazards to worker (preserve references for scan)
                 particles: particles,
                 dt: dt
             }
         });
     } else {
         // Fallback to main thread if worker not ready or still processing
-        updateHazards(dt);
         updateParticles(dt);
     }
     
@@ -5700,7 +5842,9 @@ function updatePlayer(dt = 1) {
                 if (godModeActive) {
                     gameState.fuel = gameState.maxFuel;
                 } else {
-                    const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
+                    // Apply fuel efficiency upgrade (x0.9 per level)
+                    const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
+                    const fuelCost = CONFIG.baseFuelConsumption * efficiencyMultiplier * dt;
                     gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
                 }
                 gameState.stats.distanceTraveled += currentSpeed * dt;
@@ -5790,7 +5934,9 @@ function updatePlayer(dt = 1) {
             if (godModeActive) {
                 gameState.fuel = gameState.maxFuel;
             } else {
-                const fuelCost = CONFIG.baseFuelConsumption * (1 - (gameState.upgrades.fuel - 1) * 0.05) * dt;
+                // Apply fuel efficiency upgrade (x0.9 per level)
+                const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
+                const fuelCost = CONFIG.baseFuelConsumption * efficiencyMultiplier * dt;
                 gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
             }
             
@@ -6467,18 +6613,21 @@ function attemptMining(dt = 1) {
         
         // Tank dimensions (MUST match the rendering code exactly)
         const cargoLevel = gameState.upgrades.cargo || 1;
-        const fuelLevel = gameState.upgrades.fuel || 1;
-        const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
-        const tankStartX = -tankLength / 2;
-        const tankEndX = tankLength / 2;
+        const fuelLevel = gameState.upgrades.fuelCapacity || 1;
+        const cargoTankLength = Math.min(0.8 + cargoLevel * 0.07, 1.25);
+        const fuelTankLength = Math.min(0.8 + fuelLevel * 0.07, 1.25);
+        const cargoTankStartX = -cargoTankLength / 2;
+        const cargoTankEndX = cargoTankLength / 2;
+        const fuelTankStartX = -fuelTankLength / 2;
+        const fuelTankEndX = fuelTankLength / 2;
         
         // These must match the rendering positions in renderMiningLaser()
-        if (maxTargets >= 1) positions.push({ x: tankEndX, y: 0.47 }); // Front fuel
-        if (maxTargets >= 2) positions.push({ x: tankEndX, y: -0.47 }); // Front cargo
+        if (maxTargets >= 1) positions.push({ x: fuelTankEndX, y: 0.47 }); // Front fuel
+        if (maxTargets >= 2) positions.push({ x: cargoTankEndX, y: -0.47 }); // Front cargo
         if (maxTargets >= 3) positions.push({ x: 0.0, y: 0.47 }); // Center fuel outer
         if (maxTargets >= 4) positions.push({ x: 0.0, y: -0.47 }); // Center cargo outer
-        if (maxTargets >= 5) positions.push({ x: tankStartX, y: 0.47 }); // Rear fuel
-        if (maxTargets >= 6) positions.push({ x: tankStartX, y: -0.47 }); // Rear cargo
+        if (maxTargets >= 5) positions.push({ x: fuelTankStartX, y: 0.47 }); // Rear fuel
+        if (maxTargets >= 6) positions.push({ x: cargoTankStartX, y: -0.47 }); // Rear cargo
         
         // Convert to world coordinates
         const cos = Math.cos(player.angle);
@@ -6641,11 +6790,14 @@ function attemptMining(dt = 1) {
         
         // Calculate laser position for this target (matching renderMiningLaser logic)
         const cargoLevel = gameState.upgrades.cargo || 1;
-        const fuelLevel = gameState.upgrades.fuel || 1;
-        const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
+        const fuelLevel = gameState.upgrades.fuelCapacity || 1;
+        const cargoTankLength = Math.min(0.8 + cargoLevel * 0.07, 1.25);
+        const fuelTankLength = Math.min(0.8 + fuelLevel * 0.07, 1.25);
         const tankWidth = 0.22;
-        const tankStartX = -tankLength / 2;
-        const tankEndX = tankLength / 2;
+        const cargoTankStartX = -cargoTankLength / 2;
+        const cargoTankEndX = cargoTankLength / 2;
+        const fuelTankStartX = -fuelTankLength / 2;
+        const fuelTankEndX = fuelTankLength / 2;
         
         // Determine laser position based on laser index
         let laserLocalX = 0;
@@ -6655,12 +6807,12 @@ function attemptMining(dt = 1) {
         switch (i) {
             // Laser 1: Front of fuel tank
             case 0:
-                laserLocalX = tankEndX;
+                laserLocalX = fuelTankEndX;
                 laserLocalY = 0.47;
                 break;
             case 1:
                 // Laser 2: Front of cargo tank
-                laserLocalX = tankEndX;
+                laserLocalX = cargoTankEndX;
                 laserLocalY = -0.47;
                 break;
             case 2:
@@ -6675,12 +6827,12 @@ function attemptMining(dt = 1) {
                 break;
             case 4:
                 // Laser 5: Back of fuel tank
-                laserLocalX = tankStartX;
+                laserLocalX = fuelTankStartX;
                 laserLocalY = 0.47;
                 break;
             case 5:
                 // Laser 6: Back of cargo tank
-                laserLocalX = tankStartX;
+                laserLocalX = cargoTankStartX;
                 laserLocalY = -0.47;
                 break;
         }
@@ -6691,12 +6843,12 @@ function attemptMining(dt = 1) {
         const pullDistance = player.size * 0.5; // How far beyond the laser to pull asteroids
         
         // Normalized direction in local space
-        const dirX = laserLocalX / laserDirLength;
-        const dirY = laserLocalY / laserDirLength;
+        const laserDirX = laserLocalX / laserDirLength;
+        const laserDirY = laserLocalY / laserDirLength;
         
         // Pull target in local space (laser position + outward extension)
-        const targetLocalX = (laserLocalX + dirX * pullDistance / player.size) * player.size;
-        const targetLocalY = (laserLocalY + dirY * pullDistance / player.size) * player.size;
+        const targetLocalX = (laserLocalX + laserDirX * pullDistance / player.size) * player.size;
+        const targetLocalY = (laserLocalY + laserDirY * pullDistance / player.size) * player.size;
         
         // Transform to world coordinates
         const pullTargetX = player.x + Math.cos(player.angle) * targetLocalX - Math.sin(player.angle) * targetLocalY;
@@ -6706,42 +6858,97 @@ function attemptMining(dt = 1) {
         const dy = pullTargetY - asteroid.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // Tractor beam effect - consistent force-based attraction (time-consistent)
-        const normalizedDist = Math.min(dist / miningRange, 1);
+        // ===== REFACTORED TRACTOR BEAM SYSTEM =====
+        // Uses PID-like controller for reliable, smooth asteroid positioning
+        // Three states: Far (strong pull) → Near (smooth approach) → Hold (locked)
         
-        if (dist > 3) {
-            // Calculate direction to target
-            const dirX = dx / dist;
-            const dirY = dy / dist;
+        // Define distance thresholds
+        const holdRadius = 8;      // Distance where asteroid is "locked" in place
+        const approachRadius = 25; // Distance where approach behavior begins
+        const maxPullSpeed = 2.5;  // Maximum speed asteroid can move while being pulled (units/frame at 60fps)
+        
+        // Normalized direction to target
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        
+        // Calculate current velocity magnitude and direction
+        const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy);
+        
+        // Velocity component toward target (positive = moving toward, negative = moving away)
+        const velocityTowardTarget = asteroid.vx * dirX + asteroid.vy * dirY;
+        
+        if (dist > holdRadius) {
+            // === PULLING PHASE ===
+            // Apply forces to bring asteroid to target position
             
-            // Base pull force - inversely proportional to distance (stronger when closer)
-            // This creates more reliable pulling behavior
-            const distanceFactor = 1 / (1 + normalizedDist * 2); // 1.0 at target, 0.33 at max range
-            const basePullForce = 0.15 * distanceFactor * dt;
+            // Proportional force: stronger when further from target
+            // Scale: 1.0 at max range, decreasing as we get closer
+            const normalizedDist = Math.min(dist / miningRange, 1);
+            const proportionalStrength = 0.3 + normalizedDist * 0.4; // Range: 0.3-0.7
+            const proportionalForce = dirX * proportionalStrength * dt;
+            const proportionalForceY = dirY * proportionalStrength * dt;
             
-            // Apply tractor beam force toward target
-            asteroid.vx += dirX * basePullForce;
-            asteroid.vy += dirY * basePullForce;
+            // Apply proportional force
+            asteroid.vx += proportionalForce;
+            asteroid.vy += proportionalForceY;
             
-            // Calculate velocity toward target (dot product)
-            const velocityTowardTarget = asteroid.vx * dirX + asteroid.vy * dirY;
+            // Derivative damping: reduce velocity to prevent overshoot
+            // Stronger damping when:
+            // 1. Moving fast toward target (high velocityTowardTarget)
+            // 2. Close to target (low dist)
+            // 3. In approach zone (dist < approachRadius)
             
-            // Velocity-based damping: stronger when moving fast toward target
-            // This prevents overshooting and creates smooth convergence
-            if (velocityTowardTarget > 0) {
-                // Damping proportional to velocity toward target and proximity
-                const velocityDamping = Math.min(velocityTowardTarget * 0.08 * (1 - normalizedDist), 0.95);
-                const dampingFactor = Math.pow(1 - velocityDamping, dt);
-                
-                // Apply damping only to velocity component toward target
-                asteroid.vx -= dirX * velocityTowardTarget * (1 - dampingFactor);
-                asteroid.vy -= dirY * velocityTowardTarget * (1 - dampingFactor);
+            let dampingStrength = 0.02; // Base damping (2% per frame at 60fps)
+            
+            if (dist < approachRadius) {
+                // Increase damping dramatically in approach zone
+                const approachFactor = 1 - (dist / approachRadius); // 0 at edge, 1 at center
+                dampingStrength += approachFactor * 0.15; // Up to 17% damping near target
             }
             
-            // General velocity damping for stability (small constant drag)
-            const stabilityDamping = Math.pow(0.98, dt);
-            asteroid.vx *= stabilityDamping;
-            asteroid.vy *= stabilityDamping;
+            if (velocityTowardTarget > 0) {
+                // Extra damping when moving toward target to prevent overshoot
+                const velocityFactor = Math.min(velocityTowardTarget / 2, 1); // Normalized velocity
+                dampingStrength += velocityFactor * 0.08; // Up to 8% extra damping
+            }
+            
+            // Apply velocity damping (frame-rate independent)
+            const dampingFactor = Math.pow(1 - dampingStrength, dt);
+            asteroid.vx *= dampingFactor;
+            asteroid.vy *= dampingFactor;
+            
+            // Speed limiter: Clamp overall velocity to prevent asteroids from moving too fast
+            // This ensures smooth, controlled movement even with strong forces
+            const currentSpeed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy);
+            if (currentSpeed > maxPullSpeed) {
+                const speedRatio = maxPullSpeed / currentSpeed;
+                asteroid.vx *= speedRatio;
+                asteroid.vy *= speedRatio;
+            }
+            
+        } else {
+            // === HOLDING PHASE ===
+            // Asteroid is within hold radius - lock it in place
+            
+            // Apply very strong damping to kill all velocity
+            const holdDampingFactor = Math.pow(0.1, dt); // 90% damping per frame
+            asteroid.vx *= holdDampingFactor;
+            asteroid.vy *= holdDampingFactor;
+            
+            // Apply gentle centering force to keep asteroid exactly at target
+            // This prevents drift while mining
+            const centeringStrength = 0.02 * dt;
+            asteroid.vx += dirX * centeringStrength;
+            asteroid.vy += dirY * centeringStrength;
+            
+            // Clamp velocity to prevent any significant movement while held
+            const maxHoldSpeed = 0.1;
+            const currentSpeed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy);
+            if (currentSpeed > maxHoldSpeed) {
+                const speedRatio = maxHoldSpeed / currentSpeed;
+                asteroid.vx *= speedRatio;
+                asteroid.vy *= speedRatio;
+            }
         }
         
         // Calculate laser world position for particles
@@ -6780,7 +6987,9 @@ function attemptMining(dt = 1) {
             if (godModeActive) {
                 gameState.fuel = gameState.maxFuel;
             } else {
-                gameState.fuel = Math.max(0, gameState.fuel - CONFIG.miningFuelCost * dt);
+                // Apply fuel efficiency upgrade (x0.9 per level)
+                const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
+                gameState.fuel = Math.max(0, gameState.fuel - CONFIG.miningFuelCost * efficiencyMultiplier * dt);
             }
         }
         
@@ -7280,42 +7489,42 @@ function applyPhosphorDecay() {
     
     // Enhanced phosphor decay that preserves color saturation and contrast
     // Calculate time-consistent decay rate
-    const baseDecayPerFrame = 0.08; // Reduced from 0.12 - slower decay for longer trails
+    const baseDecayPerFrame = 0.06; // Reduced for longer trails
     const targetFrameTime = 16.67; // 60 FPS in milliseconds
     const decayPerSecond = (baseDecayPerFrame * 1000) / targetFrameTime;
     const timeScaledDecay = (decayPerSecond * currentDeltaTime) / 1000;
     const actualDecay = Math.min(Math.max(timeScaledDecay, 0.01), 0.99);
     
-    // First pass: Fade the phosphor layer
+    // First pass: Fade the phosphor layer slowly
     phosphorCtx.globalCompositeOperation = 'destination-out';
-    phosphorCtx.globalAlpha = actualDecay * 0.5; // Slower decay for longer trails
+    phosphorCtx.globalAlpha = actualDecay * 0.5; // Even slower decay for longer trails
     phosphorCtx.fillStyle = '#000000';
     phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
     
     // Second pass: Add CLEAN current frame to phosphor layer (not the filtered canvas)
     phosphorCtx.globalCompositeOperation = 'lighter';
-    phosphorCtx.globalAlpha = 0.7; // More visible trails
+    phosphorCtx.globalAlpha = 0.6; // Higher alpha for brighter trail accumulation
     phosphorCtx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame to avoid feedback loop
     
-    // Third pass: Darken to control brightness
+    // Third pass: Subtle darkening to prevent excessive glow (optional, reduced impact)
     phosphorCtx.globalCompositeOperation = 'multiply';
-    phosphorCtx.globalAlpha = 0.08; // Subtle darkening
+    phosphorCtx.globalAlpha = 0.04; // Very subtle darkening - reduced from 0.08
     phosphorCtx.fillStyle = '#1a1a28'; // Dark blue-grey for CRT feel
     phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
     
-    // Fourth pass: Overlay trails onto main canvas
+    // Fourth pass: Overlay trails onto main canvas with higher visibility
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.5; // Visible trails
+    ctx.globalAlpha = 0.5; // Increased from 0.5 for more visible trails
     ctx.drawImage(phosphorCanvas, 0, 0);
     
     // Fifth pass: Boost color saturation using the CLEAN untouched frame
     ctx.globalCompositeOperation = 'overlay'; // Enhances saturation and contrast
-    ctx.globalAlpha = 0.15; // Subtle saturation boost
+    ctx.globalAlpha = 0.2; // Increased from 0.15 for more saturation
     ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame, not filtered canvas
     
     // Sixth pass: Enhance contrast by darkening with the clean frame
     ctx.globalCompositeOperation = 'multiply'; // Darkens and adds contrast
-    ctx.globalAlpha = 0.25; // Moderate darkening for punchier contrast
+    ctx.globalAlpha = 0.15; // Reduced from 0.25 to avoid over-darkening
     ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame for contrast definition
     
     // Reset composite operation
@@ -7764,16 +7973,16 @@ function renderPlayer() {
         for (let i = 0; i < nacelleCount; i++) {
             const offset = (i - (nacelleCount - 1) / 2) * player.size * 0.25;
             
-            // Nacelle body
+            // Nacelle body (moved further back from -0.55 to -0.75)
             ctx.beginPath();
-            ctx.rect(-player.size * 0.55, offset - nacelleSize / 2, player.size * 0.2, nacelleSize);
+            ctx.rect(-player.size * 0.6, offset - nacelleSize / 2, player.size * 0.2, nacelleSize);
             ctx.fill();
             ctx.stroke();
             
-            // Thruster port (glowing)
+            // Thruster port (glowing) - moved further back to match
             ctx.fillStyle = player.colors.thruster;
             ctx.beginPath();
-            ctx.arc(-player.size * 0.55, offset, nacelleSize * 0.3, 0, Math.PI * 2);
+            ctx.arc(-player.size * 0.6, offset, nacelleSize * 0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = `rgba(80, 100, 120, ${nacelleOpacity})`;
         }
@@ -7781,16 +7990,20 @@ function renderPlayer() {
     
     // ===== SIDE TANKS (Cargo/Fuel Pods) - Running parallel alongside body =====
     const cargoLevel = gameState.upgrades.cargo || 1;
-    const fuelLevel = gameState.upgrades.fuel || 1;
-    const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1); // Longer base + grows with upgrades
+    const fuelLevel = gameState.upgrades.fuelCapacity || 1;
+    const cargoTankLength = Math.min(0.8 + cargoLevel * 0.07, 1.25); // Grows with cargo upgrades, capped at 1.25
+    const fuelTankLength = Math.min(0.8 + fuelLevel * 0.07, 1.25); // Grows with fuel capacity upgrades, capped at 1.25
     const tankWidth = player.size * 0.22; // Much wider tanks
     
-    // Calculate tank start position to center it at 0.0
-    const tankStartX = -tankLength / 2;
+    // Calculate tank start and end positions to center them at 0.0
+    const cargoTankStartX = -cargoTankLength / 2;
+    const cargoTankEndX = cargoTankLength / 2;
+    const fuelTankStartX = -fuelTankLength / 2;
+    const fuelTankEndX = fuelTankLength / 2;
     
     // Left tank is CARGO (left side of ship)
     const cargoFillPercent = gameState.cargo / gameState.maxCargo;
-    const cargoFillWidth = player.size * tankLength * cargoFillPercent;
+    const cargoFillWidth = player.size * cargoTankLength * cargoFillPercent;
     
     // Cargo fill - DRAW FIRST (behind) - fills from front to back
     // Parse accent color and create semi-transparent version
@@ -7800,7 +8013,7 @@ function renderPlayer() {
     ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${0.6 + cargoLevel * 0.04})`;
     ctx.beginPath();
     ctx.rect(
-        player.size * tankStartX, 
+        player.size * cargoTankStartX, 
         -player.size * 0.47,
         cargoFillWidth,
         tankWidth
@@ -7812,13 +8025,13 @@ function renderPlayer() {
     ctx.lineWidth = 1.5;
     ctx.fillStyle = 'rgba(0, 50, 50, 0.3)'; // Dark background
     ctx.beginPath();
-    ctx.rect(player.size * tankStartX, -player.size * 0.47, player.size * tankLength, tankWidth);
+    ctx.rect(player.size * cargoTankStartX, -player.size * 0.47, player.size * cargoTankLength, tankWidth);
     ctx.fill();
     ctx.stroke();
     
     // Right tank is FUEL (right side of ship)
     const fuelFillPercent = gameState.fuel / gameState.maxFuel;
-    const fuelFillWidth = player.size * tankLength * fuelFillPercent;
+    const fuelFillWidth = player.size * fuelTankLength * fuelFillPercent;
     
     // Fuel fill - DRAW FIRST (behind) - fills from front to back
     // Parse thruster color and create semi-transparent version
@@ -7828,7 +8041,7 @@ function renderPlayer() {
     ctx.fillStyle = `rgba(${thrusterR}, ${thrusterG}, ${thrusterB}, ${0.6 + fuelLevel * 0.04})`;
     ctx.beginPath();
     ctx.rect(
-        player.size * tankStartX,
+        player.size * fuelTankStartX,
         player.size * 0.47 - tankWidth,
         fuelFillWidth,
         tankWidth
@@ -7838,7 +8051,7 @@ function renderPlayer() {
     // Fuel tank outline - DRAW SECOND (on top)
     ctx.fillStyle = 'rgba(0, 50, 80, 0.3)'; // Dark background
     ctx.beginPath();
-    ctx.rect(player.size * tankStartX, player.size * 0.47 - tankWidth, player.size * tankLength, tankWidth);
+    ctx.rect(player.size * fuelTankStartX, player.size * 0.47 - tankWidth, player.size * fuelTankLength, tankWidth);
     ctx.fill();
     ctx.stroke();
     
@@ -7940,20 +8153,19 @@ function renderPlayer() {
     
     // ===== MINING LASERS (Tank-mounted) =====
     const miningLasers = gameState.upgrades.multiMining || 1;
-    const tankEndX = tankLength / 2;
     
     ctx.fillStyle = player.colors.accent;
     ctx.strokeStyle = player.colors.secondary;
     ctx.lineWidth = 1;
     
-    // Define laser positions on tanks (reusing tank variables from above)
+    // Define laser positions on tanks (using respective tank lengths)
     const laserPositions = [];
-    if (miningLasers >= 1) laserPositions.push({ x: tankEndX, y: 0.47 }); // Front fuel
-    if (miningLasers >= 2) laserPositions.push({ x: tankEndX, y: -0.47 }); // Front cargo
+    if (miningLasers >= 1) laserPositions.push({ x: fuelTankEndX, y: 0.47 }); // Front fuel
+    if (miningLasers >= 2) laserPositions.push({ x: cargoTankEndX, y: -0.47 }); // Front cargo
     if (miningLasers >= 3) laserPositions.push({ x: 0.0, y: 0.47 /*+ (tankWidth / player.size) */}); // Center fuel outer
     if (miningLasers >= 4) laserPositions.push({ x: 0.0, y: -0.47 /*- (tankWidth / player.size) */}); // Center cargo outer
-    if (miningLasers >= 5) laserPositions.push({ x: tankStartX, y: 0.47 }); // Rear fuel
-    if (miningLasers >= 6) laserPositions.push({ x: tankStartX, y: -0.47 }); // Rear cargo
+    if (miningLasers >= 5) laserPositions.push({ x: fuelTankStartX, y: 0.47 }); // Rear fuel
+    if (miningLasers >= 6) laserPositions.push({ x: cargoTankStartX, y: -0.47 }); // Rear cargo
     
     laserPositions.forEach((pos, i) => {
         const laserX = player.size * pos.x;
@@ -8437,22 +8649,24 @@ function renderMiningLaser() {
     
     // Tank dimensions (match the tank rendering code)
     const cargoLevel = gameState.upgrades.cargo || 1;
-    const fuelLevel = gameState.upgrades.fuel || 1;
-    const tankLength = Math.min(0.8 + Math.max(cargoLevel, fuelLevel) * 0.03, 1.1);
-    const tankWidth = 0.22; // Relative to player.size
-    const tankStartX = -tankLength / 2;
-    const tankEndX = tankLength / 2;
+    const fuelLevel = gameState.upgrades.fuelCapacity || 1;
+    const cargoTankLength = Math.min(0.8 + cargoLevel * 0.07, 1.25);
+    const fuelTankLength = Math.min(0.8 + fuelLevel * 0.07, 1.25);
+    const cargoTankStartX = -cargoTankLength / 2;
+    const cargoTankEndX = cargoTankLength / 2;
+    const fuelTankStartX = -fuelTankLength / 2;
+    const fuelTankEndX = fuelTankLength / 2;
     
     // Define laser positions in ship-local coordinates (before rotation)
     const laserLocalPositions = [];
     
     if (miningLasers >= 1) {
         // Laser 1: Front of fuel tank (bottom-front)
-        laserLocalPositions.push({ x: tankEndX, y: 0.47 });
+        laserLocalPositions.push({ x: fuelTankEndX, y: 0.47 });
     }
     if (miningLasers >= 2) {
         // Laser 2: Front of cargo tank (top-front)
-        laserLocalPositions.push({ x: tankEndX, y: -0.47 });
+        laserLocalPositions.push({ x: cargoTankEndX, y: -0.47 });
     }
     if (miningLasers >= 3) {
         // Laser 3: Center, far side of fuel tank (bottom-center, outer edge)
@@ -8464,11 +8678,11 @@ function renderMiningLaser() {
     }
     if (miningLasers >= 5) {
         // Laser 5: Back of fuel tank (bottom-rear)
-        laserLocalPositions.push({ x: tankStartX, y: 0.47 });
+        laserLocalPositions.push({ x: fuelTankStartX, y: 0.47 });
     }
     if (miningLasers >= 6) {
         // Laser 6: Back of cargo tank (top-rear)
-        laserLocalPositions.push({ x: tankStartX, y: -0.47 });
+        laserLocalPositions.push({ x: cargoTankStartX, y: -0.47 });
     }
     
     // Transform local coordinates to world coordinates using ship's rotation
@@ -8763,11 +8977,9 @@ function updateUI() {
     const fuelNeededForRescue = gameState.maxFuel - gameState.fuel;
     const rescueCost = Math.ceil(fuelNeededForRescue * 1.5);
     const callForHelpBtn = document.getElementById('callForHelp');
-    callForHelpBtn.disabled = gameState.credits < rescueCost || rescueShip !== null;
+    callForHelpBtn.disabled = gameState.credits < rescueCost || rescueShip !== null || rescueCost < 100 || gameState.isAtStation;
     callForHelpBtn.querySelector('.btn-text').textContent = `CALL FOR HELP - ${rescueCost} CR`;
     
-    // Next Sector button - requires both fuel and credits
-    document.getElementById('nextSector').disabled = gameState.fuel < 50 || gameState.credits < 10000;
     
     // Station interface - always visible, update based on docking status
     updateStationInterface();
@@ -8775,7 +8987,7 @@ function updateUI() {
     // Prestige
     document.getElementById('prestigeCount').textContent = gameState.prestige;
     document.getElementById('prestigeBonus').textContent = `+${gameState.prestigeBonus}%`;
-    document.getElementById('prestigeBtn').disabled = gameState.credits < 50000;
+    document.getElementById('prestigeBtn').disabled = gameState.credits < 1000;
 }
 
 function updateStationInterface() {
@@ -8967,7 +9179,8 @@ function updateUpgradeButtons() {
         cargo: [150, 300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 76800],
         mining: [120, 240, 480, 960, 1920, 3840, 7680, 15360, 30720, 61440],
         hull: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
-        fuel: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
+        fuelCapacity: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
+        fuelEfficiency: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
         multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
         advancedScanner: [50],
@@ -9002,11 +9215,8 @@ function updateUpgradeButtons() {
                 case 'cargo':
                     const currentCargo = 100 + (level - 1) * 50;
                     const nextCargo = 100 + level * 50;
-                    if (level >= 10) {
-                        valueDisplay.textContent = `${currentCargo} (MAX)`;
-                    } else {
-                        valueDisplay.textContent = `${currentCargo} → ${nextCargo}`;
-                    }
+                    // Cargo is infinite, never show MAX
+                    valueDisplay.textContent = `${currentCargo} → ${nextCargo}`;
                     break;
                 case 'mining':
                     const currentMiningBonus = (level - 1) * 10;
@@ -9026,18 +9236,25 @@ function updateUpgradeButtons() {
                         valueDisplay.textContent = `${currentHull} → ${nextHull} HP`;
                     }
                     break;
-                case 'fuel':
+                case 'fuelCapacity':
                     const currentFuelPercent = 100 + (level - 1) * 20;
                     const nextFuelPercent = 100 + level * 20;
+                    // Fuel capacity is infinite, never show MAX
+                    valueDisplay.textContent = `${currentFuelPercent}% → ${nextFuelPercent}%`;
+                    break;
+                    break;
+                case 'fuelEfficiency':
+                    const currentEfficiency = Math.round(Math.pow(0.9, level - 1) * 100);
+                    const nextEfficiency = Math.round(Math.pow(0.9, level) * 100);
                     if (level >= 10) {
-                        valueDisplay.textContent = `${currentFuelPercent}% (MAX)`;
+                        valueDisplay.textContent = `${currentEfficiency}% (MAX)`;
                     } else {
-                        valueDisplay.textContent = `${currentFuelPercent}% → ${nextFuelPercent}%`;
+                        valueDisplay.textContent = `${currentEfficiency}% → ${nextEfficiency}%`;
                     }
                     break;
                 case 'range':
-                    const currentRange = 75 + (level - 1) * 10;
-                    const nextRange = 75 + level * 10;
+                    const currentRange = CONFIG.miningRange + (level - 1) * 10;
+                    const nextRange = CONFIG.miningRange + level * 10;
                     if (level >= 10) {
                         valueDisplay.textContent = `${currentRange} (MAX)`;
                     } else {
@@ -9107,8 +9324,15 @@ function updateUpgradeButtons() {
             // Normal multi-level upgrades
             if (levelDisplay) levelDisplay.textContent = level;
             
-            // Check max level (6 for multiMining, 10 for others)
-            const maxLevel = (upgradeType === 'multiMining') ? 6 : 10;
+            // Check max level (6 for multiMining, infinite for cargo/fuelCapacity, 10 for others)
+            let maxLevel;
+            if (upgradeType === 'multiMining') {
+                maxLevel = 6;
+            } else if (upgradeType === 'cargo' || upgradeType === 'fuelCapacity') {
+                maxLevel = Infinity; // No limit
+            } else {
+                maxLevel = 10;
+            }
             
             if (level >= maxLevel) {
                 if (costDisplay) costDisplay.textContent = 'MAX';
@@ -9116,7 +9340,18 @@ function updateUpgradeButtons() {
                 const btnText = btn.querySelector('.btn-text');
                 if (btnText) btnText.textContent = 'MAX LEVEL';
             } else {
-                const cost = upgradeCosts[upgradeType][level - 1];
+                // Calculate cost - use exponential scaling for levels beyond array
+                let cost;
+                if (level - 1 < upgradeCosts[upgradeType].length) {
+                    cost = upgradeCosts[upgradeType][level - 1];
+                } else {
+                    // For levels beyond the array, use exponential scaling
+                    const lastCost = upgradeCosts[upgradeType][upgradeCosts[upgradeType].length - 1];
+                    const costMultiplier = 2; // Double the cost each level
+                    const levelsBeyond = level - upgradeCosts[upgradeType].length;
+                    cost = Math.floor(lastCost * Math.pow(costMultiplier, levelsBeyond));
+                }
+                
                 if (costDisplay) costDisplay.textContent = cost;
                 // Disable upgrade buttons if not docked OR insufficient credits
                 btn.disabled = !isDockedAtAnyStation() || gameState.credits < cost;

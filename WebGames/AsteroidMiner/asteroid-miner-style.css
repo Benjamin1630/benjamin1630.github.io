@@ -267,11 +267,11 @@ button.terminal-btn {
 }
 
 .btn-bracket {
-    color: var(--term-dim);
+    color: inherit;
 }
 
 .btn-text {
-    color: var(--term-bright);
+    color: inherit;
 }
 
 /* ================================
@@ -305,7 +305,7 @@ button.terminal-btn {
 
 .side-panel {
     width: 350px;
-    background-color: var(--term-bg);
+    /* background-color: var(--term-bright); */
     border: 1px solid var(--term-text);
     overflow-y: auto;
     overflow-x: hidden;
@@ -338,7 +338,7 @@ button.terminal-btn {
 }
 
 .panel-content {
-    padding: var(--space-sm);
+    /* padding: var(--space-sm); */
     flex: 1;
 }
 
@@ -366,6 +366,7 @@ button.terminal-btn {
    ================================ */
 
 .info-section {
+    background: var(--term-bg);
     margin-bottom: var(--space-md);
     border: 1px solid var(--term-dim);
     padding: var(--space-sm);
@@ -374,21 +375,29 @@ button.terminal-btn {
 .section-header {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--space-xs);
     margin-bottom: var(--space-sm);
-    padding-bottom: var(--space-xs);
+    padding-bottom: 2px;
     border-bottom: 1px solid var(--term-dim);
 }
 
 .section-icon {
     color: var(--term-bright);
     font-size: var(--font-size-lg);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .section-title {
     color: var(--term-bright);
     font-size: var(--font-size-md);
     font-weight: bold;
+    line-height: 1;
+    display: flex;
+    align-items: center;
 }
 
 .stats-grid {
@@ -1033,7 +1042,7 @@ body.crt-mode .canvas-container::before {
 }
 
 .upgrade-category {
-    border: 1px solid var(--term-dim);
+    /* border: 1px solid var(--term-dim); */
     background-color: rgba(0, 255, 0, 0.02);
 }
 
@@ -1089,6 +1098,55 @@ body.crt-mode .canvas-container::before {
         padding-top: var(--space-sm);
         padding-bottom: var(--space-sm);
     }
+}
+
+/* Master Upgrades Drawer */
+.info-section:has(#upgradesDrawerBtn) {
+    padding: 0;
+}
+
+.master-drawer-header {
+    width: 100%;
+    background: rgba(0, 255, 0, 0.05);
+    /* border: 1px solid var(--term-bright); */
+    color: var(--term-bright);
+    padding: var(--space-sm);
+    font-family: var(--font-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    transition: all 0.2s;
+    margin-bottom: 0;
+    border-left: none;
+    border-top: none;
+    border-right: none;
+    border-bottom: 1px solid var(--term-dim);
+    /* border: none; */
+}
+
+.master-drawer-header:hover {
+    background-color: rgba(0, 255, 0, 0.15);
+    box-shadow: var(--term-glow);
+}
+
+.drawer-icon {
+    font-size: var(--font-size-sm);
+    color: var(--term-accent);
+    transition: transform 0.3s;
+    min-width: 12px;
+}
+
+#upgradesDrawerContent {
+    animation: slideDown 0.3s ease-out;
+    /* border: 1px solid var(--term-dim); */
+    border-top: none;
+    padding: 0;
+    background-color: rgba(0, 255, 0, 0.01);
+}
+
+#upgradesDrawerContent .upgrade-category:first-child {
+    border-top: none;
 }
 
 .upgrade-section {
@@ -1384,7 +1442,21 @@ body.crt-mode .canvas-container::before {
 
 .modal-btn-confirm:hover {
     background-color: var(--term-text);
+    color: var(--term-bg);
     box-shadow: 0 0 20px var(--term-text);
+}
+
+.modal-btn-confirm:disabled {
+    background-color: rgba(80, 80, 80, 0.2);
+    border-color: #555555;
+    color: #666666;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.modal-btn-confirm:disabled:hover {
+    background-color: rgba(80, 80, 80, 0.2);
+    box-shadow: none;
 }
 
 .modal-btn-cancel {
@@ -1421,7 +1493,7 @@ body.crt-mode .canvas-container::before {
     font-size: var(--font-size-md);
     color: var(--term-bright);
     text-align: center;
-    margin-bottom: var(--space-md);
+    /* margin-bottom: var(--space-md); */
     text-shadow: var(--term-glow);
 }
 
@@ -1701,6 +1773,7 @@ body.crt-mode .canvas-container::before {
 
 .save-item-btn.delete:hover {
     background-color: #ff4444;
+    color: var(--term-bg);
     border-color: #ff4444;
 }
 
@@ -2183,12 +2256,12 @@ body.crt-mode .canvas-container::before {
         min-width: 533px;       /* was 400px */
         max-width: 80%;
     }
-    
+    /*
     .minimap {
-        width: 200px;           /* was 150px */
-        height: 200px;          /* was 150px */
+        width: 200px;
+        height: 200px;
     }
-    
+    */
     #minimapCanvas {
         width: 160px;           /* was 120px */
         height: 160px;          /* was 120px */

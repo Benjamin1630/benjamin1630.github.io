@@ -167,7 +167,7 @@
                 <!-- Navigation Controls -->
                 <div class="info-section">
                     <div class="section-header">
-                        <span class="section-icon">►</span>
+                        <span class="section-icon">★</span>
                         <span class="section-title">NAVIGATION</span>
                     </div>
                     <div class="nav-controls">
@@ -181,7 +181,7 @@
                             <span class="btn-text">CALL FOR HELP - 100 CR</span>
                             <span class="btn-bracket">]</span>
                         </button>
-                        <button class="nav-btn" id="nextSector" disabled>
+                        <button class="nav-btn" id="nextSector">
                             <span class="btn-bracket">[</span>
                             <span class="btn-text">JUMP TO NEXT SECTOR</span>
                             <span class="btn-bracket">]</span>
@@ -332,331 +332,363 @@
                     </div>
                 </div>
 
-                <!-- Upgrade Categories -->
-                <div class="upgrade-categories">
-                    <!-- Physical Upgrades Category -->
-                    <div class="upgrade-category">
-                        <button class="category-header" data-category="physical">
-                            <span class="category-icon">▶</span>
-                            <span class="category-title">PHYSICAL SYSTEMS</span>
-                        </button>
-                        <div class="category-content" id="physicalContent" style="display: none;">
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">→</span>
-                                    <span class="upgrade-name">ENGINE BOOST</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+20% max speed per level - Faster travel between mining zones</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">SPEED:</span>
-                                        <span class="stat-value" id="speedValue">100%</span>
+                <!-- Master Upgrades Drawer -->
+                <div class="info-section">
+                    <button class="section-header master-drawer-header" id="upgradesDrawerBtn">
+                        <span class="section-icon drawer-icon">▶</span>
+                        <span class="section-title">UPGRADES</span>
+                    </button>
+                    <div class="upgrade-categories" id="upgradesDrawerContent" style="display: none;">
+                        <!-- Physical Upgrades Category -->
+                        <div class="upgrade-category">
+                            <button class="category-header" data-category="physical">
+                                <span class="category-icon">▶</span>
+                                <span class="category-title">PHYSICAL SYSTEMS</span>
+                            </button>
+                            <div class="category-content" id="physicalContent" style="display: none;">
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">→</span>
+                                        <span class="upgrade-name">ENGINE BOOST</span>
                                     </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="speedLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+20% max speed per level - Faster travel between mining zones</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">SPEED:</span>
+                                            <span class="stat-value" id="speedValue">100%</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="speedLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
                                     </div>
+                                    <button class="upgrade-btn" id="upgradeSpeed" data-upgrade="speed">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="speedCost">100</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
                                 </div>
-                                <button class="upgrade-btn" id="upgradeSpeed" data-upgrade="speed">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="speedCost">100</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
 
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">□</span>
-                                    <span class="upgrade-name">CARGO EXPANSION</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+50 capacity per level - Hold more ore before returning to station</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">CAPACITY:</span>
-                                        <span class="stat-value" id="cargoValue">100</span>
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">□</span>
+                                        <span class="upgrade-name">CARGO EXPANSION</span>
                                     </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="cargoLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+50 capacity per level - Hold more ore before returning to station</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">CAPACITY:</span>
+                                            <span class="stat-value" id="cargoValue">100</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="cargoLevel">1</span>
+                                            <span class="stat-label">/ MAX: ∞</span>
+                                        </div>
                                     </div>
+                                    <button class="upgrade-btn" id="upgradeCargo" data-upgrade="cargo">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="cargoCost">150</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
                                 </div>
-                                <button class="upgrade-btn" id="upgradeCargo" data-upgrade="cargo">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="cargoCost">150</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
 
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">▣</span>
-                                    <span class="upgrade-name">HULL PLATING</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+25 HP per level - Survive more hazard collisions</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">MAX HULL:</span>
-                                        <span class="stat-value" id="hullValue">100 HP</span>
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">▣</span>
+                                        <span class="upgrade-name">HULL PLATING</span>
                                     </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="hullLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+25 HP per level - Survive more hazard collisions</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">MAX HULL:</span>
+                                            <span class="stat-value" id="hullValue">100 HP</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="hullLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
                                     </div>
+                                    <button class="upgrade-btn" id="upgradeHull" data-upgrade="hull">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="hullCost">200</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
                                 </div>
-                                <button class="upgrade-btn" id="upgradeHull" data-upgrade="hull">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="hullCost">200</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
 
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">●</span>
-                                    <span class="upgrade-name">FUEL EFFICIENCY</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">-5% fuel consumption & +20% max fuel per level</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">MAX FUEL:</span>
-                                        <span class="stat-value" id="fuelValue">100%</span>
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">●</span>
+                                        <span class="upgrade-name">FUEL CAPACITY</span>
                                     </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="fuelLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+20% max fuel per level - Increases fuel tank capacity</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">MAX FUEL:</span>
+                                            <span class="stat-value" id="fuelCapacityValue">100%</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="fuelCapacityLevel">1</span>
+                                            <span class="stat-label">/ MAX: ∞</span>
+                                        </div>
                                     </div>
+                                    <button class="upgrade-btn" id="upgradeFuelCapacity" data-upgrade="fuelCapacity">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="fuelCapacityCost">180</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
                                 </div>
-                                <button class="upgrade-btn" id="upgradeFuel" data-upgrade="fuel">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="fuelCost">180</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
+
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">⚡</span>
+                                        <span class="upgrade-name">FUEL EFFICIENCY</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">-10% fuel consumption per level - Reduces fuel usage when moving & mining</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">EFFICIENCY:</span>
+                                            <span class="stat-value" id="fuelEfficiencyValue">100%</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="fuelEfficiencyLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeFuelEfficiency" data-upgrade="fuelEfficiency">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="fuelEfficiencyCost">200</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Laser Upgrades Category -->
+                        <div class="upgrade-category">
+                            <button class="category-header" data-category="lasers">
+                                <span class="category-icon">▶</span>
+                                <span class="category-title">MINING LASERS</span>
+                            </button>
+                            <div class="category-content" id="lasersContent" style="display: none;">
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">◊</span>
+                                        <span class="upgrade-name">MINING LASER</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">-10% mining time per level - Break asteroids faster</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">SPEED:</span>
+                                            <span class="stat-value" id="miningValue">+0%</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="miningLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeMining" data-upgrade="mining">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="miningCost">120</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">⚡</span>
+                                        <span class="upgrade-name">MULTI-MINING LASER</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+1 laser per level - Mine up to 6 asteroids simultaneously</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">TARGETS:</span>
+                                            <span class="stat-value" id="multiMiningValue">1</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="multiMiningLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeMultiMining" data-upgrade="multiMining">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="multiMiningCost">200</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">◉</span>
+                                        <span class="upgrade-name">MINING RANGE</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+10 units per level - Lock onto distant asteroids</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">RANGE:</span>
+                                            <span class="stat-value" id="rangeValue">50</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="rangeLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeRange" data-upgrade="range">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="rangeCost">160</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scanners Category -->
+                        <div class="upgrade-category">
+                            <button class="category-header" data-category="scanners">
+                                <span class="category-icon">▶</span>
+                                <span class="category-title">SCANNERS</span>
+                            </button>
+                            <div class="category-content" id="scannersContent" style="display: none;">
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">◉</span>
+                                        <span class="upgrade-name">ADVANCED SCANNER</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">Shows asteroid ore values & hazard damage indicators</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">UNLOCKS:</span>
+                                            <span class="stat-value" id="advancedScannerValue">Value & Danger Display</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">STATUS:</span>
+                                            <span class="stat-value" id="advancedScannerLevel">NOT PURCHASED</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeAdvancedScanner" data-upgrade="advancedScanner">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">PURCHASE: <span id="advancedScannerCost">50</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">◎</span>
+                                        <span class="upgrade-name">SCAN RANGE</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">+50 units per level - Detect asteroids & hazards from further away</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">RANGE:</span>
+                                            <span class="stat-value" id="scanRangeValue">400</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="scanRangeLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeScanRange" data-upgrade="scanRange">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="scanRangeCost">250</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+
+                                <div class="upgrade-item">
+                                    <div class="upgrade-header">
+                                        <span class="upgrade-icon">⌚</span>
+                                        <span class="upgrade-name">SCAN COOLDOWN</span>
+                                    </div>
+                                    <div class="upgrade-info">
+                                        <div class="upgrade-desc">-0.5s per level - Scan more frequently for targets</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">COOLDOWN:</span>
+                                            <span class="stat-value" id="scanCooldownValue">8.0s</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">LEVEL:</span>
+                                            <span class="stat-value" id="scanCooldownLevel">1</span>
+                                            <span class="stat-label">/ MAX: 10</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeScanCooldown" data-upgrade="scanCooldown">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">UPGRADE: <span id="scanCooldownCost">200</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- External Category -->
+                        <div class="upgrade-category">
+                            <button class="category-header" data-category="external">
+                                <span class="category-icon">▶</span>
+                                <span class="category-title">EXTERNAL</span>
+                            </button>
+                            <div class="category-content" id="externalContent" style="display: none;">
+                                <div class="upgrade-item">
+                                    <div class="upgrade-info">
+                                        <span class="upgrade-name">CARGO DRONE</span>
+                                        <div class="upgrade-desc">One-time purchase - Unlock ability to sell cargo remotely without docking</div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">EFFECT:</span>
+                                            <span class="stat-value" id="cargoDroneValue">Remote Cargo Selling</span>
+                                        </div>
+                                        <div class="upgrade-stats">
+                                            <span class="stat-label">STATUS:</span>
+                                            <span class="stat-value" id="cargoDroneLevel">NOT PURCHASED</span>
+                                        </div>
+                                    </div>
+                                    <button class="upgrade-btn" id="upgradeCargoDrone" data-upgrade="cargoDrone">
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">PURCHASE: <span id="cargoDroneCost">5000</span>¢</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prestige Category -->
+                        <div class="upgrade-category">
+                            <button class="category-header" data-category="prestige">
+                                <span class="category-icon">▶</span>
+                                <span class="category-title">PRESTIGE</span>
+                            </button>
+                            <div class="category-content" id="prestigeContent" style="display: none;">
+                                <div class="prestige-info">
+                                    <div class="prestige-desc">
+                                        Reset progress for permanent bonuses
+                                    </div>
+                                    <div class="prestige-stats">
+                                        <span class="stat-label">REBIRTHS:</span>
+                                        <span class="stat-value" id="prestigeCount">0</span>
+                                    </div>
+                                    <div class="prestige-stats">
+                                        <span class="stat-label">BONUS:</span>
+                                        <span class="stat-value" id="prestigeBonus">+0%</span>
+                                    </div>
+                                    <button class="prestige-btn" id="prestigeBtn" disabled>
+                                        <span class="btn-bracket">[</span>
+                                        <span class="btn-text">REBIRTH (1,000¢)</span>
+                                        <span class="btn-bracket">]</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Laser Upgrades Category -->
-                    <div class="upgrade-category">
-                        <button class="category-header" data-category="lasers">
-                            <span class="category-icon">▶</span>
-                            <span class="category-title">MINING LASERS</span>
-                        </button>
-                        <div class="category-content" id="lasersContent" style="display: none;">
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">◊</span>
-                                    <span class="upgrade-name">MINING LASER</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">-10% mining time per level - Break asteroids faster</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">SPEED:</span>
-                                        <span class="stat-value" id="miningValue">+0%</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="miningLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeMining" data-upgrade="mining">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="miningCost">120</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">⚡</span>
-                                    <span class="upgrade-name">MULTI-MINING LASER</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+1 laser per level - Mine up to 6 asteroids simultaneously</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">TARGETS:</span>
-                                        <span class="stat-value" id="multiMiningValue">1</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="multiMiningLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeMultiMining" data-upgrade="multiMining">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="multiMiningCost">200</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">◉</span>
-                                    <span class="upgrade-name">MINING RANGE</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+10 units per level - Lock onto distant asteroids</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">RANGE:</span>
-                                        <span class="stat-value" id="rangeValue">50</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="rangeLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeRange" data-upgrade="range">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="rangeCost">160</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Scanners Category -->
-                    <div class="upgrade-category">
-                        <button class="category-header" data-category="scanners">
-                            <span class="category-icon">▶</span>
-                            <span class="category-title">SCANNERS</span>
-                        </button>
-                        <div class="category-content" id="scannersContent" style="display: none;">
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">◉</span>
-                                    <span class="upgrade-name">ADVANCED SCANNER</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">Shows asteroid ore values & hazard damage indicators</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">UNLOCKS:</span>
-                                        <span class="stat-value" id="advancedScannerValue">Value & Danger Display</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">STATUS:</span>
-                                        <span class="stat-value" id="advancedScannerLevel">NOT PURCHASED</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeAdvancedScanner" data-upgrade="advancedScanner">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">PURCHASE: <span id="advancedScannerCost">50</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">◎</span>
-                                    <span class="upgrade-name">SCAN RANGE</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">+50 units per level - Detect asteroids & hazards from further away</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">RANGE:</span>
-                                        <span class="stat-value" id="scanRangeValue">400</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="scanRangeLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeScanRange" data-upgrade="scanRange">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="scanRangeCost">250</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-
-                            <div class="upgrade-item">
-                                <div class="upgrade-header">
-                                    <span class="upgrade-icon">⌚</span>
-                                    <span class="upgrade-name">SCAN COOLDOWN</span>
-                                </div>
-                                <div class="upgrade-info">
-                                    <div class="upgrade-desc">-0.5s per level - Scan more frequently for targets</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">COOLDOWN:</span>
-                                        <span class="stat-value" id="scanCooldownValue">8.0s</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">LEVEL:</span>
-                                        <span class="stat-value" id="scanCooldownLevel">1</span>
-                                        <span class="stat-label">/ MAX: 10</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeScanCooldown" data-upgrade="scanCooldown">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">UPGRADE: <span id="scanCooldownCost">200</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- External Category -->
-                    <div class="upgrade-category">
-                        <button class="category-header" data-category="external">
-                            <span class="category-icon">▶</span>
-                            <span class="category-title">EXTERNAL</span>
-                        </button>
-                        <div class="category-content" id="externalContent" style="display: none;">
-                            <div class="upgrade-item">
-                                <div class="upgrade-info">
-                                    <span class="upgrade-name">CARGO DRONE</span>
-                                    <div class="upgrade-desc">One-time purchase - Unlock ability to sell cargo remotely without docking</div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">EFFECT:</span>
-                                        <span class="stat-value" id="cargoDroneValue">Remote Cargo Selling</span>
-                                    </div>
-                                    <div class="upgrade-stats">
-                                        <span class="stat-label">STATUS:</span>
-                                        <span class="stat-value" id="cargoDroneLevel">NOT PURCHASED</span>
-                                    </div>
-                                </div>
-                                <button class="upgrade-btn" id="upgradeCargoDrone" data-upgrade="cargoDrone">
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">PURCHASE: <span id="cargoDroneCost">5000</span>¢</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Prestige Category -->
-                    <div class="upgrade-category">
-                        <button class="category-header" data-category="prestige">
-                            <span class="category-icon">▶</span>
-                            <span class="category-title">PRESTIGE</span>
-                        </button>
-                        <div class="category-content" id="prestigeContent" style="display: none;">
-                            <div class="prestige-info">
-                                <div class="prestige-desc">
-                                    Reset progress for permanent bonuses
-                                </div>
-                                <div class="prestige-stats">
-                                    <span class="stat-label">REBIRTHS:</span>
-                                    <span class="stat-value" id="prestigeCount">0</span>
-                                </div>
-                                <div class="prestige-stats">
-                                    <span class="stat-label">BONUS:</span>
-                                    <span class="stat-value" id="prestigeBonus">+0%</span>
-                                </div>
-                                <button class="prestige-btn" id="prestigeBtn" disabled>
-                                    <span class="btn-bracket">[</span>
-                                    <span class="btn-text">REBIRTH (50,000¢)</span>
-                                    <span class="btn-bracket">]</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- End of Upgrade Categories -->
                 </div>
+                <!-- End of Master Upgrades Drawer -->
             </div>
         </aside>
     </div>
