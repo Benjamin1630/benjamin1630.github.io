@@ -74,6 +74,11 @@ function calculateStarRenderData(scaledWidth, scaledHeight) {
     for (let i = 0; i < stars.length; i++) {
         const star = stars[i];
         
+        // Enhanced parallax effect: stars move in/out based on zoom level (INVERTED)
+        // Zoom > 1 (zoomed in): stars appear to move inward toward center (stars recede into distance)
+        // Zoom < 1 (zoomed out): stars appear to move outward from center (stars come forward)
+        const zoomParallaxFactor = 1 + (viewport.zoom - 1) * star.parallaxFactor * 0.8;
+        
         // Stars scroll based on viewport CENTER position in world space
         const scrollX = viewportCenterX * star.parallaxFactor;
         const scrollY = viewportCenterY * star.parallaxFactor;
@@ -89,10 +94,17 @@ function calculateStarRenderData(scaledWidth, scaledHeight) {
         // Draw multiple tiles to cover the screen
         for (let tx = -1; tx <= 1; tx++) {
             for (let ty = -1; ty <= 1; ty++) {
-                const screenX = centerX - tileWidth/2 + starX + tx * tileWidth;
-                const screenY = centerY - tileHeight/2 + starY + ty * tileHeight;
+                const baseTileX = centerX - tileWidth/2 + starX + tx * tileWidth;
+                const baseTileY = centerY - tileHeight/2 + starY + ty * tileHeight;
                 
-                // Only include if on screen
+                // Apply zoom-based parallax offset from center
+                const offsetX = (baseTileX - centerX) * zoomParallaxFactor;
+                const offsetY = (baseTileY - centerY) * zoomParallaxFactor;
+                
+                const screenX = centerX + offsetX;
+                const screenY = centerY + offsetY;
+                
+                // Only include if on screen (with extra margin for smooth transitions)
                 if (screenX >= -10 && screenX <= scaledWidth + 10 &&
                     screenY >= -10 && screenY <= scaledHeight + 10) {
                     

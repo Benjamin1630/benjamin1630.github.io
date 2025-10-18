@@ -8087,7 +8087,7 @@ function checkStationProximity(dt = 1) {
         }
         
         // Update docking status for this station
-        if (dist < centerZone) {
+        if (dist < centerZone && !player.isManuallyControlled) {
             if (!st.isDocked) {
                 st.isDocked = true;
                 logMessage(`Docked with ${st.name}. Station services available.`);
@@ -8097,15 +8097,13 @@ function checkStationProximity(dt = 1) {
             }
             
             // When docked at this station, lock to its motion
-            if (!player.isManuallyControlled) {
-                player.vx = st.vx;
-                player.vy = st.vy;
-                
-                // Lock position to station center
-                const lockStrength = 0.2 * dt;
-                player.x += dx * lockStrength;
-                player.y += dy * lockStrength;
-            }
+            player.vx = st.vx;
+            player.vy = st.vy;
+            
+            // Lock position to station center
+            const lockStrength = 0.2 * dt;
+            player.x += dx * lockStrength;
+            player.y += dy * lockStrength;
         } else {
             if (st.isDocked) {
                 st.isDocked = false;
@@ -9267,7 +9265,15 @@ function renderStars() {
         const viewportCenterX = viewport.x + (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
         const viewportCenterY = viewport.y + (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
         
+        const centerX = scaledWidth / 2;
+        const centerY = scaledHeight / 2;
+        
         stars.forEach(star => {
+            // Enhanced parallax effect: stars move in/out based on zoom level (INVERTED)
+            // Zoom > 1 (zoomed in): stars appear to move inward toward center (stars recede into distance)
+            // Zoom < 1 (zoomed out): stars appear to move outward from center (stars come forward)
+            const zoomParallaxFactor = 1 + (viewport.zoom - 1) * star.parallaxFactor * 0.75;
+            
             const scrollX = viewportCenterX * star.parallaxFactor;
             const scrollY = viewportCenterY * star.parallaxFactor;
             
@@ -9277,13 +9283,17 @@ function renderStars() {
             starX = ((starX % tileWidth) + tileWidth) % tileWidth;
             starY = ((starY % tileHeight) + tileHeight) % tileHeight;
             
-            const centerX = scaledWidth / 2;
-            const centerY = scaledHeight / 2;
-            
             for (let tx = -1; tx <= 1; tx++) {
                 for (let ty = -1; ty <= 1; ty++) {
-                    const screenX = centerX - tileWidth/2 + starX + tx * tileWidth;
-                    const screenY = centerY - tileHeight/2 + starY + ty * tileHeight;
+                    const baseTileX = centerX - tileWidth/2 + starX + tx * tileWidth;
+                    const baseTileY = centerY - tileHeight/2 + starY + ty * tileHeight;
+                    
+                    // Apply zoom-based parallax offset from center
+                    const offsetX = (baseTileX - centerX) * zoomParallaxFactor;
+                    const offsetY = (baseTileY - centerY) * zoomParallaxFactor;
+                    
+                    const screenX = centerX + offsetX;
+                    const screenY = centerY + offsetY;
                     
                     if (screenX >= -10 && screenX <= scaledWidth + 10 &&
                         screenY >= -10 && screenY <= scaledHeight + 10) {
