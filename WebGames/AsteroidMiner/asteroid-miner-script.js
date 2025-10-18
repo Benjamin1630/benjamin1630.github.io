@@ -5329,6 +5329,17 @@ function jumpToNextSector() {
         return;
     }
     
+    // Undock from any station before warping
+    stations.forEach(st => {
+        if (st.isDocked) {
+            st.isDocked = false;
+            logMessage(`Undocking from ${st.name} for sector jump...`);
+        }
+    });
+    
+    // Hide mission board and station UI
+    hideMissionBoard();
+    
     // Start warp animation sequence
     warpState.active = true;
     warpState.phase = 'countdown';
@@ -5381,6 +5392,13 @@ function executeSectorJump() {
     stations = [];
     // Clear station missions (new sector = new stations = new missions)
     gameState.stationMissions = {};
+    
+    // Clear mission board display
+    hideMissionBoard();
+    const missionBoardList = document.getElementById('missionBoardList');
+    if (missionBoardList) {
+        missionBoardList.innerHTML = '';
+    }
     
     generateSector();
     logMessage(`Jumped to sector ${gameState.sectorName}`);
@@ -6270,6 +6288,9 @@ function renderWarpAnimation() {
         const countdownProgress = warpState.elapsedTime / warpState.countdownDuration;
         const secondsRemaining = Math.ceil(3 - (warpState.elapsedTime / 1000));
         
+        // Use ship's thruster color for warp effects
+        const warpColor = player.colors.thruster;
+        
         // Multiple pulsing rings around ship
         for (let i = 0; i < 3; i++) {
             const ringProgress = (countdownProgress + i * 0.33) % 1;
@@ -6277,10 +6298,10 @@ function renderWarpAnimation() {
             const ringAlpha = (1 - ringProgress) * 0.4;
             
             ctx.globalAlpha = ringAlpha;
-            ctx.strokeStyle = '#00ffff';
+            ctx.strokeStyle = warpColor;
             ctx.lineWidth = 3;
             ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowColor = warpColor;
             ctx.beginPath();
             ctx.arc(shipScreenX, shipScreenY, ringRadius, 0, Math.PI * 2);
             ctx.stroke();
@@ -6297,9 +6318,9 @@ function renderWarpAnimation() {
             const particleSize = 2 + Math.sin(warpState.elapsedTime * 0.02 + i) * 1;
             
             ctx.globalAlpha = 0.6 + Math.sin(warpState.elapsedTime * 0.01 + i) * 0.4;
-            ctx.fillStyle = '#00ffff';
+            ctx.fillStyle = warpColor;
             ctx.shadowBlur = 10;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowColor = warpColor;
             ctx.beginPath();
             ctx.arc(x, y, particleSize, 0, Math.PI * 2);
             ctx.fill();
@@ -6311,10 +6332,10 @@ function renderWarpAnimation() {
         const pulseIntensity = Math.sin(warpState.elapsedTime * 0.01) * 0.5 + 0.5;
         ctx.globalAlpha = 0.3 * pulseIntensity;
         ctx.shadowBlur = 60 * pulseIntensity;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = warpColor;
         ctx.beginPath();
         ctx.arc(shipScreenX, shipScreenY, player.size * viewport.zoom * 3, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = warpColor;
         ctx.fill();
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
@@ -6324,7 +6345,7 @@ function renderWarpAnimation() {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = warpColor;
         for (let i = 0; i < 5; i++) {
             if (Math.random() > 0.7) {
                 const angle = Math.random() * Math.PI * 2;
@@ -6341,14 +6362,103 @@ function renderWarpAnimation() {
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
         
+        // Energy sparks flying outward
+        const sparkCount = 20;
+        for (let i = 0; i < sparkCount; i++) {
+            const sparkLife = (countdownProgress + i / sparkCount) % 1;
+            const angle = (i / sparkCount) * Math.PI * 2 + countdownProgress * Math.PI;
+            const distance = sparkLife * player.size * viewport.zoom * 6;
+            const x = shipScreenX + Math.cos(angle) * distance;
+            const y = shipScreenY + Math.sin(angle) * distance;
+            const sparkSize = (1 - sparkLife) * 3;
+            
+            ctx.globalAlpha = (1 - sparkLife) * 0.8;
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = warpColor;
+            ctx.beginPath();
+            ctx.arc(x, y, sparkSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Energy build-up particles converging on ship
+        const convergeCount = 15;
+        for (let i = 0; i < convergeCount; i++) {
+            const particleProgress = (countdownProgress * 2 + i / convergeCount) % 1;
+            const angle = (i / convergeCount) * Math.PI * 2;
+            const startDist = player.size * viewport.zoom * 8;
+            const currentDist = startDist * (1 - particleProgress);
+            const x = shipScreenX + Math.cos(angle) * currentDist;
+            const y = shipScreenY + Math.sin(angle) * currentDist;
+            
+            ctx.globalAlpha = particleProgress * 0.7;
+            ctx.fillStyle = warpColor;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = warpColor;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Hexagonal energy shield forming
+        const hexagonRadius = player.size * viewport.zoom * (2 + countdownProgress * 1.5);
+        ctx.globalAlpha = 0.3 + countdownProgress * 0.4;
+        ctx.strokeStyle = warpColor;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = warpColor;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+            const x = shipScreenX + Math.cos(angle) * hexagonRadius;
+            const y = shipScreenY + Math.sin(angle) * hexagonRadius;
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Energy trails from ship corners
+        const shipCorners = 4;
+        for (let i = 0; i < shipCorners; i++) {
+            const angle = (i / shipCorners) * Math.PI * 2 + countdownProgress * Math.PI * 0.5;
+            const cornerDist = player.size * viewport.zoom * 1.2;
+            const cornerX = shipScreenX + Math.cos(angle) * cornerDist;
+            const cornerY = shipScreenY + Math.sin(angle) * cornerDist;
+            
+            // Trail segments
+            for (let j = 0; j < 5; j++) {
+                const trailProgress = (countdownProgress + j * 0.1) % 1;
+                const trailDist = trailProgress * 50;
+                const tx = cornerX + Math.cos(angle) * trailDist;
+                const ty = cornerY + Math.sin(angle) * trailDist;
+                
+                ctx.globalAlpha = (1 - trailProgress) * 0.5;
+                ctx.fillStyle = warpColor;
+                ctx.beginPath();
+                ctx.arc(tx, ty, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1;
+        
         // Draw countdown number
         const numberScale = 1 + Math.sin(countdownProgress * Math.PI) * 0.2;
         ctx.font = `bold ${120 * numberScale}px "Courier New"`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = warpColor;
         ctx.shadowBlur = 30;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = warpColor;
         ctx.globalAlpha = 0.9;
         ctx.fillText(secondsRemaining, scaledWidth / 2, scaledHeight / 2);
         ctx.globalAlpha = 1;
@@ -6370,13 +6480,16 @@ function renderWarpAnimation() {
         // Warp effect phase (3-4s)
         const warpProgress = (warpState.elapsedTime - warpState.countdownDuration) / warpState.warpDuration;
         
+        // Use ship's thruster color for warp effects
+        const warpColor = player.colors.thruster;
+        
         // Intense ship glow during warp
         ctx.globalAlpha = 0.6;
         ctx.shadowBlur = 100;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = warpColor;
         ctx.beginPath();
         ctx.arc(shipScreenX, shipScreenY, player.size * viewport.zoom * 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = warpColor;
         ctx.fill();
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
@@ -6395,9 +6508,14 @@ function renderWarpAnimation() {
             const endX = shipScreenX + Math.cos(angle) * (startDist + length);
             const endY = shipScreenY + Math.sin(angle) * (startDist + length);
             
+            // Extract RGB from warp color for gradient
+            const r = parseInt(warpColor.substr(1, 2), 16);
+            const g = parseInt(warpColor.substr(3, 2), 16);
+            const b = parseInt(warpColor.substr(5, 2), 16);
+            
             const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
             gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-            gradient.addColorStop(0.3, 'rgba(0, 255, 255, 0.9)');
+            gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.9)`);
             gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.9)');
             gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
             
@@ -6410,16 +6528,21 @@ function renderWarpAnimation() {
         }
         ctx.globalAlpha = 1;
         
+        // Extract RGB from warp color
+        const r = parseInt(warpColor.substr(1, 2), 16);
+        const g = parseInt(warpColor.substr(3, 2), 16);
+        const b = parseInt(warpColor.substr(5, 2), 16);
+        
         // Expanding energy rings
-        for (let r = 0; r < 5; r++) {
-            const ringTime = (warpProgress + r * 0.2) % 1;
+        for (let ri = 0; ri < 5; ri++) {
+            const ringTime = (warpProgress + ri * 0.2) % 1;
             const radius = ringTime * 800;
             const alpha = (1 - ringTime) * 0.5;
             
-            ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
             ctx.lineWidth = 4;
             ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowColor = warpColor;
             ctx.beginPath();
             ctx.arc(shipScreenX, shipScreenY, radius, 0, Math.PI * 2);
             ctx.stroke();
@@ -6427,12 +6550,12 @@ function renderWarpAnimation() {
         ctx.shadowBlur = 0;
         
         // Tunnel vortex effect centered on ship
-        for (let r = 0; r < 12; r++) {
-            const radius = (r * 60) + (warpProgress * 600);
-            const alpha = (1 - warpProgress) * (1 - r / 12) * 0.6;
-            const rotation = warpProgress * Math.PI * 2 * (r % 2 === 0 ? 1 : -1);
+        for (let ri = 0; ri < 12; ri++) {
+            const radius = (ri * 60) + (warpProgress * 600);
+            const alpha = (1 - warpProgress) * (1 - ri / 12) * 0.6;
+            const rotation = warpProgress * Math.PI * 2 * (ri % 2 === 0 ? 1 : -1);
             
-            ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
             ctx.lineWidth = 3;
             ctx.setLineDash([10, 10]);
             ctx.lineDashOffset = -rotation * 20;
@@ -6467,23 +6590,147 @@ function renderWarpAnimation() {
         ctx.globalCompositeOperation = 'screen';
         ctx.globalAlpha = warpProgress * 0.2;
         const radialGradient = ctx.createRadialGradient(shipScreenX, shipScreenY, 0, shipScreenX, shipScreenY, 400);
-        radialGradient.addColorStop(0, 'rgba(0, 255, 255, 0.8)');
-        radialGradient.addColorStop(0.5, 'rgba(0, 255, 255, 0.2)');
-        radialGradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        radialGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.8)`);
+        radialGradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.2)`);
+        radialGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
         ctx.fillStyle = radialGradient;
         ctx.fillRect(0, 0, scaledWidth, scaledHeight);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
         
+        // Energy crackling around ship during warp
+        const crackleCount = 40;
+        for (let i = 0; i < crackleCount; i++) {
+            if (Math.random() > 0.3) continue; // Random appearance
+            
+            const angle1 = Math.random() * Math.PI * 2;
+            const angle2 = angle1 + (Math.random() - 0.5) * 0.5;
+            const dist1 = (Math.random() * 0.5 + 0.5) * player.size * viewport.zoom * 2;
+            const dist2 = dist1 + Math.random() * 30;
+            
+            const x1 = shipScreenX + Math.cos(angle1) * dist1;
+            const y1 = shipScreenY + Math.sin(angle1) * dist1;
+            const x2 = shipScreenX + Math.cos(angle2) * dist2;
+            const y2 = shipScreenY + Math.sin(angle2) * dist2;
+            
+            ctx.globalAlpha = 0.4 + Math.random() * 0.4;
+            ctx.strokeStyle = Math.random() > 0.5 ? warpColor : '#ffffff';
+            ctx.lineWidth = 1 + Math.random() * 1.5;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = warpColor;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Particle explosion effect
+        const explosionParticles = 60;
+        for (let i = 0; i < explosionParticles; i++) {
+            const particleProgress = (warpProgress + i / explosionParticles * 0.5) % 1;
+            const angle = (i / explosionParticles) * Math.PI * 2;
+            const speed = 1 + Math.random() * 0.5;
+            const distance = particleProgress * 300 * speed;
+            const x = shipScreenX + Math.cos(angle) * distance;
+            const y = shipScreenY + Math.sin(angle) * distance;
+            const size = (1 - particleProgress) * (2 + Math.random() * 2);
+            
+            ctx.globalAlpha = (1 - particleProgress) * 0.7;
+            ctx.fillStyle = Math.random() > 0.7 ? '#ffffff' : warpColor;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = warpColor;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Geometric patterns spinning around ship
+        const geometryCount = 3;
+        for (let g = 0; g < geometryCount; g++) {
+            const geometryProgress = (warpProgress + g * 0.33) % 1;
+            const rotation = geometryProgress * Math.PI * 4 * (g % 2 === 0 ? 1 : -1);
+            const radius = player.size * viewport.zoom * (3 + geometryProgress * 2);
+            const sides = 3 + g;
+            
+            ctx.save();
+            ctx.translate(shipScreenX, shipScreenY);
+            ctx.rotate(rotation);
+            
+            ctx.globalAlpha = (1 - geometryProgress) * 0.4;
+            ctx.strokeStyle = warpColor;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = warpColor;
+            
+            ctx.beginPath();
+            for (let i = 0; i <= sides; i++) {
+                const angle = (i / sides) * Math.PI * 2;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Energy discharge bolts
+        const boltCount = 12;
+        for (let i = 0; i < boltCount; i++) {
+            const boltProgress = (warpProgress * 3 + i / boltCount) % 1;
+            const angle = (i / boltCount) * Math.PI * 2 + warpProgress * Math.PI;
+            const length = boltProgress * 150;
+            const startDist = player.size * viewport.zoom * 2;
+            
+            const startX = shipScreenX + Math.cos(angle) * startDist;
+            const startY = shipScreenY + Math.sin(angle) * startDist;
+            const endX = startX + Math.cos(angle) * length;
+            const endY = startY + Math.sin(angle) * length;
+            
+            ctx.globalAlpha = (1 - boltProgress) * 0.6;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = warpColor;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            
+            // Jagged lightning effect
+            const segments = 5;
+            for (let s = 1; s <= segments; s++) {
+                const t = s / segments;
+                const midX = startX + (endX - startX) * t;
+                const midY = startY + (endY - startY) * t;
+                const offset = (Math.random() - 0.5) * 20;
+                const perpX = -(endY - startY) / length;
+                const perpY = (endX - startX) / length;
+                ctx.lineTo(midX + perpX * offset, midY + perpY * offset);
+            }
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
     } else if (warpState.phase === 'fadeOut') {
         // Fade to black (4-4.5s)
         const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
+        
+        // Use ship's thruster color for warp effects
+        const warpColor = player.colors.thruster;
         
         // Continue warp effect briefly during fade
         if (fadeProgress < 0.5) {
             const residualIntensity = (1 - fadeProgress * 2);
             
-            // Fading streaks
             // Fading streaks
             ctx.globalAlpha = 0.4 * residualIntensity;
             for (let i = 0; i < 50; i++) {
@@ -6496,7 +6743,7 @@ function renderWarpAnimation() {
                 const endX = shipScreenX + Math.cos(angle) * (startDist + length);
                 const endY = shipScreenY + Math.sin(angle) * (startDist + length);
                 
-                ctx.strokeStyle = '#00ffff';
+                ctx.strokeStyle = warpColor;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
@@ -7728,6 +7975,9 @@ function distanceToLineSegment(px, py, x1, y1, x2, y2) {
 
 function checkStationProximity(dt = 1) {
     if (!stations || stations.length === 0) return;
+    
+    // Don't process docking/undocking during warp animation
+    if (warpState.active) return;
     
     const playerSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
     const centerZone = 15; // Ship must be within 15 units of center to dock
