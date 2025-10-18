@@ -4199,10 +4199,15 @@ function updateMissionBoard(stationName, stationColor) {
         m.status === 'completed' && m.stationName === stationName
     );
     
+    // Find failed missions for this station
+    const failedMissions = gameState.missions.filter(m => 
+        m.status === 'failed' && m.stationName === stationName
+    );
+    
     // Clear current display
     missionBoardList.innerHTML = '';
     
-    if (availableMissions.length === 0 && completedMissions.length === 0) {
+    if (availableMissions.length === 0 && completedMissions.length === 0 && failedMissions.length === 0) {
         const emptyItem = document.createElement('div');
         emptyItem.className = 'mission-board-item empty';
         emptyItem.innerHTML = `
@@ -4226,7 +4231,7 @@ function updateMissionBoard(stationName, stationColor) {
                 </div>
                 <div class="mission-description">${mission.description}</div>
                 <div class="mission-progress">
-                    <span>${mission.current} / ${mission.target}</span>
+                    <span>${mission.current}/${mission.target}</span>
                     <div class="mission-progress-bar">
                         <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                     </div>
@@ -4244,19 +4249,18 @@ function updateMissionBoard(stationName, stationColor) {
             missionBoardList.appendChild(item);
         });
         
-        // Then show available/in-progress missions
+        // Then show available/in-progress/failed missions
         availableMissions.forEach(mission => {
             // Only display missions that belong to this station
             if (mission.stationName !== stationName) {
                 return; // Skip missions from other stations
             }
             
-            // Check if mission is already accepted
+            // Check if mission is already accepted or failed
             const acceptedMission = gameState.missions.find(m => m.id === mission.id);
             const isAccepted = !!acceptedMission;
             
             const item = document.createElement('div');
-            item.className = `mission-board-item ${isAccepted ? 'accepted' : ''}`;
             
             if (isAccepted && acceptedMission) {
                 // Only show accepted missions if they're from this station
@@ -4264,34 +4268,66 @@ function updateMissionBoard(stationName, stationColor) {
                     return; // Skip accepted missions from other stations
                 }
                 
-                // Show accepted mission with full details like in active missions
-                const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
-                
-                item.innerHTML = `
-                    <div class="mission-header">
-                        <span class="item-icon">${acceptedMission.icon}</span>
-                        <span class="mission-title">${acceptedMission.title}</span>
-                        <span class="mission-status"><span style="color: #ffaa00;">◉ IN PROGRESS</span></span>
-                    </div>
-                    <div class="mission-description">${acceptedMission.description}</div>
-                    <div class="mission-progress">
-                        <span>${acceptedMission.current} / ${acceptedMission.target}</span>
-                        <div class="mission-progress-bar">
-                            <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                // Check if mission is failed
+                if (acceptedMission.status === 'failed') {
+                    // Show failed mission with abandon button
+                    item.className = 'mission-board-item failed';
+                    const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
+                    
+                    item.innerHTML = `
+                        <div class="mission-header">
+                            <span class="item-icon">${acceptedMission.icon}</span>
+                            <span class="mission-title">${acceptedMission.title}</span>
+                            <span class="mission-status"><span style="color: #ff0000;">✗ FAILED</span></span>
                         </div>
-                    </div>
-                    <div class="mission-reward">REWARD: ${acceptedMission.reward}¢</div>
-                `;
+                        <div class="mission-description">${acceptedMission.description}</div>
+                        <div class="mission-progress">
+                            <span>${acceptedMission.current}/${acceptedMission.target}</span>
+                            <div class="mission-progress-bar">
+                                <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                        </div>
+                        <div class="mission-reward" style="color: #888888; text-decoration: line-through;">REWARD: ${acceptedMission.reward}¢</div>
+                        <button class="claim-reward-btn" style="background-color: rgba(255, 0, 0, 0.2); border-color: #ff0000;" data-mission-id="${acceptedMission.id}">
+                            [ABANDON MISSION]
+                        </button>
+                    `;
+                    
+                    // Add event listener to the abandon button
+                    const btn = item.querySelector('.claim-reward-btn');
+                    btn.addEventListener('click', () => abandonMission(acceptedMission.id));
+                } else {
+                    // Show accepted mission in progress
+                    item.className = 'mission-board-item accepted';
+                    const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
+                    
+                    item.innerHTML = `
+                        <div class="mission-header">
+                            <span class="item-icon">${acceptedMission.icon}</span>
+                            <span class="mission-title">${acceptedMission.title}</span>
+                            <span class="mission-status"><span style="color: #ffaa00;">◉ IN PROGRESS</span></span>
+                        </div>
+                        <div class="mission-description">${acceptedMission.description}</div>
+                        <div class="mission-progress">
+                            <span>${acceptedMission.current}/${acceptedMission.target}</span>
+                            <div class="mission-progress-bar">
+                                <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                        </div>
+                        <div class="mission-reward">REWARD: ${acceptedMission.reward}¢</div>
+                    `;
+                }
             } else {
                 // Show unaccepted mission (clickable)
+                item.className = 'mission-board-item';
                 item.innerHTML = `
-                    <div class="mission-board-header">
+                    <div class="mission-header">
                         <span class="item-icon">${mission.icon}</span>
-                        <span class="mission-board-title">${mission.title}</span>
-                        <span class="mission-board-difficulty ${mission.difficulty}">${mission.difficulty.toUpperCase()}</span>
+                        <span class="mission-title">${mission.title}</span>
+                        <span class="mission-status"><span class="mission-board-difficulty ${mission.difficulty}">${mission.difficulty.toUpperCase()}</span></span>
                     </div>
-                    <div class="mission-board-description">${mission.description}</div>
-                    <div class="mission-board-reward">REWARD: ${mission.reward}¢</div>
+                    <div class="mission-description">${mission.description}</div>
+                    <div class="mission-reward">REWARD: ${mission.reward}¢</div>
                 `;
                 item.addEventListener('click', () => acceptMission(mission, stationName, stationColor));
             }
@@ -4357,6 +4393,34 @@ function claimMissionReward(missionId) {
     gameState.credits += mission.reward;
     gameState.stats.creditsEarned += mission.reward;
     logMessage(`Mission reward claimed: ${mission.reward}¢ from ${mission.title}!`, 'success');
+    
+    // Remove mission from active list
+    removeMission(missionId);
+    
+    // Remove from station's available missions
+    if (gameState.stationMissions[mission.stationName]) {
+        gameState.stationMissions[mission.stationName] = gameState.stationMissions[mission.stationName].filter(m => m.id !== missionId);
+        
+        // Generate a new mission to replace it
+        const newMission = generateStationMissions(mission.stationName, mission.stationColor)[0];
+        gameState.stationMissions[mission.stationName].push(newMission);
+    }
+    
+    updateUI();
+    
+    // Refresh mission board if still docked
+    const dockedStation = stations.find(s => s.isDocked);
+    if (dockedStation) {
+        updateMissionBoard(dockedStation.name, dockedStation.colorScheme);
+    }
+}
+
+// Abandon a failed mission
+function abandonMission(missionId) {
+    const mission = gameState.missions.find(m => m.id === missionId);
+    if (!mission || mission.status !== 'failed') return;
+    
+    logMessage(`Mission abandoned: ${mission.title}`, 'info');
     
     // Remove mission from active list
     removeMission(missionId);
@@ -4835,6 +4899,8 @@ function initUpgrades() {
             warningText +
             `\n\nProceed with sector jump?`,
             () => {
+                // Keep game paused during warp - it will unpause when warp completes
+                gameState.isPaused = true;
                 jumpToNextSector();
             },
             null,
@@ -5319,6 +5385,12 @@ function updateRescueShip(dt = 1) {
 }
 
 function jumpToNextSector() {
+    // Prevent multiple jump attempts while warp is active
+    if (warpState.active) {
+        logMessage('Warp sequence already in progress...');
+        return;
+    }
+    
     if (gameState.fuel < 50) {
         logMessage('Insufficient fuel for sector jump. Refuel at a station or Call for rescue.');
         return;
@@ -5339,6 +5411,12 @@ function jumpToNextSector() {
     
     // Hide mission board and station UI
     hideMissionBoard();
+    
+    // Disable navigation buttons during warp
+    const nextSectorBtn = document.getElementById('nextSector');
+    const autoPilotBtn = document.getElementById('returnToStation');
+    if (nextSectorBtn) nextSectorBtn.disabled = true;
+    if (autoPilotBtn) autoPilotBtn.disabled = true;
     
     // Start warp animation sequence
     warpState.active = true;
@@ -6031,6 +6109,9 @@ function gameLoop(currentTime = 0) {
     // Store delta time for use in render functions
     currentDeltaTime = deltaTime;
     
+    // Update warp animation (must run even when paused)
+    updateWarpAnimation(deltaTime);
+    
     if (!gameState.isPaused) {
         // Update gamepad input
         updateGamepad();
@@ -6261,6 +6342,16 @@ function updateWarpAnimation(deltaTime) {
         warpState.nextSectorData = null;
         warpState.sectorJumped = false;
         warpState.shipScale = 1.0;
+        
+        // Re-enable navigation buttons after warp completes
+        const nextSectorBtn = document.getElementById('nextSector');
+        const autoPilotBtn = document.getElementById('returnToStation');
+        if (nextSectorBtn) nextSectorBtn.disabled = false;
+        if (autoPilotBtn) autoPilotBtn.disabled = false;
+        
+        // Unpause the game after warp completes
+        gameState.isPaused = false;
+        
         logMessage('Warp complete. Welcome to the new sector!');
     }
 }
@@ -7128,10 +7219,7 @@ function update(deltaTime) {
     // This makes all calculations framerate-independent
     const dt = deltaTime / 16.67;
     
-    // Update warp animation (runs even when game is paused)
-    updateWarpAnimation(deltaTime);
-    
-    // Don't update game logic during warp
+    // Don't update game logic during warp (warp animation is updated in gameLoop)
     if (warpState.active) {
         return;
     }

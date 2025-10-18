@@ -733,74 +733,91 @@
 
     <!-- Pause Menu Modal -->
     <div class="modal" id="pauseModal">
-        <div class="modal-content modal-large">
+        <div class="modal-content modal-large pause-modal-redesign">
             <div class="modal-header">
-                <div class="modal-title">╔════ GAME PAUSED ════╗</div>
+                <div class="modal-title">▓▓▓ SYSTEM PAUSED ▓▓▓</div>
             </div>
-            <div class="modal-body">
-                <!-- Main Buttons -->
-                <div class="pause-section">
-                    <button class="modal-btn" id="resumeBtn">
-                        <span class="btn-bracket">[</span>
-                        <span class="btn-text">RESUME MISSION</span>
-                        <span class="btn-bracket">]</span>
+            <div class="modal-body pause-modal-body">
+                <!-- Top Action Bar -->
+                <div class="pause-action-bar">
+                    <button class="pause-primary-btn" id="resumeBtn">
+                        <span class="btn-icon">►</span>
+                        <span class="btn-text">RESUME</span>
                     </button>
-                    <button class="modal-btn" id="restartBtn">
-                        <span class="btn-bracket">[</span>
-                        <span class="btn-text">RESTART GAME</span>
-                        <span class="btn-bracket">]</span>
+                    <button class="pause-secondary-btn" id="restartBtn">
+                        <span class="btn-icon">↻</span>
+                        <span class="btn-text">RESTART</span>
                     </button>
-                    <button class="modal-btn" id="tutorialBtn">
-                        <span class="btn-bracket">[</span>
-                        <span class="btn-text">SHOW TUTORIAL</span>
-                        <span class="btn-bracket">]</span>
+                    <button class="pause-secondary-btn" id="tutorialBtn">
+                        <span class="btn-icon">?</span>
+                        <span class="btn-text">TUTORIAL</span>
                     </button>
                 </div>
 
-                <!-- Save Game Section -->
-                <div class="pause-section">
-                    <div class="section-title">╔═══ SAVE GAME ═══╗</div>
-                    <div class="save-controls">
-                        <input type="text" id="saveName" class="save-input" placeholder="Save Name..." maxlength="20">
-                        <button id="saveGameBtn" class="modal-btn">
-                            <span class="btn-bracket">[</span>SAVE GAME<span class="btn-bracket">]</span>
-                        </button>
-                        <div id="saveMessage" class="save-message"></div>
-                    </div>
-                </div>
+                <!-- Main Grid Layout -->
+                <div class="pause-grid">
+                    <!-- Left Column: Save/Load -->
+                    <div class="pause-panel">
+                        <div class="pause-panel-header">
+                            <span class="panel-icon">▼</span>
+                            <span>SAVE MANAGEMENT</span>
+                        </div>
+                        
+                        <!-- Quick Save Section -->
+                        <div class="pause-subsection">
+                            <div class="pause-quick-actions">
+                                <button id="quickSaveBtn" class="pause-quick-btn">
+                                    <span class="btn-icon">⚡</span>
+                                    <span>QUICK SAVE</span>
+                                </button>
+                                <button id="quickLoadBtn" class="pause-quick-btn">
+                                    <span class="btn-icon">▲</span>
+                                    <span>QUICK LOAD</span>
+                                </button>
+                            </div>
+                        </div>
 
-                <!-- Load Game Section -->
-                <div class="pause-section">
-                    <div class="section-title">╔═══ LOAD GAME ═══╗</div>
-                    <div class="save-list" id="saveList">
-                        <div class="info-text dim">No saved games</div>
-                    </div>
-                </div>
+                        <!-- Manual Save Section -->
+                        <div class="pause-subsection">
+                            <div class="pause-save-input-group">
+                                <input type="text" id="saveName" class="pause-input" placeholder="Enter save name..." maxlength="20">
+                                <button id="saveGameBtn" class="pause-save-btn">
+                                    <span class="btn-icon">+</span>
+                                </button>
+                            </div>
+                            <div id="saveMessage" class="pause-message"></div>
+                        </div>
 
-                <!-- Quick Save/Load -->
-                <div class="pause-section">
-                    <div class="section-title">╔═══ QUICK SAVE ═══╗</div>
-                    <div class="quick-save-buttons">
-                        <button id="quickSaveBtn" class="modal-btn">
-                            <span class="btn-bracket">[</span>QUICK SAVE<span class="btn-bracket">]</span>
-                        </button>
-                        <button id="quickLoadBtn" class="modal-btn">
-                            <span class="btn-bracket">[</span>QUICK LOAD<span class="btn-bracket">]</span>
-                        </button>
+                        <!-- Import/Export Actions -->
+                        <div class="pause-subsection">
+                            <div class="pause-import-export">
+                                <button id="exportSaveBtn" class="pause-utility-btn">
+                                    <span class="btn-icon">↑</span>
+                                    <span>EXPORT</span>
+                                </button>
+                                <button id="importSaveBtn" class="pause-utility-btn">
+                                    <span class="btn-icon">↓</span>
+                                    <span>IMPORT</span>
+                                </button>
+                                <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Import/Export -->
-                <div class="pause-section">
-                    <div class="section-title">╔═══ IMPORT/EXPORT ═══╗</div>
-                    <div class="import-export-buttons">
-                        <button id="exportSaveBtn" class="modal-btn">
-                            <span class="btn-bracket">[</span>EXPORT ALL SAVES<span class="btn-bracket">]</span>
-                        </button>
-                        <button id="importSaveBtn" class="modal-btn">
-                            <span class="btn-bracket">[</span>IMPORT SAVES<span class="btn-bracket">]</span>
-                        </button>
-                        <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                    <!-- Right Column: Save List -->
+                    <div class="pause-panel">
+                        <div class="pause-panel-header">
+                            <span class="panel-icon">≡</span>
+                            <span>SAVED GAMES</span>
+                        </div>
+                        <div class="pause-save-list-container">
+                            <div class="pause-save-list" id="saveList">
+                                <div class="pause-empty-state">
+                                    <span class="empty-icon">○</span>
+                                    <span>No saved games</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
