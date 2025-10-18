@@ -150,20 +150,6 @@
                     </div>
                 </div>
 
-                <!-- Inventory Display -->
-                <div class="info-section">
-                    <div class="section-header">
-                        <span class="section-icon">■</span>
-                        <span class="section-title">CARGO HOLD</span>
-                    </div>
-                    <div class="inventory-list" id="inventoryList">
-                        <div class="inventory-item empty">
-                            <span class="item-icon">∅</span>
-                            <span class="item-text">CARGO BAY EMPTY</span>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Active Missions Display -->
                 <div class="info-section">
                     <button class="section-header missions-drawer-header" id="missionsDrawerBtn">
@@ -175,6 +161,20 @@
                         <div class="mission-item empty">
                             <span class="item-icon">⊗</span>
                             <span class="item-text">NO ACTIVE MISSIONS</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory Display -->
+                <div class="info-section">
+                    <div class="section-header">
+                        <span class="section-icon">■</span>
+                        <span class="section-title">CARGO HOLD</span>
+                    </div>
+                    <div class="inventory-list" id="inventoryList">
+                        <div class="inventory-item empty">
+                            <span class="item-icon">∅</span>
+                            <span class="item-text">CARGO BAY EMPTY</span>
                         </div>
                     </div>
                 </div>
@@ -362,10 +362,6 @@
                                 <span class="item-icon">⊗</span>
                                 <span class="item-text">DOCK AT A STATION TO VIEW MISSIONS</span>
                             </div>
-                        </div>
-                        <div class="mission-board-completion" id="missionCompletionArea" style="display: none;">
-                            <div class="completion-header">COMPLETED MISSIONS</div>
-                            <div id="completedMissionsList"></div>
                         </div>
                     </div>
                 </div>
@@ -600,10 +596,10 @@
                                         <span class="upgrade-name">ADVANCED SCANNER</span>
                                     </div>
                                     <div class="upgrade-info">
-                                        <div class="upgrade-desc">Shows asteroid ore values & hazard damage indicators</div>
+                                        <div class="upgrade-desc">Unlocks advanced scanning features: Shows asteroid values & hazard damage in scan results, displays all asteroids/hazards on minimap, and reveals ore values in cargo hold inventory</div>
                                         <div class="upgrade-stats">
                                             <span class="stat-label">UNLOCKS:</span>
-                                            <span class="stat-value" id="advancedScannerValue">Value & Danger Display</span>
+                                            <span class="stat-value" id="advancedScannerValue">Enhanced Scan Display, Full Minimap Vision, Cargo Value Display</span>
                                         </div>
                                         <div class="upgrade-stats">
                                             <span class="stat-label">STATUS:</span>
@@ -705,19 +701,23 @@
                             <div class="category-content" id="prestigeContent" style="display: none;">
                                 <div class="prestige-info">
                                     <div class="prestige-desc">
-                                        Reset progress for permanent bonuses
+                                        Reset progress for permanent +50% bonus to all earnings
                                     </div>
                                     <div class="prestige-stats">
                                         <span class="stat-label">REBIRTHS:</span>
                                         <span class="stat-value" id="prestigeCount">0</span>
                                     </div>
                                     <div class="prestige-stats">
-                                        <span class="stat-label">BONUS:</span>
+                                        <span class="stat-label">CURRENT BONUS:</span>
                                         <span class="stat-value" id="prestigeBonus">+0%</span>
+                                    </div>
+                                    <div class="prestige-stats">
+                                        <span class="stat-label">NEXT BONUS:</span>
+                                        <span class="stat-value" id="prestigeNextBonus">+50%</span>
                                     </div>
                                     <button class="prestige-btn" id="prestigeBtn" disabled>
                                         <span class="btn-bracket">[</span>
-                                        <span class="btn-text">REBIRTH (1,000¢)</span>
+                                        <span class="btn-text">REBIRTH (50,000¢)</span>
                                         <span class="btn-bracket">]</span>
                                     </button>
                                 </div>

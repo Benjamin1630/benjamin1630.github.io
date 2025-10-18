@@ -71,7 +71,8 @@ const gameState = {
         asteroidsDestroyed: 0,
         hazardsAvoided: 0,
         sectorsVisited: 1,
-        playTime: 0
+        playTime: 0,
+        creditsEarned: 0
     },
     
     // Game flags
@@ -430,21 +431,21 @@ let rescueShip = null;
 const scanState = {
     active: false,
     waveRadius: 0,
-    waveMaxRadius: 400, // Will be calculated based on upgrades
+    waveMaxRadius: 300, // Will be calculated based on upgrades
     waveSpeed: 5, // Reduced from 10 for slower scan wave expansion
     detectedItems: [],
-    displayTime: 7000, // Will be calculated based on upgrades
+    displayTime: 3000, // Will be calculated based on upgrades
     startTime: 0,
     cooldown: 0,
-    cooldownMax: 8000 // Will be calculated based on upgrades
+    cooldownMax: 10000 // Will be calculated based on upgrades
 };
 
 const SCAN_CONFIG = {
-    baseRange: 400, // Base scan range
+    baseRange: 300, // Base scan range
     rangePerLevel: 100, // Additional range per upgrade level
     baseCooldown: 8000, // Base cooldown (8 seconds)
     cooldownReduction: 800, // Cooldown reduction per level (0.8 seconds)
-    displayDuration: 7000, // Fixed display duration (7 seconds)
+    displayDuration: 3000, // Fixed display duration (3 seconds)
     lineColor: '#00ffff',
     labelOffset: 30,
     horizontalLength: 80,
@@ -597,6 +598,23 @@ let currentDeltaTime = 16.67; // Store current frame's delta time for use in ren
 let lastTouchDistance = 0;
 let isPinching = false;
 
+// Warp animation state
+let warpState = {
+    active: false,
+    phase: 'countdown', // 'countdown', 'warp', 'fadeOut', 'fadeIn'
+    startTime: 0,
+    elapsedTime: 0,
+    countdownDuration: 3000, // 3 seconds countdown
+    warpDuration: 1000, // 1 second warp effect
+    fadeOutDuration: 500, // 0.5 seconds fade to black
+    fadeInDuration: 500, // 0.5 seconds fade from black
+    totalDuration: 5000, // Total 5 seconds
+    nextSectorData: null, // Stores data for sector jump
+    sectorJumped: false, // Flag to ensure sector jump only happens once
+    shipScale: 1.0, // Current ship scale multiplier
+    originalShipSize: 0 // Store original size to restore later
+};
+
 // ================================
 // EARLY INITIALIZATION (Before Boot Sequence)
 // ================================
@@ -675,8 +693,9 @@ function getBootMessages(includeNamePrompt = false, isDocked = true) {
     
     if (includeNamePrompt) {
         messages.push(
-            "VESSEL REGISTRATION:",
             "ERROR - VESSEL REGISTRATION MISSING",
+            "",
+            "VESSEL REGISTRATION:",
             "Enter vessel designation: [INPUT]",
             "- Ship Class: Deep Space Mining Frigate",
             `- Hull Integrity: ${hullStatus}`,
@@ -829,14 +848,12 @@ function displayBootSequence() {
                         
                         bootMessages = [
                             ...bootMessages.slice(0, bootLineIndex),
-                            "- Vessel registration confirmed.",
-                            "",
-                            "VESSEL IDENTIFICATION:",
-                            `- Ship Name: ${shipName}`,
                             "- Class: Deep Space Mining Frigate",
                             `- Hull Integrity: ${hullStatus}`,
                             `- Fuel Reserves: ${fuelStatus}`,
                             `- STATUS: ${statusText}`,
+                            "",
+                            "- Vessel registration complete.",
                             "",
                             "SECTOR ANALYSIS:",
                             `- Location: ${sectorName} (Mining Zone)`,
@@ -1254,6 +1271,7 @@ function processCommand(commandString) {
             }
             
             gameState.credits += amount;
+            if (amount > 0) gameState.stats.creditsEarned += amount;
             updateUI();
             logMessage(`Added ${amount} credits. New balance: ${gameState.credits.toFixed(2)} CR`, 'success');
             break;
@@ -1993,7 +2011,8 @@ function saveGame(saveName) {
                 asteroidsDestroyed: gameState.stats.asteroidsDestroyed,
                 hazardsAvoided: gameState.stats.hazardsAvoided,
                 sectorsVisited: gameState.stats.sectorsVisited,
-                playTime: gameState.stats.playTime
+                playTime: gameState.stats.playTime,
+                creditsEarned: gameState.stats.creditsEarned
             }
         },
         player: {
@@ -2177,6 +2196,7 @@ function loadGame(saveName) {
             gameState.stats.hazardsAvoided = saveData.gameState.stats.hazardsAvoided || 0;
             gameState.stats.sectorsVisited = saveData.gameState.stats.sectorsVisited || 1;
             gameState.stats.playTime = saveData.gameState.stats.playTime || 0;
+            gameState.stats.creditsEarned = saveData.gameState.stats.creditsEarned || 0;
         }
         
         // Restore player
@@ -2435,6 +2455,7 @@ function loadGameData(saveName) {
             gameState.stats.hazardsAvoided = saveData.gameState.stats.hazardsAvoided || 0;
             gameState.stats.sectorsVisited = saveData.gameState.stats.sectorsVisited || 1;
             gameState.stats.playTime = saveData.gameState.stats.playTime || 0;
+            gameState.stats.creditsEarned = saveData.gameState.stats.creditsEarned || 0;
         }
         
         // Restore player
@@ -3929,7 +3950,7 @@ const MISSION_TEMPLATES = [
     // Basic mining missions - destroy asteroids
     {
         type: 'mine_asteroids',
-        icon: '⛏',
+        icon: '◆',
         titleTemplates: ['MINING CONTRACT', 'ASTEROID CLEARING', 'ORE EXTRACTION'],
         descriptionTemplates: [
             'Mine and destroy {target} asteroids',
@@ -3946,7 +3967,7 @@ const MISSION_TEMPLATES = [
     // Specific resource collection missions
     {
         type: 'mine_specific',
-        icon: '💎',
+        icon: '◇',
         titleTemplates: ['RARE ORE REQUEST', 'MINERAL SURVEY', 'RESOURCE COLLECTION'],
         descriptionTemplates: [
             'Collect {target} units of {resourceType}',
@@ -3963,7 +3984,7 @@ const MISSION_TEMPLATES = [
     // Exploration missions - travel distance
     {
         type: 'travel_distance',
-        icon: '�',
+        icon: '▸',
         titleTemplates: ['EXPLORATION MISSION', 'DEEP SPACE SURVEY', 'SECTOR MAPPING'],
         descriptionTemplates: [
             'Explore and travel {target} units through space',
@@ -3980,7 +4001,7 @@ const MISSION_TEMPLATES = [
     // Cargo delivery missions - collect and hold resources
     {
         type: 'cargo_delivery',
-        icon: '�',
+        icon: '■',
         titleTemplates: ['CARGO DELIVERY', 'FREIGHT CONTRACT', 'SUPPLY RUN'],
         descriptionTemplates: [
             'Collect and hold {target} units of cargo simultaneously',
@@ -3997,7 +4018,7 @@ const MISSION_TEMPLATES = [
     // Hazard survival missions - avoid taking damage
     {
         type: 'hazard_survival',
-        icon: '⚠️',
+        icon: '⚠',
         titleTemplates: ['HAZARD NAVIGATION', 'DANGER ZONE', 'SURVIVAL TEST'],
         descriptionTemplates: [
             'Mine {target} asteroids without hull dropping below {threshold}%',
@@ -4019,7 +4040,7 @@ const MISSION_TEMPLATES = [
     // Credit generation missions
     {
         type: 'earn_credits',
-        icon: '💰',
+        icon: '₵',
         titleTemplates: ['PROFIT CONTRACT', 'TRADE MISSION', 'REVENUE GENERATION'],
         descriptionTemplates: [
             'Generate {target} credits through mining and trading',
@@ -4036,7 +4057,7 @@ const MISSION_TEMPLATES = [
     // Speed challenge - complete quickly
     {
         type: 'speed_mining',
-        icon: '⚡',
+        icon: '»',
         titleTemplates: ['SPEED MINING', 'RAPID EXTRACTION', 'TIME TRIAL'],
         descriptionTemplates: [
             'Mine {target} asteroids within {timeLimit} seconds',
@@ -4125,9 +4146,10 @@ function generateStationMissions(stationName, stationColor) {
         
         description = description.replace('{target}', target);
         
-        // Calculate reward based on difficulty and rarity
+        // Calculate reward based on difficulty, rarity, and sector
         const difficultyMultiplier = difficulty === 'hard' ? 1.5 : difficulty === 'medium' ? 1.25 : 1;
-        const reward = Math.floor(target * template.rewardMultiplier * difficultyMultiplier * rarityMultiplier);
+        const sectorMultiplier = 1.0 + (gameState.sector - 1) * 0.1; // 1.0x for sector 1, 1.1x for sector 2, 1.2x for sector 3, etc.
+        const reward = Math.floor(target * template.rewardMultiplier * difficultyMultiplier * rarityMultiplier * sectorMultiplier);
         
         missions.push({
             id: gameState.nextMissionId++,
@@ -4172,10 +4194,15 @@ function updateMissionBoard(stationName, stationColor) {
     
     const availableMissions = gameState.stationMissions[stationName];
     
+    // Find completed missions for this station
+    const completedMissions = gameState.missions.filter(m => 
+        m.status === 'completed' && m.stationName === stationName
+    );
+    
     // Clear current display
     missionBoardList.innerHTML = '';
     
-    if (availableMissions.length === 0) {
+    if (availableMissions.length === 0 && completedMissions.length === 0) {
         const emptyItem = document.createElement('div');
         emptyItem.className = 'mission-board-item empty';
         emptyItem.innerHTML = `
@@ -4184,6 +4211,40 @@ function updateMissionBoard(stationName, stationColor) {
         `;
         missionBoardList.appendChild(emptyItem);
     } else {
+        // First, show completed missions at the top
+        completedMissions.forEach(mission => {
+            const item = document.createElement('div');
+            item.className = 'mission-board-item completed';
+            
+            const progressPercent = 100;
+            
+            item.innerHTML = `
+                <div class="mission-header">
+                    <span class="item-icon">${mission.icon}</span>
+                    <span class="mission-title">${mission.title}</span>
+                    <span class="mission-status"><span style="color: #00ff00;">✓ COMPLETED</span></span>
+                </div>
+                <div class="mission-description">${mission.description}</div>
+                <div class="mission-progress">
+                    <span>${mission.current} / ${mission.target}</span>
+                    <div class="mission-progress-bar">
+                        <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                    </div>
+                </div>
+                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+                <button class="claim-reward-btn" data-mission-id="${mission.id}">
+                    [CLAIM REWARD]
+                </button>
+            `;
+            
+            // Add event listener to the claim button
+            const btn = item.querySelector('.claim-reward-btn');
+            btn.addEventListener('click', () => claimMissionReward(mission.id));
+            
+            missionBoardList.appendChild(item);
+        });
+        
+        // Then show available/in-progress missions
         availableMissions.forEach(mission => {
             // Only display missions that belong to this station
             if (mission.stationName !== stationName) {
@@ -4233,9 +4294,6 @@ function updateMissionBoard(stationName, stationColor) {
             missionBoardList.appendChild(item);
         });
     }
-    
-    // Check for completed missions that can be turned in at this station
-    updateMissionCompletionArea(stationName);
 }
 
 // Accept a mission from the board
@@ -4251,7 +4309,7 @@ function acceptMission(mission, stationName, stationColor) {
             mission.current = 0;
             break;
         case 'earn_credits':
-            mission.startValue = gameState.credits;
+            mission.startValue = gameState.stats.creditsEarned;
             mission.current = 0;
             break;
         case 'travel_distance':
@@ -4285,61 +4343,6 @@ function acceptMission(mission, stationName, stationColor) {
 }
 
 // Update mission completion area
-function updateMissionCompletionArea(stationName) {
-    const completionArea = document.getElementById('missionCompletionArea');
-    const completedMissionsList = document.getElementById('completedMissionsList');
-    
-    // Find completed missions for this station
-    const completedMissions = gameState.missions.filter(m => 
-        m.status === 'completed' && m.stationName === stationName
-    );
-    
-    if (completedMissions.length > 0) {
-        completionArea.style.display = 'block';
-        completedMissionsList.innerHTML = '';
-        
-        completedMissions.forEach(mission => {
-            const item = document.createElement('div');
-            item.className = 'completed-mission-item';
-            
-            // Calculate progress percentage (should be 100% for completed)
-            const progressPercent = 100;
-            
-            // Station name with color (use primary color from colorScheme)
-            const stationNameHtml = mission.stationName ? 
-                `<div class="mission-station-name" style="color: ${mission.stationColor?.primary || mission.stationColor};">FROM: ${mission.stationName}</div>` : '';
-            
-            item.innerHTML = `
-                <div class="mission-header">
-                    <span class="item-icon">${mission.icon}</span>
-                    <span class="mission-title">${mission.title}</span>
-                    <span class="mission-status"><span style="color: #00ff00;">✓ COMPLETED</span></span>
-                </div>
-                <div class="mission-description">${mission.description}</div>
-                ${stationNameHtml}
-                <div class="mission-progress">
-                    <span>${mission.current} / ${mission.target}</span>
-                    <div class="mission-progress-bar">
-                        <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
-                    </div>
-                </div>
-                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
-                <button class="claim-reward-btn" data-mission-id="${mission.id}">
-                    [CLAIM REWARD]
-                </button>
-            `;
-            
-            // Add event listener to the button
-            const btn = item.querySelector('.claim-reward-btn');
-            btn.addEventListener('click', () => claimMissionReward(mission.id));
-            
-            completedMissionsList.appendChild(item);
-        });
-    } else {
-        completionArea.style.display = 'none';
-    }
-}
-
 // Claim mission reward (must be at the correct station)
 function claimMissionReward(missionId) {
     const mission = gameState.missions.find(m => m.id === missionId);
@@ -4347,6 +4350,7 @@ function claimMissionReward(missionId) {
     
     // Award the reward
     gameState.credits += mission.reward;
+    gameState.stats.creditsEarned += mission.reward;
     logMessage(`Mission reward claimed: ${mission.reward}¢ from ${mission.title}!`, 'success');
     
     // Remove mission from active list
@@ -4389,16 +4393,15 @@ function hideMissionBoard() {
             <span class="item-text">DOCK AT A STATION TO VIEW MISSIONS</span>
         </div>
     `;
-    
-    // Hide completion area
-    const completionArea = document.getElementById('missionCompletionArea');
-    completionArea.style.display = 'none';
 }
 
 // Update mission progress (called from game loop)
 function updateMissionProgress(missionId, progress) {
     const mission = gameState.missions.find(m => m.id === missionId);
     if (!mission || mission.status !== 'active') return;
+    
+    const oldProgress = mission.current;
+    const oldStatus = mission.status;
     
     mission.current = Math.min(progress, mission.target);
     
@@ -4408,11 +4411,18 @@ function updateMissionProgress(missionId, progress) {
         logMessage(`Mission completed: ${mission.title}! Return to ${mission.stationName} to claim reward.`, 'success');
     }
     
-    updateMissionsDisplay();
+    // Only update display if progress or status actually changed
+    if (mission.current !== oldProgress || mission.status !== oldStatus) {
+        updateMissionsDisplay();
+    }
 }
 
 // Update all active missions based on current game state
 function updateAllMissions() {
+    // Early exit if no active missions
+    const hasActiveMissions = gameState.missions.some(m => m.status === 'active');
+    if (!hasActiveMissions) return;
+    
     gameState.missions.forEach(mission => {
         if (mission.status !== 'active') return;
         
@@ -4433,7 +4443,7 @@ function updateAllMissions() {
                 
             case 'earn_credits':
                 // Track credits earned since mission start
-                progress = gameState.credits - mission.startValue;
+                progress = gameState.stats.creditsEarned - mission.startValue;
                 updateMissionProgress(mission.id, progress);
                 break;
                 
@@ -4458,7 +4468,7 @@ function updateAllMissions() {
                 }
                 
                 // Check if hull dropped below threshold
-                const hullPercentage = (gameState.hull / PLAYER_CONFIG.maxHull) * 100;
+                const hullPercentage = (gameState.hull / gameState.maxHull) * 100;
                 if (hullPercentage < mission.threshold) {
                     // Failed the mission
                     mission.failed = true;
@@ -4532,11 +4542,11 @@ function initUpgrades() {
         fuelCapacity: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         fuelEfficiency: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
-        advancedScanner: [50], // One-time purchase
+        multiMining: [2400, 4800, 9600, 19200, 38400], // Max 6 lasers (5 upgrades from level 1)
+        advancedScanner: [5000], // One-time purchase
         scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
         scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
-        cargoDrone: [5000] // One-time purchase
+        cargoDrone: [20000] // One-time purchase
     };
     
     // Initialize master upgrades drawer toggle
@@ -4712,10 +4722,12 @@ function initUpgrades() {
     
     // Prestige
     document.getElementById('prestigeBtn').addEventListener('click', () => {
-        if (gameState.credits >= 1000) {
+        if (gameState.credits >= 50000) {
+            const currentBonus = gameState.prestigeBonus;
+            const newBonus = currentBonus + 50;
             showConfirm(
                 'PRESTIGE',
-                'Prestige will reset all progress but grant permanent bonuses.\n\nYou will gain +10% to all earnings permanently.\n\nContinue?',
+                `Prestige will reset all progress but grant permanent bonuses.\n\nCurrent Bonus: +${currentBonus}%\nNew Bonus: +${newBonus}%\n\nYou will gain +50% to all earnings permanently.\n\nContinue?`,
                 () => {
                     performPrestige();
                 }
@@ -4729,14 +4741,14 @@ function initUpgrades() {
     });
     
     document.getElementById('callForHelp').addEventListener('click', () => {
-        // Calculate rescue cost (1.5x fuel needed)
+        // Calculate rescue cost (2x fuel needed)
         const fuelNeeded = gameState.maxFuel - gameState.fuel;
-        const rescueCost = Math.ceil(fuelNeeded * 1.5);
+        const rescueCost = Math.ceil(fuelNeeded * 2);
         
         if (gameState.credits >= rescueCost && !rescueShip) {
             showConfirm(
                 'CALL FOR HELP',
-                `Send a rescue ship from the station to refuel your vessel?\n\nCOST: ${rescueCost} Credits (1.5x fuel cost)\n\nThe rescue ship will fly to your position, refuel your ship, then return to the station.`,
+                `Send a rescue ship from the station to refuel your vessel?\n\nCOST: ${rescueCost} Credits (2x fuel cost)\n\nThe rescue ship will fly to your position, refuel your ship, then return to the station.`,
                 () => {
                     callForHelp();
                 }
@@ -4766,6 +4778,11 @@ function initUpgrades() {
         const nextRareChance = (nextSectorNum - 1) * 10; // As percentage
         const nextSpawnRate = (nextSectorNum - 1) * 10; // As percentage above base
         
+        // Calculate mission reward multipliers
+        const currentRewardMultiplier = 1.0 + (currentSector - 1) * 0.1;
+        const nextRewardMultiplier = 1.0 + (nextSectorNum - 1) * 0.1;
+        const rewardIncreasePercent = Math.round((nextRewardMultiplier - currentRewardMultiplier) * 100);
+        
         // Calculate differences
         const asteroidIncrease = nextAsteroids - currentAsteroids;
         const hazardIncrease = nextHazards - currentHazards;
@@ -4790,7 +4807,7 @@ function initUpgrades() {
         
         // Add mission abandonment warning if player has active missions
         if (hasActiveMissions) {
-            warningText += '\n\n<b style="color: #ff6600;">⚠ MISSION WARNING ⚠</b>\n';
+            warningText += '\n\n<b style="color: #ff6600;">\u26A0 MISSION WARNING \u26A0</b>\n';
             warningText += `<b style="color: #ff6600;">You have ${gameState.missions.length} active mission(s)!</b>\n`;
             warningText += `<b style="color: #ff6600;">All missions will be ABANDONED if you jump sectors.</b>\n`;
             warningText += `<b style="color: #ff6600;">Return to stations to complete missions first!</b>`;
@@ -4806,7 +4823,8 @@ function initUpgrades() {
             `• Asteroid density: ${currentAsteroids} → ${nextAsteroids} (+${asteroidIncrease})\n` +
             `• Hazard encounters: ${currentHazards} → ${nextHazards} (+${hazardIncrease})\n` +
             `• Rare asteroid chance: ${currentRareChance}% → ${nextRareChance}% (+${rareChanceIncrease}%)\n` +
-            `• Spawn rate bonus: +${currentSpawnRate}% → +${nextSpawnRate}% (+${spawnRateIncrease}%)\n\n` +
+            `• Spawn rate bonus: +${currentSpawnRate}% → +${nextSpawnRate}% (+${spawnRateIncrease}%)\n` +
+            `• Mission rewards: ${currentRewardMultiplier.toFixed(1)}x → ${nextRewardMultiplier.toFixed(1)}x (+${rewardIncreasePercent}%)\n\n` +
             `WARNING: Higher sectors contain more valuable\n` +
             `resources but significantly increased danger.` +
             warningText +
@@ -5076,8 +5094,10 @@ function applyUpgradeEffects(upgradeType) {
             updateMiningLasersDisplay();
             break;
         case 'advancedScanner':
-            // Advanced scanner enables value/danger display on scans
-            logMessage('Advanced scanner installed: Scan results now display item values and hazard warnings');
+            // Advanced scanner enables value/danger display on scans, full minimap vision, and inventory values
+            logMessage('Advanced scanner installed: Scan results display values & hazards, minimap shows all objects, inventory displays ore values');
+            // Force update displays to show new scanner features
+            updateInventoryDisplay();
             break;
         case 'scanRange':
             // Scan range is calculated dynamically in triggerScan()
@@ -5100,7 +5120,7 @@ function applyUpgradeEffects(upgradeType) {
 
 function performPrestige() {
     gameState.prestige++;
-    gameState.prestigeBonus = gameState.prestige * 10;
+    gameState.prestigeBonus = gameState.prestige * 50;
     
     // Reset most stats
     gameState.credits = 0;
@@ -5188,9 +5208,9 @@ function findNearestStation(x, y) {
 }
 
 function callForHelp() {
-    // Calculate rescue cost (1.5x fuel needed)
+    // Calculate rescue cost (2x fuel needed)
     const fuelNeeded = gameState.maxFuel - gameState.fuel;
-    const rescueCost = Math.ceil(fuelNeeded * 1.5);
+    const rescueCost = Math.ceil(fuelNeeded * 2);
     
     if (gameState.credits < rescueCost) {
         logMessage(`Insufficient credits for rescue service. Need ${rescueCost}¢.`);
@@ -5304,6 +5324,27 @@ function jumpToNextSector() {
         return;
     }
     
+    // Start warp animation sequence
+    warpState.active = true;
+    warpState.phase = 'countdown';
+    warpState.startTime = Date.now();
+    warpState.elapsedTime = 0;
+    warpState.shipScale = 1.0;
+    warpState.sectorJumped = false;
+    
+    // Store sector jump data for execution after animation
+    warpState.nextSectorData = {
+        fuel: gameState.fuel,
+        credits: gameState.credits,
+        sector: gameState.sector + 1,
+        missionsCount: gameState.missions.length
+    };
+    
+    logMessage('INITIATING WARP SEQUENCE...');
+}
+
+// Execute the actual sector jump after warp animation completes
+function executeSectorJump() {
     if (godModeActive) {
         gameState.fuel = gameState.maxFuel;
     } else {
@@ -5327,7 +5368,6 @@ function jumpToNextSector() {
     
     // Clear missions when jumping sectors (missions are station-specific)
     if (gameState.missions.length > 0) {
-        logMessage(`${gameState.missions.length} mission(s) abandoned due to sector jump`, 'warning');
         gameState.missions = [];
         updateMissionsDisplay();
     }
@@ -5928,6 +5968,8 @@ function initGame() {
     
     updateUI();
     updateMiningLasersDisplay(); // Initialize the laser display
+    updateInventoryDisplay(); // Initialize the inventory display
+    updateMissionsDisplay(); // Initialize missions display (especially important after loading from boot)
     
     // Check if player is docked and update mission board if needed
     const dockedStation = stations.find(s => s.isDocked);
@@ -6132,6 +6174,359 @@ function updateScan(deltaTime) {
 }
 
 // ================================
+// WARP ANIMATION SYSTEM
+// ================================
+
+function updateWarpAnimation(deltaTime) {
+    if (!warpState.active) return;
+    
+    warpState.elapsedTime += deltaTime;
+    
+    // Calculate ship scale based on animation phase
+    if (warpState.phase === 'countdown') {
+        // During countdown: gradually increase size (1.0 to 1.5)
+        const countdownProgress = Math.min(warpState.elapsedTime / warpState.countdownDuration, 1);
+        warpState.shipScale = 1.0 + (countdownProgress * 0.25);
+    } else if (warpState.phase === 'warp') {
+        // During warp: rapidly shrink from 1.5 to 0.0 (disappear)
+        const warpProgress = (warpState.elapsedTime - warpState.countdownDuration) / warpState.warpDuration;
+        warpState.shipScale = 1.5 - (warpProgress * 1.5);
+    } else if (warpState.phase === 'fadeOut') {
+        // During fadeOut: keep ship at 0 (invisible) until screen is black, then instantly restore to 1.0
+        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
+        if (fadeProgress >= 0.99) {
+            // Screen is completely black - instantly restore ship to normal size
+            warpState.shipScale = 1.0;
+        } else {
+            // Still fading - keep ship invisible
+            warpState.shipScale = 0;
+        }
+    } else if (warpState.phase === 'fadeIn') {
+        // During fadeIn: ship is already at normal size (1.0), just keep it there
+        warpState.shipScale = 1.0;
+    }
+    
+    // Phase transitions based on elapsed time
+    if (warpState.elapsedTime < warpState.countdownDuration) {
+        // PHASE 1: Countdown (0-3s)
+        warpState.phase = 'countdown';
+    } else if (warpState.elapsedTime < warpState.countdownDuration + warpState.warpDuration) {
+        // PHASE 2: Warp effect (3-4s)
+        if (warpState.phase === 'countdown') {
+            // Just entered warp phase
+            logMessage('WARP DRIVE ENGAGED!');
+        }
+        warpState.phase = 'warp';
+    } else if (warpState.elapsedTime < warpState.countdownDuration + warpState.warpDuration + warpState.fadeOutDuration) {
+        // PHASE 3: Fade to black (4-4.5s)
+        warpState.phase = 'fadeOut';
+        
+        // Execute sector jump ONLY when screen is completely black (at the very end of fadeOut)
+        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
+        if (fadeProgress >= 0.99 && !warpState.sectorJumped) {
+            executeSectorJump();
+            warpState.sectorJumped = true;
+        }
+    } else if (warpState.elapsedTime < warpState.totalDuration) {
+        // PHASE 4: Fade from black (4.5-5s)
+        warpState.phase = 'fadeIn';
+    } else {
+        // Animation complete - reset ship scale
+        warpState.active = false;
+        warpState.phase = 'countdown';
+        warpState.elapsedTime = 0;
+        warpState.nextSectorData = null;
+        warpState.sectorJumped = false;
+        warpState.shipScale = 1.0;
+        logMessage('Warp complete. Welcome to the new sector!');
+    }
+}
+
+function renderWarpAnimation() {
+    if (!warpState.active) return;
+    
+    const progress = warpState.elapsedTime / warpState.totalDuration;
+    
+    // Apply the same render scale as the main game rendering
+    const renderScale = canvas.renderScale || 1;
+    
+    ctx.save();
+    ctx.scale(renderScale, renderScale);
+    
+    // Calculate ship's screen position in scaled coordinates
+    const scaledWidth = canvas.width / renderScale;
+    const scaledHeight = canvas.height / renderScale;
+    const shipScreenX = (player.x - viewport.x) * viewport.zoom;
+    const shipScreenY = (player.y - viewport.y) * viewport.zoom;
+    
+    // Phase-specific rendering
+    if (warpState.phase === 'countdown') {
+        // Countdown phase (0-3s)
+        const countdownProgress = warpState.elapsedTime / warpState.countdownDuration;
+        const secondsRemaining = Math.ceil(3 - (warpState.elapsedTime / 1000));
+        
+        // Multiple pulsing rings around ship
+        for (let i = 0; i < 3; i++) {
+            const ringProgress = (countdownProgress + i * 0.33) % 1;
+            const ringRadius = player.size * viewport.zoom * (2 + ringProgress * 8);
+            const ringAlpha = (1 - ringProgress) * 0.4;
+            
+            ctx.globalAlpha = ringAlpha;
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(shipScreenX, shipScreenY, ringRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        
+        // Energy particles spiraling around ship
+        const particleCount = 30;
+        for (let i = 0; i < particleCount; i++) {
+            const angle = (i / particleCount) * Math.PI * 2 + countdownProgress * Math.PI * 4;
+            const radius = player.size * viewport.zoom * (1.5 + Math.sin(countdownProgress * Math.PI * 2) * 0.5);
+            const x = shipScreenX + Math.cos(angle) * radius;
+            const y = shipScreenY + Math.sin(angle) * radius;
+            const particleSize = 2 + Math.sin(warpState.elapsedTime * 0.02 + i) * 1;
+            
+            ctx.globalAlpha = 0.6 + Math.sin(warpState.elapsedTime * 0.01 + i) * 0.4;
+            ctx.fillStyle = '#00ffff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Pulsing ship glow effect
+        const pulseIntensity = Math.sin(warpState.elapsedTime * 0.01) * 0.5 + 0.5;
+        ctx.globalAlpha = 0.3 * pulseIntensity;
+        ctx.shadowBlur = 60 * pulseIntensity;
+        ctx.shadowColor = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(shipScreenX, shipScreenY, player.size * viewport.zoom * 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ffff';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Electric arcs around ship
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffff';
+        for (let i = 0; i < 5; i++) {
+            if (Math.random() > 0.7) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = player.size * viewport.zoom * (2 + Math.random() * 2);
+                const x = shipScreenX + Math.cos(angle) * distance;
+                const y = shipScreenY + Math.sin(angle) * distance;
+                
+                ctx.beginPath();
+                ctx.moveTo(shipScreenX, shipScreenY);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Draw countdown number
+        const numberScale = 1 + Math.sin(countdownProgress * Math.PI) * 0.2;
+        ctx.font = `bold ${120 * numberScale}px "Courier New"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#00ffff';
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#00ffff';
+        ctx.globalAlpha = 0.9;
+        ctx.fillText(secondsRemaining, scaledWidth / 2, scaledHeight / 2);
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Draw "WARP DRIVE CHARGING" text
+        ctx.font = 'bold 24px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#00ff00';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00ff00';
+        const textAlpha = 0.7 + Math.sin(warpState.elapsedTime * 0.005) * 0.3;
+        ctx.globalAlpha = textAlpha;
+        ctx.fillText('WARP DRIVE CHARGING...', scaledWidth / 2, scaledHeight / 2 + 100);
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+    } else if (warpState.phase === 'warp') {
+        // Warp effect phase (3-4s)
+        const warpProgress = (warpState.elapsedTime - warpState.countdownDuration) / warpState.warpDuration;
+        
+        // Intense ship glow during warp
+        ctx.globalAlpha = 0.6;
+        ctx.shadowBlur = 100;
+        ctx.shadowColor = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(shipScreenX, shipScreenY, player.size * viewport.zoom * 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ffff';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        
+        // Star streaking effect centered on ship
+        ctx.globalAlpha = 0.8;
+        
+        const streakCount = 150;
+        for (let i = 0; i < streakCount; i++) {
+            const angle = (i / streakCount) * Math.PI * 2;
+            const length = warpProgress * 600 * (0.8 + Math.random() * 0.4);
+            const startDist = 50 + warpProgress * 250;
+            
+            const startX = shipScreenX + Math.cos(angle) * startDist;
+            const startY = shipScreenY + Math.sin(angle) * startDist;
+            const endX = shipScreenX + Math.cos(angle) * (startDist + length);
+            const endY = shipScreenY + Math.sin(angle) * (startDist + length);
+            
+            const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            gradient.addColorStop(0.3, 'rgba(0, 255, 255, 0.9)');
+            gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.9)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 1.5 + Math.random();
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        
+        // Expanding energy rings
+        for (let r = 0; r < 5; r++) {
+            const ringTime = (warpProgress + r * 0.2) % 1;
+            const radius = ringTime * 800;
+            const alpha = (1 - ringTime) * 0.5;
+            
+            ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(shipScreenX, shipScreenY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+        
+        // Tunnel vortex effect centered on ship
+        for (let r = 0; r < 12; r++) {
+            const radius = (r * 60) + (warpProgress * 600);
+            const alpha = (1 - warpProgress) * (1 - r / 12) * 0.6;
+            const rotation = warpProgress * Math.PI * 2 * (r % 2 === 0 ? 1 : -1);
+            
+            ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 10]);
+            ctx.lineDashOffset = -rotation * 20;
+            ctx.beginPath();
+            ctx.arc(shipScreenX, shipScreenY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        
+        // Speed lines/distortion
+        ctx.globalAlpha = warpProgress * 0.3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 50; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const startDist = Math.random() * 300;
+            const endDist = startDist + 100 + warpProgress * 200;
+            
+            const startX = shipScreenX + Math.cos(angle) * startDist;
+            const startY = shipScreenY + Math.sin(angle) * startDist;
+            const endX = shipScreenX + Math.cos(angle) * endDist;
+            const endY = shipScreenY + Math.sin(angle) * endDist;
+            
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        
+        // Radial blur effect
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = warpProgress * 0.2;
+        const radialGradient = ctx.createRadialGradient(shipScreenX, shipScreenY, 0, shipScreenX, shipScreenY, 400);
+        radialGradient.addColorStop(0, 'rgba(0, 255, 255, 0.8)');
+        radialGradient.addColorStop(0.5, 'rgba(0, 255, 255, 0.2)');
+        radialGradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        ctx.fillStyle = radialGradient;
+        ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        
+    } else if (warpState.phase === 'fadeOut') {
+        // Fade to black (4-4.5s)
+        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
+        
+        // Continue warp effect briefly during fade
+        if (fadeProgress < 0.5) {
+            const residualIntensity = (1 - fadeProgress * 2);
+            
+            // Fading streaks
+            // Fading streaks
+            ctx.globalAlpha = 0.4 * residualIntensity;
+            for (let i = 0; i < 50; i++) {
+                const angle = (i / 50) * Math.PI * 2;
+                const length = 400;
+                const startDist = 200;
+                
+                const startX = shipScreenX + Math.cos(angle) * startDist;
+                const startY = shipScreenY + Math.sin(angle) * startDist;
+                const endX = shipScreenX + Math.cos(angle) * (startDist + length);
+                const endY = shipScreenY + Math.sin(angle) * (startDist + length);
+                
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+        }
+        
+        // Black overlay fade
+        ctx.fillStyle = `rgba(0, 0, 0, ${fadeProgress})`;
+        ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+        
+    } else if (warpState.phase === 'fadeIn') {
+        // Fade from black (4.5-5s)
+        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration - warpState.fadeOutDuration) / warpState.fadeInDuration;
+        const alpha = 1 - fadeProgress;
+        
+        // Add brief flash/shimmer effect as world appears
+        if (fadeProgress < 0.3) {
+            const flashIntensity = (0.3 - fadeProgress) / 0.3;
+            ctx.globalAlpha = flashIntensity * 0.3;
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+            ctx.globalAlpha = 1;
+        }
+        
+        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+    }
+    
+    ctx.restore();
+}
+
+// ================================
 // CARGO DRONE SYSTEM
 // ================================
 
@@ -6174,6 +6569,7 @@ function deployCargoDrone() {
     // Clear player cargo
     gameState.inventory = {};
     gameState.cargo = 0;
+    updateInventoryDisplay(); // Update inventory after cargo drone takes cargo
     updateUI();
     
     // Spawn drone at ship's exact location
@@ -6277,6 +6673,7 @@ function updateCargoDrone(dt) {
         if (dist < 50) {
             // Arrived back at player
             gameState.credits += drone.credits;
+            gameState.stats.creditsEarned += drone.credits;
             logMessage(`Drone returned with ${drone.credits}¢!`);
             createFloatingText(player.x, player.y - 30, `+${drone.credits}¢`, '#00ff00');
             updateUI();
@@ -6479,11 +6876,21 @@ function update(deltaTime) {
     // This makes all calculations framerate-independent
     const dt = deltaTime / 16.67;
     
+    // Update warp animation (runs even when game is paused)
+    updateWarpAnimation(deltaTime);
+    
+    // Don't update game logic during warp
+    if (warpState.active) {
+        return;
+    }
+    
     // Update scan system
     updateScan(deltaTime);
     
-    // Update missions
-    updateAllMissions();
+    // Update missions (only every 10 frames to reduce overhead)
+    if (frameCount % 10 === 0 && gameState.missions.length > 0) {
+        updateAllMissions();
+    }
     
     // Update cargo drone
     updateCargoDrone(dt);
@@ -7424,11 +7831,13 @@ function sellCargo() {
     
     if (totalValue > 0) {
         gameState.credits += totalValue;
+        gameState.stats.creditsEarned += totalValue;
         gameState.cargo = 0;
         gameState.inventory = {};
         
         createFloatingText(player.x, player.y - 30, `+${formatNumber(totalValue)}¢`, '#ffff00');
         logMessage(`Sold cargo for ${formatNumber(totalValue)} credits!`);
+        updateInventoryDisplay(); // Update inventory after selling
     } else {
         logMessage('No cargo to sell.');
     }
@@ -7962,6 +8371,7 @@ function mineAsteroid(asteroid) {
     gameState.stats.totalMined++;
     
     createFloatingText(asteroid.x, asteroid.y - 20, `+1 ${asteroidType.name}`, asteroidType.color);
+    updateInventoryDisplay(); // Update inventory after mining
     
     if (asteroid.health <= 0) {
         // Asteroid fully destroyed
@@ -8369,6 +8779,9 @@ function render() {
     
     // Render minimap
     renderMinimap();
+    
+    // Render warp animation (always on top of everything)
+    renderWarpAnimation();
     
     // Render touch control indicator (in screen space, after ctx.restore())
     if (touchActive && isTouchDevice) {
@@ -8799,6 +9212,11 @@ function renderPlayer() {
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
+    
+    // Apply warp animation scale if active
+    if (warpState.active && warpState.shipScale !== 1.0) {
+        ctx.scale(warpState.shipScale, warpState.shipScale);
+    }
     
     // Calculate distance to nearest station
     const nearestStation = findNearestStation(player.x, player.y);
@@ -9281,7 +9699,7 @@ function renderPlayer() {
                 ctx.fillStyle = `rgba(255, 120, 0, ${pulse * warningAlpha})`;
                 ctx.font = `bold ${player.size * 0.45}px monospace`;
                 ctx.textAlign = 'center';
-                ctx.fillText('⚠ FUEL AT 20%', 0, -player.size * 1.25);
+                ctx.fillText('\u26A0 FUEL AT 20%', 0, -player.size * 1.25);
                 
                 // Double warning triangles
                 ctx.strokeStyle = `rgba(255, 120, 0, ${pulse * warningAlpha})`;
@@ -9695,8 +10113,30 @@ function renderMinimap() {
     minimapCtx.strokeStyle = '#00ff00';
     minimapCtx.strokeRect(0, 0, minimapCanvas.width, minimapCanvas.height);
     
-    // Draw asteroids
+    // Check if advanced scanner is purchased (shows all asteroids/hazards)
+    const hasAdvancedScanner = gameState.upgrades.advancedScanner >= 1;
+    
+    // Calculate viewport boundaries if scanner not purchased
+    let viewportLeft, viewportRight, viewportTop, viewportBottom;
+    if (!hasAdvancedScanner) {
+        const viewportWidth = VIEWPORT_REFERENCE.WIDTH / viewport.zoom;
+        const viewportHeight = VIEWPORT_REFERENCE.HEIGHT / viewport.zoom;
+        viewportLeft = viewport.x;
+        viewportRight = viewport.x + viewportWidth;
+        viewportTop = viewport.y;
+        viewportBottom = viewport.y + viewportHeight;
+    }
+    
+    // Draw asteroids (only in viewport unless advanced scanner purchased)
     asteroids.forEach(asteroid => {
+        // Skip if not in viewport and scanner not purchased
+        if (!hasAdvancedScanner) {
+            if (asteroid.x < viewportLeft || asteroid.x > viewportRight ||
+                asteroid.y < viewportTop || asteroid.y > viewportBottom) {
+                return;
+            }
+        }
+        
         const data = ASTEROID_TYPES[asteroid.type];
         minimapCtx.fillStyle = data.color;
         minimapCtx.fillRect(
@@ -9706,8 +10146,16 @@ function renderMinimap() {
         );
     });
     
-    // Draw hazards
+    // Draw hazards (only in viewport unless advanced scanner purchased)
     hazards.forEach(hazard => {
+        // Skip if not in viewport and scanner not purchased
+        if (!hasAdvancedScanner) {
+            if (hazard.x < viewportLeft || hazard.x > viewportRight ||
+                hazard.y < viewportTop || hazard.y > viewportBottom) {
+                return;
+            }
+        }
+        
         const data = HAZARD_TYPES[hazard.type];
         minimapCtx.fillStyle = data.color;
         minimapCtx.fillRect(
@@ -9900,8 +10348,8 @@ function updateUI() {
     // Scan System Display
     updateScanDisplay();
     
-    // Inventory
-    updateInventoryDisplay();
+    // Inventory - Only update when cargo changes (done in sellCargo and mining functions)
+    // updateInventoryDisplay(); // Removed from game loop for performance
     
     // Upgrades
     updateUpgradeButtons();
@@ -9935,7 +10383,9 @@ function updateUI() {
     // Prestige
     document.getElementById('prestigeCount').textContent = gameState.prestige;
     document.getElementById('prestigeBonus').textContent = `+${gameState.prestigeBonus}%`;
-    document.getElementById('prestigeBtn').disabled = gameState.credits < 1000;
+    const nextBonus = gameState.prestigeBonus + 50;
+    document.getElementById('prestigeNextBonus').textContent = `+${nextBonus}%`;
+    document.getElementById('prestigeBtn').disabled = gameState.credits < 50000;
 }
 
 function updateStationInterface() {
@@ -10105,15 +10555,21 @@ function updateInventoryDisplay() {
         `;
         inventoryList.appendChild(emptyItem);
     } else {
+        const hasAdvancedScanner = gameState.upgrades.advancedScanner >= 1;
+        
         Object.entries(gameState.inventory).forEach(([type, count]) => {
             const asteroidType = ASTEROID_TYPES[type];
             if (asteroidType && count > 0) {
                 const item = document.createElement('div');
                 item.className = 'inventory-item';
+                
+                // Show value only if advanced scanner is purchased
+                const valueDisplay = hasAdvancedScanner ? `${asteroidType.value}¢ ×${count}` : `×${count}`;
+                
                 item.innerHTML = `
                     <span class="item-icon" style="color: ${asteroidType.color}">${asteroidType.icon}</span>
                     <span class="item-text">${asteroidType.name}</span>
-                    <span class="item-count">${asteroidType.value}¢ ×${count}</span>
+                    <span class="item-count">${valueDisplay}</span>
                 `;
                 inventoryList.appendChild(item);
             }
@@ -10125,9 +10581,8 @@ function updateMissionsDisplay() {
     const missionsList = document.getElementById('missionsList');
     const missionCount = document.getElementById('missionCount');
     
-    // Update mission count
-    const activeMissions = gameState.missions.filter(m => m.status === 'active');
-    missionCount.textContent = `(${activeMissions.length})`;
+    // Update mission count - show total missions including completed ones
+    missionCount.textContent = `(${gameState.missions.length})`;
     
     // Clear current display
     missionsList.innerHTML = '';
@@ -10151,7 +10606,7 @@ function updateMissionsDisplay() {
             // Status display
             let statusText = '';
             if (mission.status === 'completed') {
-                statusText = '<span style="color: #00ff00;">✓ COMPLETED</span>';
+                statusText = '<span style="color: #00ff00;">✓ COMPLETED - DOCK AT STATION TO CLAIM</span>';
             } else if (mission.status === 'failed') {
                 statusText = '<span style="color: #ff0000;">✗ FAILED</span>';
             } else {
@@ -10176,7 +10631,7 @@ function updateMissionsDisplay() {
             // Hull threshold for hazard missions
             let hullInfoHtml = '';
             if (mission.type === 'hazard_survival' && mission.status === 'active' && !mission.failed) {
-                const currentHullPercent = Math.floor((gameState.hull / PLAYER_CONFIG.maxHull) * 100);
+                const currentHullPercent = Math.floor((gameState.hull / gameState.maxHull) * 100);
                 const hullColor = currentHullPercent < mission.threshold ? '#ff0000' : '#00ff00';
                 hullInfoHtml = `<div class="mission-hull" style="color: ${hullColor};">HULL: ${currentHullPercent}% (MIN: ${mission.threshold}%)</div>`;
             }
@@ -10192,7 +10647,7 @@ function updateMissionsDisplay() {
                 ${timeRemainingHtml}
                 ${hullInfoHtml}
                 <div class="mission-progress">
-                    <span>${mission.current} / ${mission.target}</span>
+                    <span>${mission.current}/${mission.target}</span>
                     <div class="mission-progress-bar">
                         <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                     </div>
@@ -10213,11 +10668,11 @@ function updateUpgradeButtons() {
         fuelCapacity: [180, 360, 720, 1440, 2880, 5760, 11520, 23040, 46080, 92160],
         fuelEfficiency: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
         range: [160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960, 81920],
-        multiMining: [600, 1200, 2400, 4800, 9600], // Max 6 lasers (5 upgrades from level 1)
-        advancedScanner: [50],
+        multiMining: [2400, 4800, 9600, 19200, 38400], // Max 6 lasers (5 upgrades from level 1)
+        advancedScanner: [5000],
         scanRange: [250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000],
         scanCooldown: [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 102400],
-        cargoDrone: [5000]
+        cargoDrone: [20000]
     };
     
     Object.keys(gameState.upgrades).forEach(upgradeType => {

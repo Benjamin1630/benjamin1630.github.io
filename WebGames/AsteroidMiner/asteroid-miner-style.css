@@ -444,8 +444,6 @@ button.terminal-btn {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-    max-height: 200px;
-    overflow-y: auto;
 }
 
 .inventory-item {
@@ -586,7 +584,10 @@ button.terminal-btn {
     font-size: var(--font-size-xs);
     color: var(--term-accent);
     text-transform: uppercase;
-    white-space: nowrap;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
 }
 
 .mission-description {
@@ -607,7 +608,7 @@ button.terminal-btn {
 
 .mission-progress > span {
     min-width: 70px;
-    text-align: right;
+    text-align: left;
 }
 
 .mission-progress-bar {
