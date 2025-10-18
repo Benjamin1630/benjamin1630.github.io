@@ -677,7 +677,7 @@ button.terminal-btn {
 .mission-board-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    /* gap: 6px; */ /* Removed gap for consistency with active missions */
     padding: var(--space-xs);
 }
 
