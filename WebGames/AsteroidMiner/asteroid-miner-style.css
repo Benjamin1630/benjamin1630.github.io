@@ -99,7 +99,10 @@ body {
     background-color: var(--term-bg);
     color: var(--term-text);
     overflow: hidden;
+    /* Use dvh (dynamic viewport height) for mobile browsers - accounts for browser chrome */
+    /* Falls back to 100vh for older browsers */
     height: 100vh;
+    height: 100dvh; /* Dynamic viewport height - preferred for mobile */
     width: 100vw;
     display: flex;
     flex-direction: column;
@@ -472,6 +475,376 @@ button.terminal-btn {
 .item-count {
     margin-left: auto;
     color: var(--term-accent);
+}
+
+/* ================================
+   MISSIONS LIST
+   ================================ */
+
+/* Remove padding from info-section containing missions drawer */
+.info-section:has(#missionsDrawerBtn) {
+    padding: 0;
+}
+
+.missions-drawer-header {
+    width: 100%;
+    background: rgba(0, 255, 0, 0.05);
+    color: var(--term-bright);
+    padding: var(--space-sm);
+    font-family: var(--font-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    transition: all 0.2s;
+    margin-bottom: 0;
+    border-left: none;
+    border-top: none;
+    border-right: none;
+    border-bottom: 1px solid var(--term-dim);
+}
+
+.missions-drawer-header:hover {
+    background-color: rgba(0, 255, 0, 0.15);
+    box-shadow: var(--term-glow);
+}
+
+.missions-drawer-header .section-title {
+    color: var(--term-bright);
+    font-size: var(--font-size-md);
+    font-weight: bold;
+    font-family: var(--font-main);
+}
+
+.mission-count {
+    margin-left: auto;
+    color: var(--term-accent);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+}
+
+.missions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    margin: 0;
+}
+
+.mission-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    border: 1px solid var(--term-dim);
+    background-color: rgba(0, 0, 0, 0.3);
+    position: relative;
+    transition: all 0.2s;
+}
+
+.mission-item:hover:not(.empty) {
+    border-color: var(--term-accent);
+    background-color: rgba(0, 255, 0, 0.05);
+}
+
+.mission-item.empty {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-sm);
+    opacity: 0.5;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.mission-item.completed {
+    border-color: var(--term-accent);
+    background-color: rgba(0, 255, 0, 0.1);
+}
+
+.mission-item.failed {
+    border-color: #ff0000;
+    background-color: rgba(255, 0, 0, 0.05);
+    opacity: 0.7;
+}
+
+.mission-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+}
+
+.mission-title {
+    font-size: var(--font-size-sm);
+    color: var(--term-bright);
+    font-weight: bold;
+    flex: 1;
+    min-width: 120px;
+}
+
+.mission-status {
+    font-size: var(--font-size-xs);
+    color: var(--term-accent);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.mission-description {
+    font-size: var(--font-size-xs);
+    color: var(--term-text);
+    opacity: 0.9;
+    line-height: 1.4;
+    padding: var(--space-xs) 0;
+}
+
+.mission-progress {
+    font-size: var(--font-size-xs);
+    color: var(--term-accent);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.mission-progress > span {
+    min-width: 70px;
+    text-align: right;
+}
+
+.mission-progress-bar {
+    flex: 1;
+    height: 6px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--term-dim);
+    position: relative;
+    overflow: hidden;
+}
+
+.mission-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--term-dim), var(--term-accent));
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--term-accent);
+}
+
+.mission-reward {
+    font-size: var(--font-size-xs);
+    color: #ffaa00;
+    margin-top: var(--space-xs);
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(255, 170, 0, 0.5);
+}
+
+.mission-station-name {
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-xs);
+    opacity: 0.9;
+    font-style: italic;
+}
+
+.mission-time,
+.mission-hull {
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-xs);
+    font-weight: bold;
+    text-shadow: 0 0 5px currentColor;
+}
+
+/* ================================
+   MISSION BOARD (Right Panel)
+   ================================ */
+
+.mission-board-content {
+    margin-top: var(--space-sm);
+}
+
+.mission-board-info {
+    margin-bottom: var(--space-sm);
+}
+
+.board-description {
+    font-size: var(--font-size-xs);
+    color: var(--term-text);
+    opacity: 0.7;
+    text-align: center;
+    padding: var(--space-xs);
+    border-bottom: 1px solid var(--term-dim);
+}
+
+.mission-board-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-xs);
+}
+
+.mission-board-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    border: 1px solid var(--term-dim);
+    background-color: rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+}
+
+.mission-board-item:hover:not(.empty):not(.accepted) {
+    background-color: rgba(0, 255, 0, 0.1);
+    border-color: var(--term-accent);
+    transform: translateX(2px);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.mission-board-item.empty {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-sm);
+    opacity: 0.5;
+    justify-content: center;
+    cursor: default;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.mission-board-item.accepted {
+    opacity: 1;
+    cursor: default;
+    background-color: rgba(0, 255, 0, 0.05);
+    border-color: var(--term-accent);
+}
+
+.mission-board-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+}
+
+.mission-board-title {
+    font-size: var(--font-size-sm);
+    color: var(--term-bright);
+    font-weight: bold;
+    flex: 1;
+    min-width: 120px;
+}
+
+.mission-board-difficulty {
+    font-size: var(--font-size-xs);
+    padding: 2px 6px;
+    border: 1px solid;
+    border-radius: 2px;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.mission-board-difficulty.easy {
+    color: #00ff00;
+    border-color: #00ff00;
+}
+
+.mission-board-difficulty.medium {
+    color: #ffaa00;
+    border-color: #ffaa00;
+}
+
+.mission-board-difficulty.hard {
+    color: #ff0000;
+    border-color: #ff0000;
+}
+
+.mission-board-description {
+    font-size: var(--font-size-xs);
+    color: var(--term-text);
+    opacity: 0.9;
+    line-height: 1.4;
+    padding: var(--space-xs) 0;
+}
+
+.mission-board-requirements {
+    font-size: var(--font-size-xs);
+    color: var(--term-accent);
+}
+
+.mission-board-reward {
+    font-size: var(--font-size-xs);
+    color: #ffaa00;
+    font-weight: bold;
+    margin-top: var(--space-xs);
+    text-shadow: 0 0 5px rgba(255, 170, 0, 0.5);
+}
+
+.mission-board-completion {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 2px solid var(--term-accent);
+}
+
+.completion-header {
+    font-size: var(--font-size-sm);
+    color: var(--term-bright);
+    font-weight: bold;
+    margin-bottom: var(--space-sm);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.completed-mission-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    border: 1px solid var(--term-accent);
+    background-color: rgba(0, 255, 0, 0.1);
+    position: relative;
+    transition: all 0.2s;
+}
+
+.completed-mission-item:hover {
+    background-color: rgba(0, 255, 0, 0.15);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.completed-mission-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.completed-mission-title {
+    font-size: var(--font-size-sm);
+    color: var(--term-bright);
+}
+
+.completed-mission-reward {
+    font-size: var(--font-size-xs);
+    color: #ffaa00;
+}
+
+.claim-reward-btn {
+    background: transparent;
+    border: 1px solid var(--term-accent);
+    color: var(--term-accent);
+    padding: var(--space-sm);
+    font-family: var(--font-main);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: var(--space-xs);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.claim-reward-btn:hover {
+    background-color: var(--term-accent);
+    color: var(--bg-primary);
+    box-shadow: 0 0 15px var(--term-accent);
+    transform: translateY(-1px);
+}
+
+.claim-reward-btn:active {
+    transform: translateY(0);
 }
 
 /* ================================
@@ -1101,7 +1474,8 @@ body.crt-mode .canvas-container::before {
 }
 
 /* Master Upgrades Drawer */
-.info-section:has(#upgradesDrawerBtn) {
+.info-section:has(#upgradesDrawerBtn),
+.info-section:has(#missionBoardDrawerBtn) {
     padding: 0;
 }
 
@@ -1475,6 +1849,7 @@ body.crt-mode .canvas-container::before {
 .modal-large {
     max-width: 600px;
     max-height: 80vh;
+    max-height: 80dvh; /* Use dynamic viewport height for mobile browsers */
     overflow-y: auto;
 }
 
@@ -1865,6 +2240,11 @@ body.crt-mode .canvas-container::before {
 
 /* Mobile */
 @media (max-width: 768px) {
+    /* Use custom property fallback for mobile browsers that don't support dvh */
+    body {
+        height: calc(var(--vh, 1vh) * 100);
+    }
+    
     .header-center .title-box {
         display: none;
     }
@@ -1925,7 +2305,7 @@ body.crt-mode .canvas-container::before {
         display: block;
         width: 50%; /* Half width to sit side-by-side */
         order: 2; /* Side panels appear after center panel */
-        max-height: 400px; /* Limit height on mobile */
+        max-height: calc(var(--vh, 1vh) * 40); /* Use custom property for mobile viewport */
         overflow-y: auto; /* Enable vertical scrolling */
         overflow-x: hidden; /* Prevent horizontal scroll */
         -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -2040,6 +2420,18 @@ body.crt-mode .canvas-container::before {
     .console-prompt {
         line-height: 1.1 !important; /* Slightly relaxed line height */
         font-size: 13px; /* Readable font size */
+    }
+    
+    /* Modal adjustments for mobile - account for browser chrome */
+    .modal-large {
+        max-height: calc(var(--vh, 1vh) * 80); /* Use custom property for mobile viewport */
+        max-width: 95vw; /* Don't take full width on mobile */
+    }
+    
+    .modal-content {
+        max-height: calc(var(--vh, 1vh) * 80); /* Consistent with modal-large */
+        overflow-y: auto; /* Enable scrolling for long content */
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
     
     .console-input {

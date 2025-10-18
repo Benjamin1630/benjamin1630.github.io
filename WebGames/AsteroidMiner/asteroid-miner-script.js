@@ -59,6 +59,11 @@ const gameState = {
     // Inventory (resource counts)
     inventory: {},
     
+    // Missions
+    missions: [],
+    stationMissions: {},  // Maps station names to their available missions
+    nextMissionId: 1,     // Counter for generating unique mission IDs
+    
     // Statistics
     stats: {
         totalMined: 0,
@@ -105,9 +110,11 @@ const CONFIG = {
     baseMaxHazards: 40, // Base limit for sector 1
     maxHazardsPerSector: 15, // Additional hazards allowed per sector
 
-    // World size
-    worldWidth: 3000,
-    worldHeight: 3000
+    // World size (base size, increases by 250 per sector)
+    baseWorldWidth: 3000,
+    baseWorldHeight: 3000,
+    worldWidth: 3000,  // Dynamic, updated per sector
+    worldHeight: 3000  // Dynamic, updated per sector
 };
 
 // Reference resolution for consistent viewport across all screen sizes
@@ -184,59 +191,168 @@ let cargoDrone = null; // Will hold drone state when active
 // ================================
 
 const ASTEROID_TYPES = {
+    // COMMON TIER - 60% total
     common: {
         name: 'Iron Ore',
         color: '#888888',
         icon: '●',
         value: 2,
-        health: 10,  // Most common, most health
+        health: 10,
         size: 12,
-        chance: 0.70
+        rarity: 'common',
+        baseChance: 0.40,      // 40% base chance
+        rarityMultiplier: 1.0
     },
     copper: {
         name: 'Copper',
         color: '#ff8844',
         icon: '◆',
         value: 5,
-        health: 8,
+        health: 9,
+        size: 13,
+        rarity: 'common',
+        baseChance: 0.20,      // 20% base chance
+        rarityMultiplier: 1.0
+    },
+    
+    // UNCOMMON TIER - 20% total
+    nickel: {
+        name: 'Nickel',
+        color: '#c0c0a0',
+        icon: '◇',
+        value: 12,
+        health: 7,
         size: 14,
-        chance: 0.15
+        rarity: 'uncommon',
+        baseChance: 0.10,      // 10% base chance
+        rarityMultiplier: 1.3
     },
     silver: {
         name: 'Silver',
         color: '#ccccff',
-        icon: '◇',
-        value: 10,
+        icon: '◈',
+        value: 18,
         health: 6,
-        size: 16,
-        chance: 0.08
+        size: 15,
+        rarity: 'uncommon',
+        baseChance: 0.07,      // 7% base chance
+        rarityMultiplier: 1.5
     },
+    titanium: {
+        name: 'Titanium',
+        color: '#b0b0d0',
+        icon: '⬡',
+        value: 25,
+        health: 8,
+        size: 16,
+        rarity: 'uncommon',
+        baseChance: 0.03,      // 3% base chance
+        rarityMultiplier: 1.5
+    },
+    
+    // RARE TIER - 12% total
     gold: {
         name: 'Gold',
         color: '#ffdd00',
-        icon: '◈',
-        value: 20,
+        icon: '◉',
+        value: 40,
         health: 5,
+        size: 17,
+        rarity: 'rare',
+        baseChance: 0.05,      // 5% base chance
+        rarityMultiplier: 2.0
+    },
+    emerald: {
+        name: 'Emerald',
+        color: '#00ff88',
+        icon: '◊',
+        value: 55,
+        health: 4,
         size: 18,
-        chance: 0.04
+        rarity: 'rare',
+        baseChance: 0.04,      // 4% base chance
+        rarityMultiplier: 2.0
     },
     platinum: {
         name: 'Platinum',
         color: '#aaffff',
         icon: '◎',
-        value: 40,
+        value: 70,
+        health: 4,
+        size: 19,
+        rarity: 'rare',
+        baseChance: 0.03,      // 3% base chance
+        rarityMultiplier: 2.0
+    },
+    
+    // EPIC TIER - 6% total
+    ruby: {
+        name: 'Ruby',
+        color: '#ff0066',
+        icon: '◆',
+        value: 100,
         health: 3,
         size: 20,
-        chance: 0.02
+        rarity: 'epic',
+        baseChance: 0.025,     // 2.5% base chance
+        rarityMultiplier: 2.5
     },
+    sapphire: {
+        name: 'Sapphire',
+        color: '#0066ff',
+        icon: '◈',
+        value: 120,
+        health: 3,
+        size: 20,
+        rarity: 'epic',
+        baseChance: 0.020,     // 2% base chance
+        rarityMultiplier: 2.5
+    },
+    obsidian: {
+        name: 'Obsidian',
+        color: '#1a0033',
+        icon: '⬢',
+        value: 140,
+        health: 5,
+        size: 21,
+        rarity: 'epic',
+        baseChance: 0.015,     // 1.5% base chance
+        rarityMultiplier: 2.5
+    },
+    
+    // LEGENDARY TIER - 2% total
     crystal: {
         name: 'Quantum Crystal',
         color: '#ff00ff',
         icon: '❖',
-        value: 100,
-        health: 2,  // Rarest, least health
+        value: 200,
+        health: 2,
         size: 22,
-        chance: 0.01
+        rarity: 'legendary',
+        baseChance: 0.010,     // 1% base chance
+        rarityMultiplier: 3.0
+    },
+    nebulite: {
+        name: 'Nebulite',
+        color: '#00ffff',
+        icon: '✦',
+        value: 250,
+        health: 2,
+        size: 23,
+        rarity: 'legendary',
+        baseChance: 0.007,     // 0.7% base chance
+        rarityMultiplier: 3.0
+    },
+    darkMatter: {
+        name: 'Dark Matter',
+        color: '#6600ff',
+        icon: '◉',
+        value: 350,
+        health: 3,
+        size: 24,
+        rarity: 'legendary',
+        baseChance: 0.003,     // 0.3% base chance
+        rarityMultiplier: 3.5
     }
 };
 
@@ -1868,6 +1984,9 @@ function saveGame(saveName) {
             sector: gameState.sector,
             sectorName: gameState.sectorName,
             sectorsExplored: gameState.sectorsExplored,
+            missions: gameState.missions,  // Save active missions
+            stationMissions: gameState.stationMissions,  // Save station-specific missions
+            nextMissionId: gameState.nextMissionId,  // Save mission ID counter
             stats: {
                 totalMined: gameState.stats.totalMined,
                 distanceTraveled: gameState.stats.distanceTraveled,
@@ -1936,6 +2055,10 @@ function saveGame(saveName) {
             zoom: viewport.zoom,
             targetZoom: viewport.targetZoom,
             // x and y will be recalculated based on player position
+        },
+        world: {
+            width: CONFIG.worldWidth,
+            height: CONFIG.worldHeight
         },
         autoMiningEnabled: autoMiningEnabled, // Save auto-mining toggle state
         cargoDrone: cargoDrone ? {
@@ -2041,6 +2164,11 @@ function loadGame(saveName) {
         gameState.sectorName = saveData.gameState.sectorName || `ALPHA-${String(saveData.gameState.sector).padStart(3, '0')}`;
         gameState.sectorsExplored = saveData.gameState.sectorsExplored || saveData.gameState.sector;
         
+        // Restore missions (with fallback for older saves)
+        gameState.missions = saveData.gameState.missions || [];
+        gameState.stationMissions = saveData.gameState.stationMissions || {};
+        gameState.nextMissionId = saveData.gameState.nextMissionId || 1;
+        
         // Restore stats (with fallbacks for older saves)
         if (saveData.gameState.stats) {
             gameState.stats.totalMined = saveData.gameState.stats.totalMined || 0;
@@ -2141,6 +2269,16 @@ function loadGame(saveName) {
         viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
         viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
         
+        // Restore world size (with fallback calculation for older saves)
+        if (saveData.world) {
+            CONFIG.worldWidth = saveData.world.width;
+            CONFIG.worldHeight = saveData.world.height;
+        } else {
+            // Calculate world size based on sector for older saves
+            CONFIG.worldWidth = CONFIG.baseWorldWidth + (gameState.sector - 1) * 250;
+            CONFIG.worldHeight = CONFIG.baseWorldHeight + (gameState.sector - 1) * 250;
+        }
+        
         // Restore auto-mining toggle state
         if (saveData.autoMiningEnabled !== undefined) {
             autoMiningEnabled = saveData.autoMiningEnabled;
@@ -2239,6 +2377,13 @@ function loadGame(saveName) {
         // Update UI
         updateUI();
         updateMiningLasersDisplay(); // Initialize the laser display after loading
+        updateMissionsDisplay(); // Update missions display after loading
+        
+        // Check if player is docked and update mission board if needed
+        const dockedStation = stations.find(s => s.isDocked);
+        if (dockedStation) {
+            updateMissionBoard(dockedStation.name, dockedStation.colorScheme);
+        }
         
         return true;
     } catch (e) {
@@ -2276,6 +2421,11 @@ function loadGameData(saveName) {
         gameState.sector = saveData.gameState.sector;
         gameState.sectorName = saveData.gameState.sectorName || `ALPHA-${String(saveData.gameState.sector).padStart(3, '0')}`;
         gameState.sectorsExplored = saveData.gameState.sectorsExplored || saveData.gameState.sector;
+        
+        // Restore missions (with fallback for older saves)
+        gameState.missions = saveData.gameState.missions || [];
+        gameState.stationMissions = saveData.gameState.stationMissions || {};
+        gameState.nextMissionId = saveData.gameState.nextMissionId || 1;
         
         // Restore stats (with fallbacks for older saves)
         if (saveData.gameState.stats) {
@@ -2370,6 +2520,16 @@ function loadGameData(saveName) {
         // Restore viewport with both zoom and targetZoom
         viewport.zoom = saveData.viewport.zoom || 1.5;
         viewport.targetZoom = saveData.viewport.targetZoom || saveData.viewport.zoom || 1.5;
+        
+        // Restore world size (with fallback calculation for older saves)
+        if (saveData.world) {
+            CONFIG.worldWidth = saveData.world.width;
+            CONFIG.worldHeight = saveData.world.height;
+        } else {
+            // Calculate world size based on sector for older saves
+            CONFIG.worldWidth = CONFIG.baseWorldWidth + (gameState.sector - 1) * 250;
+            CONFIG.worldHeight = CONFIG.baseWorldHeight + (gameState.sector - 1) * 250;
+        }
         
         // Restore cargo drone if it was active
         if (saveData.cargoDrone) {
@@ -2671,15 +2831,30 @@ const minimapCtx = minimapCanvas.getContext('2d');
 
 // Phosphor decay layer for CRT effect
 const phosphorCanvas = document.createElement('canvas');
-const phosphorCtx = phosphorCanvas.getContext('2d');
+const phosphorCtx = phosphorCanvas.getContext('2d', { willReadFrequently: true });
 phosphorCanvas.width = canvas.width;
 phosphorCanvas.height = canvas.height;
 
 // Clean frame buffer for saturation boost (untouched by phosphor)
 const cleanFrameCanvas = document.createElement('canvas');
-const cleanFrameCtx = cleanFrameCanvas.getContext('2d');
+const cleanFrameCtx = cleanFrameCanvas.getContext('2d', { willReadFrequently: true });
 cleanFrameCanvas.width = canvas.width;
 cleanFrameCanvas.height = canvas.height;
+
+// Detect Apple/iOS devices for CRT compatibility mode
+const isAppleDevice = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) || 
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+// Temporary canvas for Apple-compatible CRT processing
+let appleBlendCanvas = null;
+let appleBlendCtx = null;
+if (isAppleDevice) {
+    appleBlendCanvas = document.createElement('canvas');
+    appleBlendCtx = appleBlendCanvas.getContext('2d', { willReadFrequently: true });
+    appleBlendCanvas.width = canvas.width;
+    appleBlendCanvas.height = canvas.height;
+}
 
 function resizeCanvas() {
     const canvasContainer = canvas.parentElement; // .canvas-container
@@ -2689,6 +2864,14 @@ function resizeCanvas() {
     
     const aspectRatio = 4 / 3;
     const isMobile = window.innerWidth <= 768; // Detect mobile screens
+    
+    // Mobile viewport height fix: Set CSS custom property for dynamic viewport height
+    // This accounts for browser chrome (address bar, navigation) on mobile devices
+    if (isMobile) {
+        // Use the actual visible viewport height
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
     
     const oldWidth = canvas.width;
     const oldHeight = canvas.height;
@@ -2742,6 +2925,12 @@ function resizeCanvas() {
     // Resize clean frame canvas to match main canvas
     cleanFrameCanvas.width = canvas.width;
     cleanFrameCanvas.height = canvas.height;
+    
+    // Resize Apple blend canvas if it exists
+    if (appleBlendCanvas) {
+        appleBlendCanvas.width = canvas.width;
+        appleBlendCanvas.height = canvas.height;
+    }
     
     // Update viewport if canvas size changed and player exists
     if (player && (oldWidth !== canvas.width || oldHeight !== canvas.height)) {
@@ -3732,6 +3921,605 @@ function initMinimapScanner() {
 }
 
 // ================================
+// MISSION SYSTEM
+// ================================
+
+// Mission templates for random generation
+const MISSION_TEMPLATES = [
+    // Basic mining missions - destroy asteroids
+    {
+        type: 'mine_asteroids',
+        icon: '⛏',
+        titleTemplates: ['MINING CONTRACT', 'ASTEROID CLEARING', 'ORE EXTRACTION'],
+        descriptionTemplates: [
+            'Mine and destroy {target} asteroids',
+            'Clear {target} asteroids from shipping lanes',
+            'Harvest ore from {target} asteroids'
+        ],
+        rewardMultiplier: 60,
+        difficulties: { 
+            easy: [8, 12], 
+            medium: [13, 18], 
+            hard: [19, 25] 
+        }
+    },
+    // Specific resource collection missions
+    {
+        type: 'mine_specific',
+        icon: '💎',
+        titleTemplates: ['RARE ORE REQUEST', 'MINERAL SURVEY', 'RESOURCE COLLECTION'],
+        descriptionTemplates: [
+            'Collect {target} units of {resourceType}',
+            'Mine {target} {resourceType} asteroids',
+            'Harvest {target} {resourceType} specimens for research'
+        ],
+        rewardMultiplier: 180,
+        difficulties: { 
+            easy: [4, 6], 
+            medium: [7, 10], 
+            hard: [11, 15] 
+        }
+    },
+    // Exploration missions - travel distance
+    {
+        type: 'travel_distance',
+        icon: '�',
+        titleTemplates: ['EXPLORATION MISSION', 'DEEP SPACE SURVEY', 'SECTOR MAPPING'],
+        descriptionTemplates: [
+            'Explore and travel {target} units through space',
+            'Map {target} units of uncharted territory',
+            'Navigate {target} units for sector reconnaissance'
+        ],
+        rewardMultiplier: 0.15,
+        difficulties: { 
+            easy: [8000, 12000], 
+            medium: [12001, 18000], 
+            hard: [18001, 25000] 
+        }
+    },
+    // Cargo delivery missions - collect and hold resources
+    {
+        type: 'cargo_delivery',
+        icon: '�',
+        titleTemplates: ['CARGO DELIVERY', 'FREIGHT CONTRACT', 'SUPPLY RUN'],
+        descriptionTemplates: [
+            'Collect and hold {target} units of cargo simultaneously',
+            'Fill your cargo bay with {target} total units',
+            'Accumulate {target} units of resources in inventory'
+        ],
+        rewardMultiplier: 25,
+        difficulties: { 
+            easy: [20, 35], 
+            medium: [36, 60], 
+            hard: [61, 100] 
+        }
+    },
+    // Hazard survival missions - avoid taking damage
+    {
+        type: 'hazard_survival',
+        icon: '⚠️',
+        titleTemplates: ['HAZARD NAVIGATION', 'DANGER ZONE', 'SURVIVAL TEST'],
+        descriptionTemplates: [
+            'Mine {target} asteroids without hull dropping below {threshold}%',
+            'Destroy {target} asteroids while maintaining {threshold}%+ hull',
+            'Complete {target} mining operations without taking critical damage ({threshold}%+ hull)'
+        ],
+        rewardMultiplier: 100,
+        difficulties: { 
+            easy: [10, 15],   // asteroids to mine
+            medium: [16, 22], 
+            hard: [23, 30] 
+        },
+        thresholds: {
+            easy: 60,    // hull threshold %
+            medium: 50,
+            hard: 40
+        }
+    },
+    // Credit generation missions
+    {
+        type: 'earn_credits',
+        icon: '💰',
+        titleTemplates: ['PROFIT CONTRACT', 'TRADE MISSION', 'REVENUE GENERATION'],
+        descriptionTemplates: [
+            'Generate {target} credits through mining and trading',
+            'Earn {target} credits from ore sales',
+            'Accumulate {target} credits in profits'
+        ],
+        rewardMultiplier: 0.4,
+        difficulties: { 
+            easy: [2500, 4000], 
+            medium: [4001, 7000], 
+            hard: [7001, 12000] 
+        }
+    },
+    // Speed challenge - complete quickly
+    {
+        type: 'speed_mining',
+        icon: '⚡',
+        titleTemplates: ['SPEED MINING', 'RAPID EXTRACTION', 'TIME TRIAL'],
+        descriptionTemplates: [
+            'Mine {target} asteroids within {timeLimit} seconds',
+            'Destroy {target} asteroids before time runs out ({timeLimit}s)',
+            'Complete rapid extraction of {target} asteroids in {timeLimit}s'
+        ],
+        rewardMultiplier: 120,
+        difficulties: { 
+            easy: [6, 8],      // asteroids to mine
+            medium: [9, 12], 
+            hard: [13, 18] 
+        },
+        timeLimits: {
+            easy: 180,    // seconds
+            medium: 150,
+            hard: 120
+        }
+    }
+];
+
+function initMissions() {
+    // Initialize mission system (don't create dummy missions)
+    // Missions will be generated per-station when player docks
+    updateMissionsDisplay();
+    
+    // Initialize mission board drawer toggle
+    const missionBoardDrawerBtn = document.getElementById('missionBoardDrawerBtn');
+    const missionBoardContent = document.getElementById('missionBoardContent');
+    const missionBoardDrawerIcon = missionBoardDrawerBtn.querySelector('.drawer-icon');
+    
+    missionBoardDrawerBtn.addEventListener('click', () => {
+        const isOpen = missionBoardContent.style.display !== 'none';
+        
+        if (isOpen) {
+            // Close the mission board drawer
+            missionBoardContent.style.display = 'none';
+            missionBoardDrawerIcon.textContent = '▶';
+        } else {
+            // Open the mission board drawer
+            missionBoardContent.style.display = 'block';
+            missionBoardDrawerIcon.textContent = '▼';
+        }
+    });
+}
+
+// Generate random missions for a station
+function generateStationMissions(stationName, stationColor) {
+    const missions = [];
+    const numMissions = 3; // Always 3 missions per station
+    
+    for (let i = 0; i < numMissions; i++) {
+        const template = MISSION_TEMPLATES[Math.floor(Math.random() * MISSION_TEMPLATES.length)];
+        const difficulty = ['easy', 'medium', 'hard'][Math.floor(Math.random() * 3)];
+        const difficultyRange = template.difficulties[difficulty];
+        const target = Math.floor(Math.random() * (difficultyRange[1] - difficultyRange[0] + 1)) + difficultyRange[0];
+        
+        // Select random title and description
+        const title = template.titleTemplates[Math.floor(Math.random() * template.titleTemplates.length)];
+        let description = template.descriptionTemplates[Math.floor(Math.random() * template.descriptionTemplates.length)];
+        
+        // For specific resource missions, pick a random resource type
+        let resourceType = null;
+        let rarityMultiplier = 1.0;
+        if (template.type === 'mine_specific') {
+            const resourceTypes = Object.keys(ASTEROID_TYPES).filter(t => t !== 'common');
+            resourceType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
+            const resourceData = ASTEROID_TYPES[resourceType];
+            const resourceName = resourceData.name;
+            rarityMultiplier = resourceData.rarityMultiplier; // Use rarity for reward scaling
+            description = description.replace('{resourceType}', resourceName);
+        }
+        
+        // Handle special parameters for different mission types
+        let threshold = null;
+        let timeLimit = null;
+        
+        if (template.type === 'hazard_survival') {
+            threshold = template.thresholds[difficulty];
+            description = description.replace('{threshold}', threshold);
+        }
+        
+        if (template.type === 'speed_mining') {
+            timeLimit = template.timeLimits[difficulty];
+            description = description.replace('{timeLimit}', timeLimit);
+        }
+        
+        description = description.replace('{target}', target);
+        
+        // Calculate reward based on difficulty and rarity
+        const difficultyMultiplier = difficulty === 'hard' ? 1.5 : difficulty === 'medium' ? 1.25 : 1;
+        const reward = Math.floor(target * template.rewardMultiplier * difficultyMultiplier * rarityMultiplier);
+        
+        missions.push({
+            id: gameState.nextMissionId++,
+            icon: template.icon,
+            title: title,
+            description: description,
+            type: template.type,
+            resourceType: resourceType,
+            difficulty: difficulty,
+            target: target,
+            threshold: threshold,
+            timeLimit: timeLimit,
+            reward: reward,
+            stationName: stationName,
+            stationColor: stationColor,
+            startValue: 0,  // Will be set when mission is accepted
+            startTime: 0    // For time-based missions
+        });
+    }
+    
+    return missions;
+}
+
+// Show mission board when docked
+function updateMissionBoard(stationName, stationColor) {
+    const missionBoard = document.getElementById('missionBoard');
+    const missionBoardContent = document.getElementById('missionBoardContent');
+    const missionBoardList = document.getElementById('missionBoardList');
+    const missionBoardDrawerIcon = document.querySelector('#missionBoardDrawerBtn .drawer-icon');
+    
+    // Show mission board and auto-expand it
+    missionBoard.style.display = 'block';
+    missionBoardContent.style.display = 'block';
+    if (missionBoardDrawerIcon) {
+        missionBoardDrawerIcon.textContent = '▼';
+    }
+    
+    // Generate missions for this station if they don't exist
+    if (!gameState.stationMissions[stationName]) {
+        gameState.stationMissions[stationName] = generateStationMissions(stationName, stationColor);
+    }
+    
+    const availableMissions = gameState.stationMissions[stationName];
+    
+    // Clear current display
+    missionBoardList.innerHTML = '';
+    
+    if (availableMissions.length === 0) {
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'mission-board-item empty';
+        emptyItem.innerHTML = `
+            <span class="item-icon">⊗</span>
+            <span class="item-text">NO MISSIONS AVAILABLE</span>
+        `;
+        missionBoardList.appendChild(emptyItem);
+    } else {
+        availableMissions.forEach(mission => {
+            // Only display missions that belong to this station
+            if (mission.stationName !== stationName) {
+                return; // Skip missions from other stations
+            }
+            
+            // Check if mission is already accepted
+            const acceptedMission = gameState.missions.find(m => m.id === mission.id);
+            const isAccepted = !!acceptedMission;
+            
+            const item = document.createElement('div');
+            item.className = `mission-board-item ${isAccepted ? 'accepted' : ''}`;
+            
+            if (isAccepted && acceptedMission) {
+                // Show accepted mission with full details like in active missions
+                const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
+                
+                item.innerHTML = `
+                    <div class="mission-header">
+                        <span class="item-icon">${acceptedMission.icon}</span>
+                        <span class="mission-title">${acceptedMission.title}</span>
+                        <span class="mission-status"><span style="color: #ffaa00;">◉ IN PROGRESS</span></span>
+                    </div>
+                    <div class="mission-description">${acceptedMission.description}</div>
+                    <div class="mission-progress">
+                        <span>${acceptedMission.current} / ${acceptedMission.target}</span>
+                        <div class="mission-progress-bar">
+                            <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                        </div>
+                    </div>
+                    <div class="mission-reward">REWARD: ${acceptedMission.reward}¢</div>
+                `;
+            } else {
+                // Show unaccepted mission (clickable)
+                item.innerHTML = `
+                    <div class="mission-board-header">
+                        <span class="item-icon">${mission.icon}</span>
+                        <span class="mission-board-title">${mission.title}</span>
+                        <span class="mission-board-difficulty ${mission.difficulty}">${mission.difficulty.toUpperCase()}</span>
+                    </div>
+                    <div class="mission-board-description">${mission.description}</div>
+                    <div class="mission-board-reward">REWARD: ${mission.reward}¢</div>
+                `;
+                item.addEventListener('click', () => acceptMission(mission, stationName, stationColor));
+            }
+            
+            missionBoardList.appendChild(item);
+        });
+    }
+    
+    // Check for completed missions that can be turned in at this station
+    updateMissionCompletionArea(stationName);
+}
+
+// Accept a mission from the board
+function acceptMission(mission, stationName, stationColor) {
+    // Set start values based on mission type
+    switch (mission.type) {
+        case 'mine_asteroids':
+            mission.startValue = gameState.stats.asteroidsDestroyed;
+            mission.current = 0;
+            break;
+        case 'mine_specific':
+            mission.startValue = gameState.inventory[mission.resourceType] || 0;
+            mission.current = 0;
+            break;
+        case 'earn_credits':
+            mission.startValue = gameState.credits;
+            mission.current = 0;
+            break;
+        case 'travel_distance':
+            mission.startValue = gameState.stats.distanceTraveled;
+            mission.current = 0;
+            break;
+        case 'cargo_delivery':
+            mission.startValue = 0;
+            mission.current = 0;
+            break;
+        case 'hazard_survival':
+            mission.startValue = gameState.stats.asteroidsDestroyed;
+            mission.current = 0;
+            mission.lowestHull = gameState.hull;
+            mission.failed = false;
+            break;
+        case 'speed_mining':
+            mission.startValue = gameState.stats.asteroidsDestroyed;
+            mission.current = 0;
+            mission.startTime = Date.now();
+            mission.failed = false;
+            break;
+    }
+    
+    mission.status = 'active';
+    gameState.missions.push(mission);
+    
+    logMessage(`Mission accepted: ${mission.title}`, 'success');
+    updateMissionBoard(stationName, stationColor);
+    updateMissionsDisplay();
+}
+
+// Update mission completion area
+function updateMissionCompletionArea(stationName) {
+    const completionArea = document.getElementById('missionCompletionArea');
+    const completedMissionsList = document.getElementById('completedMissionsList');
+    
+    // Find completed missions for this station
+    const completedMissions = gameState.missions.filter(m => 
+        m.status === 'completed' && m.stationName === stationName
+    );
+    
+    if (completedMissions.length > 0) {
+        completionArea.style.display = 'block';
+        completedMissionsList.innerHTML = '';
+        
+        completedMissions.forEach(mission => {
+            const item = document.createElement('div');
+            item.className = 'completed-mission-item';
+            
+            // Calculate progress percentage (should be 100% for completed)
+            const progressPercent = 100;
+            
+            // Station name with color (use primary color from colorScheme)
+            const stationNameHtml = mission.stationName ? 
+                `<div class="mission-station-name" style="color: ${mission.stationColor?.primary || mission.stationColor};">FROM: ${mission.stationName}</div>` : '';
+            
+            item.innerHTML = `
+                <div class="mission-header">
+                    <span class="item-icon">${mission.icon}</span>
+                    <span class="mission-title">${mission.title}</span>
+                    <span class="mission-status"><span style="color: #00ff00;">✓ COMPLETED</span></span>
+                </div>
+                <div class="mission-description">${mission.description}</div>
+                ${stationNameHtml}
+                <div class="mission-progress">
+                    <span>${mission.current} / ${mission.target}</span>
+                    <div class="mission-progress-bar">
+                        <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                    </div>
+                </div>
+                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+                <button class="claim-reward-btn" data-mission-id="${mission.id}">
+                    [CLAIM REWARD]
+                </button>
+            `;
+            
+            // Add event listener to the button
+            const btn = item.querySelector('.claim-reward-btn');
+            btn.addEventListener('click', () => claimMissionReward(mission.id));
+            
+            completedMissionsList.appendChild(item);
+        });
+    } else {
+        completionArea.style.display = 'none';
+    }
+}
+
+// Claim mission reward (must be at the correct station)
+function claimMissionReward(missionId) {
+    const mission = gameState.missions.find(m => m.id === missionId);
+    if (!mission || mission.status !== 'completed') return;
+    
+    // Award the reward
+    gameState.credits += mission.reward;
+    logMessage(`Mission reward claimed: ${mission.reward}¢ from ${mission.title}!`, 'success');
+    
+    // Remove mission from active list
+    removeMission(missionId);
+    
+    // Remove from station's available missions
+    if (gameState.stationMissions[mission.stationName]) {
+        gameState.stationMissions[mission.stationName] = gameState.stationMissions[mission.stationName].filter(m => m.id !== missionId);
+        
+        // Generate a new mission to replace it
+        const newMission = generateStationMissions(mission.stationName, mission.stationColor)[0];
+        gameState.stationMissions[mission.stationName].push(newMission);
+    }
+    
+    updateUI();
+    
+    // Refresh mission board if still docked
+    const dockedStation = stations.find(s => s.isDocked);
+    if (dockedStation) {
+        updateMissionBoard(dockedStation.name, dockedStation.colorScheme);
+    }
+}
+
+// Collapse mission board when undocked and clear missions
+function hideMissionBoard() {
+    const missionBoardContent = document.getElementById('missionBoardContent');
+    const missionBoardDrawerIcon = document.querySelector('#missionBoardDrawerBtn .drawer-icon');
+    const missionBoardList = document.getElementById('missionBoardList');
+    
+    // Collapse the drawer
+    missionBoardContent.style.display = 'none';
+    if (missionBoardDrawerIcon) {
+        missionBoardDrawerIcon.textContent = '▶';
+    }
+    
+    // Show "Dock at a station" message
+    missionBoardList.innerHTML = `
+        <div class="mission-board-item empty">
+            <span class="item-icon">⊗</span>
+            <span class="item-text">DOCK AT A STATION TO VIEW MISSIONS</span>
+        </div>
+    `;
+    
+    // Hide completion area
+    const completionArea = document.getElementById('missionCompletionArea');
+    completionArea.style.display = 'none';
+}
+
+// Update mission progress (called from game loop)
+function updateMissionProgress(missionId, progress) {
+    const mission = gameState.missions.find(m => m.id === missionId);
+    if (!mission || mission.status !== 'active') return;
+    
+    mission.current = Math.min(progress, mission.target);
+    
+    // Check if mission is completed
+    if (mission.current >= mission.target) {
+        mission.status = 'completed';
+        logMessage(`Mission completed: ${mission.title}! Return to ${mission.stationName} to claim reward.`, 'success');
+    }
+    
+    updateMissionsDisplay();
+}
+
+// Update all active missions based on current game state
+function updateAllMissions() {
+    gameState.missions.forEach(mission => {
+        if (mission.status !== 'active') return;
+        
+        let progress = 0;
+        
+        switch (mission.type) {
+            case 'mine_asteroids':
+                // Track asteroids destroyed since mission start
+                progress = gameState.stats.asteroidsDestroyed - mission.startValue;
+                updateMissionProgress(mission.id, progress);
+                break;
+                
+            case 'mine_specific':
+                // Track specific resource type in inventory since mission start
+                progress = (gameState.inventory[mission.resourceType] || 0) - mission.startValue;
+                updateMissionProgress(mission.id, progress);
+                break;
+                
+            case 'earn_credits':
+                // Track credits earned since mission start
+                progress = gameState.credits - mission.startValue;
+                updateMissionProgress(mission.id, progress);
+                break;
+                
+            case 'travel_distance':
+                // Track distance traveled since mission start
+                progress = Math.floor(gameState.stats.distanceTraveled - mission.startValue);
+                updateMissionProgress(mission.id, progress);
+                break;
+                
+            case 'cargo_delivery':
+                // Track total cargo currently held
+                let totalCargo = 0;
+                Object.values(gameState.inventory).forEach(count => totalCargo += count);
+                updateMissionProgress(mission.id, totalCargo);
+                break;
+                
+            case 'hazard_survival':
+                // Track asteroids mined while maintaining hull threshold
+                if (mission.failed) {
+                    // Mission already failed, don't update
+                    break;
+                }
+                
+                // Check if hull dropped below threshold
+                const hullPercentage = (gameState.hull / PLAYER_CONFIG.maxHull) * 100;
+                if (hullPercentage < mission.threshold) {
+                    // Failed the mission
+                    mission.failed = true;
+                    mission.status = 'failed';
+                    logMessage(`Mission failed: Hull dropped below ${mission.threshold}%`, 'error');
+                    updateMissionsDisplay();
+                    break;
+                }
+                
+                // Track asteroids destroyed while maintaining hull
+                progress = gameState.stats.asteroidsDestroyed - mission.startValue;
+                updateMissionProgress(mission.id, progress);
+                break;
+                
+            case 'speed_mining':
+                // Track asteroids destroyed within time limit
+                if (mission.failed) {
+                    // Mission already failed, don't update
+                    break;
+                }
+                
+                const elapsedTime = (Date.now() - mission.startTime) / 1000; // seconds
+                
+                // Check if time limit exceeded
+                if (elapsedTime > mission.timeLimit) {
+                    // Check if already completed
+                    const asteroidsMined = gameState.stats.asteroidsDestroyed - mission.startValue;
+                    if (asteroidsMined < mission.target) {
+                        // Failed to complete in time
+                        mission.failed = true;
+                        mission.status = 'failed';
+                        logMessage(`Mission failed: Time limit exceeded`, 'error');
+                        updateMissionsDisplay();
+                    }
+                    break;
+                }
+                
+                // Update progress
+                progress = gameState.stats.asteroidsDestroyed - mission.startValue;
+                updateMissionProgress(mission.id, progress);
+                break;
+        }
+    });
+}
+
+// Function to add a new mission
+function addMission(mission) {
+    gameState.missions.push(mission);
+    updateMissionsDisplay();
+}
+
+// Function to remove a mission
+function removeMission(missionId) {
+    const index = gameState.missions.findIndex(m => m.id === missionId);
+    if (index !== -1) {
+        gameState.missions.splice(index, 1);
+        updateMissionsDisplay();
+    }
+}
+
+// ================================
 // UPGRADE SYSTEM
 // ================================
 
@@ -3767,6 +4555,25 @@ function initUpgrades() {
             // Open the master drawer
             upgradesDrawerContent.style.display = 'block';
             upgradesDrawerIcon.textContent = '▼';
+        }
+    });
+    
+    // Initialize missions drawer toggle
+    const missionsDrawerBtn = document.getElementById('missionsDrawerBtn');
+    const missionsList = document.getElementById('missionsList');
+    const missionsDrawerIcon = missionsDrawerBtn.querySelector('.drawer-icon');
+    
+    missionsDrawerBtn.addEventListener('click', () => {
+        const isOpen = missionsList.style.display !== 'none';
+        
+        if (isOpen) {
+            // Close the missions drawer
+            missionsList.style.display = 'none';
+            missionsDrawerIcon.textContent = '▶';
+        } else {
+            // Open the missions drawer
+            missionsList.style.display = 'block';
+            missionsDrawerIcon.textContent = '▼';
         }
     });
     
@@ -3942,6 +4749,11 @@ function initUpgrades() {
         const nextSectorNum = currentSector + 1;
         const nextSectorName = `ALPHA-${String(nextSectorNum).padStart(3, '0')}`;
         
+        // Calculate current and next sector map sizes
+        const currentMapSize = CONFIG.baseWorldWidth + (currentSector - 1) * 250;
+        const nextMapSize = CONFIG.baseWorldWidth + (nextSectorNum - 1) * 250;
+        const mapSizeIncrease = nextMapSize - currentMapSize;
+        
         // Calculate current sector stats
         const currentAsteroids = 30 + currentSector * 5;
         const currentHazards = Math.floor(2 + currentSector * 0.5);
@@ -3961,26 +4773,36 @@ function initUpgrades() {
         const spawnRateIncrease = nextSpawnRate - currentSpawnRate;
         
         // Check for missing requirements
-        const missingCredits = gameState.credits < 1000;
+        const missingCredits = gameState.credits < 10000;
         const missingFuel = gameState.fuel < 50;
+        const hasActiveMissions = gameState.missions.length > 0;
         let warningText = '';
         
         if (missingCredits || missingFuel) {
             warningText = '\n\n<b style="color: #ff0000;">INSUFFICIENT RESOURCES:</b>\n';
             if (missingCredits) {
-                warningText += `<b style="color: #ff0000;">• Need ${1000 - gameState.credits} more credits</b>\n`;
+                warningText += `<b style="color: #ff0000;">• Need ${10000 - gameState.credits} more credits</b>\n`;
             }
             if (missingFuel) {
                 warningText += `<b style="color: #ff0000;">• Need ${Math.ceil(50 - gameState.fuel)} more fuel</b>\n`;
             }
         }
         
+        // Add mission abandonment warning if player has active missions
+        if (hasActiveMissions) {
+            warningText += '\n\n<b style="color: #ff6600;">⚠ MISSION WARNING ⚠</b>\n';
+            warningText += `<b style="color: #ff6600;">You have ${gameState.missions.length} active mission(s)!</b>\n`;
+            warningText += `<b style="color: #ff6600;">All missions will be ABANDONED if you jump sectors.</b>\n`;
+            warningText += `<b style="color: #ff6600;">Return to stations to complete missions first!</b>`;
+        }
+        
         showConfirm(
             'JUMP TO NEXT SECTOR',
             `SECTOR JUMP ANALYSIS:\n\n` +
             `Destination: ${nextSectorName}\n` +
-            `Cost: 1,000 Credits + 50 Fuel\n\n` +
+            `Cost: 10,000 Credits + 50 Fuel\n\n` +
             `SECTOR DIFFICULTY INCREASE:\n` +
+            `• Map size: ${currentMapSize} → ${nextMapSize} (+${mapSizeIncrease})\n` +
             `• Asteroid density: ${currentAsteroids} → ${nextAsteroids} (+${asteroidIncrease})\n` +
             `• Hazard encounters: ${currentHazards} → ${nextHazards} (+${hazardIncrease})\n` +
             `• Rare asteroid chance: ${currentRareChance}% → ${nextRareChance}% (+${rareChanceIncrease}%)\n` +
@@ -3993,7 +4815,7 @@ function initUpgrades() {
                 jumpToNextSector();
             },
             null,
-            () => gameState.fuel < 50 || gameState.credits < 1000 // Disable confirm if insufficient resources
+            () => gameState.fuel < 50 || gameState.credits < 10000 // Disable confirm if insufficient resources
         );
     });
     
@@ -4298,6 +5120,10 @@ function performPrestige() {
     gameState.maxFuel = 100;
     gameState.fuel = 100;
     
+    // Reset world size to base values
+    CONFIG.worldWidth = CONFIG.baseWorldWidth;
+    CONFIG.worldHeight = CONFIG.baseWorldHeight;
+    
     // Reset world
     asteroids = [];
     hazards = [];
@@ -4473,8 +5299,8 @@ function jumpToNextSector() {
         return;
     }
     
-    if (gameState.credits < 1000) {
-        logMessage('Insufficient credits for sector jump. Need 1,000¢');
+    if (gameState.credits < 10000) {
+        logMessage('Insufficient credits for sector jump. Need 10,000¢');
         return;
     }
     
@@ -4483,10 +5309,14 @@ function jumpToNextSector() {
     } else {
         gameState.fuel -= 50;
     }
-    gameState.credits -= 1000;
+    gameState.credits -= 10000;
     gameState.sector++;
     gameState.sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
     gameState.stats.sectorsVisited++;
+    
+    // Increase world size by 250 per sector
+    CONFIG.worldWidth = CONFIG.baseWorldWidth + (gameState.sector - 1) * 250;
+    CONFIG.worldHeight = CONFIG.baseWorldHeight + (gameState.sector - 1) * 250;
     
     player.x = CONFIG.worldWidth / 2;
     player.y = CONFIG.worldHeight / 2;
@@ -4495,8 +5325,17 @@ function jumpToNextSector() {
     viewport.x = player.x - (VIEWPORT_REFERENCE.WIDTH / 2) / viewport.zoom;
     viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
+    // Clear missions when jumping sectors (missions are station-specific)
+    if (gameState.missions.length > 0) {
+        logMessage(`${gameState.missions.length} mission(s) abandoned due to sector jump`, 'warning');
+        gameState.missions = [];
+        updateMissionsDisplay();
+    }
+    
     // Clear stations before generating new sector (each sector has new stations)
     stations = [];
+    // Clear station missions (new sector = new stations = new missions)
+    gameState.stationMissions = {};
     
     generateSector();
     logMessage(`Jumped to sector ${gameState.sectorName}`);
@@ -4880,37 +5719,64 @@ function generateAsteroidGeometry() {
 }
 
 function spawnAsteroid(x, y) {
-    // Determine asteroid type based on rarity
-    // Higher sectors increase rare asteroid chances
-    const sectorBonus = (gameState.sector - 1) * 0.1; // +10% per sector
+    // Determine asteroid type based on rarity with sector progression
+    // Each sector increases rare asteroid chances
+    const sectorLevel = gameState.sector - 1;
     
+    // Calculate dynamic chances based on sector
+    // Common asteroids: decrease 2.5% per sector (min 25%)
+    // Uncommon: increase 1.5% per sector
+    // Rare: increase 1.2% per sector  
+    // Epic: increase 0.8% per sector
+    // Legendary: increase 0.4% per sector
+    
+    const adjustedChances = {};
+    let totalChance = 0;
+    
+    for (const [key, data] of Object.entries(ASTEROID_TYPES)) {
+        let chance = data.baseChance;
+        
+        switch(data.rarity) {
+            case 'common':
+                // Reduce common by 2.5% per sector, but never below 25% total for both commons
+                if (key === 'common') {
+                    chance = Math.max(0.20, data.baseChance - (sectorLevel * 0.020));
+                } else { // copper
+                    chance = Math.max(0.10, data.baseChance - (sectorLevel * 0.012));
+                }
+                break;
+            case 'uncommon':
+                // Increase uncommon by 1.5% per sector
+                chance = data.baseChance + (sectorLevel * 0.015);
+                break;
+            case 'rare':
+                // Increase rare by 1.2% per sector
+                chance = data.baseChance + (sectorLevel * 0.012);
+                break;
+            case 'epic':
+                // Increase epic by 0.8% per sector
+                chance = data.baseChance + (sectorLevel * 0.008);
+                break;
+            case 'legendary':
+                // Increase legendary by 0.4% per sector
+                chance = data.baseChance + (sectorLevel * 0.004);
+                break;
+        }
+        
+        adjustedChances[key] = Math.max(0.001, chance); // Minimum 0.1% for any type
+        totalChance += adjustedChances[key];
+    }
+    
+    // Normalize probabilities to sum to 1.0
+    for (const key in adjustedChances) {
+        adjustedChances[key] /= totalChance;
+    }
+    
+    // Select asteroid type using weighted random selection
     let type = 'common';
     const roll = Math.random();
     let cumulative = 0;
     
-    // Adjust probabilities based on sector
-    // Common becomes less likely, rare becomes more likely
-    const adjustedChances = {};
-    let totalAdjusted = 0;
-    
-    for (const [key, data] of Object.entries(ASTEROID_TYPES)) {
-        if (key === 'common') {
-            // Reduce common asteroid chance in higher sectors
-            adjustedChances[key] = Math.max(0.2, data.chance - sectorBonus);
-        } else {
-            // Increase rare asteroid chances
-            const rareMultiplier = key === 'crystal' || key === 'platinum' ? 2.0 : 1.5;
-            adjustedChances[key] = data.chance * (1 + sectorBonus * rareMultiplier);
-        }
-        totalAdjusted += adjustedChances[key];
-    }
-    
-    // Normalize probabilities to sum to 1
-    for (const key in adjustedChances) {
-        adjustedChances[key] /= totalAdjusted;
-    }
-    
-    // Select asteroid type based on adjusted probabilities
     for (const [key, chance] of Object.entries(adjustedChances)) {
         cumulative += chance;
         if (roll <= cumulative) {
@@ -4976,6 +5842,7 @@ function initGame() {
     initCustomization();
     initInput();
     initUpgrades();
+    initMissions();  // Initialize mission system
     initMinimapScanner();
     initConsoleInput();
     
@@ -5002,6 +5869,22 @@ function initGame() {
             });
         }, 50); // 50ms debounce
     });
+    
+    // Mobile-specific: Listen for visualViewport changes to handle address bar show/hide
+    // This ensures the game always fits within the visible area on mobile browsers
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            
+            resizeTimeout = setTimeout(() => {
+                requestAnimationFrame(() => {
+                    resizeCanvas();
+                });
+            }, 50);
+        });
+    }
     
     generateStars();
     
@@ -5045,6 +5928,12 @@ function initGame() {
     
     updateUI();
     updateMiningLasersDisplay(); // Initialize the laser display
+    
+    // Check if player is docked and update mission board if needed
+    const dockedStation = stations.find(s => s.isDocked);
+    if (dockedStation) {
+        updateMissionBoard(dockedStation.name, dockedStation.colorScheme);
+    }
     
     logMessage('All systems online. Ready for mining operations.');
     logMessage('Use WASD to move, SPACE to mine asteroids.');
@@ -5592,6 +6481,9 @@ function update(deltaTime) {
     
     // Update scan system
     updateScan(deltaTime);
+    
+    // Update missions
+    updateAllMissions();
     
     // Update cargo drone
     updateCargoDrone(dt);
@@ -6449,6 +7341,9 @@ function checkStationProximity(dt = 1) {
             if (!st.isDocked) {
                 st.isDocked = true;
                 logMessage(`Docked with ${st.name}. Station services available.`);
+                
+                // Show mission board for this station
+                updateMissionBoard(st.name, st.colorScheme);
             }
             
             // When docked at this station, lock to its motion
@@ -6465,6 +7360,9 @@ function checkStationProximity(dt = 1) {
             if (st.isDocked) {
                 st.isDocked = false;
                 logMessage(`Undocked from ${st.name}.`);
+                
+                // Hide mission board when undocking
+                hideMissionBoard();
             }
         }
     });
@@ -7495,41 +8393,90 @@ function applyPhosphorDecay() {
     const timeScaledDecay = (decayPerSecond * currentDeltaTime) / 1000;
     const actualDecay = Math.min(Math.max(timeScaledDecay, 0.01), 0.99);
     
-    // First pass: Fade the phosphor layer slowly
-    phosphorCtx.globalCompositeOperation = 'destination-out';
-    phosphorCtx.globalAlpha = actualDecay * 0.5; // Even slower decay for longer trails
-    phosphorCtx.fillStyle = '#000000';
-    phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
-    
-    // Second pass: Add CLEAN current frame to phosphor layer (not the filtered canvas)
-    phosphorCtx.globalCompositeOperation = 'lighter';
-    phosphorCtx.globalAlpha = 0.6; // Higher alpha for brighter trail accumulation
-    phosphorCtx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame to avoid feedback loop
-    
-    // Third pass: Subtle darkening to prevent excessive glow (optional, reduced impact)
-    phosphorCtx.globalCompositeOperation = 'multiply';
-    phosphorCtx.globalAlpha = 0.04; // Very subtle darkening - reduced from 0.08
-    phosphorCtx.fillStyle = '#1a1a28'; // Dark blue-grey for CRT feel
-    phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
-    
-    // Fourth pass: Overlay trails onto main canvas with higher visibility
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.5; // Increased from 0.5 for more visible trails
-    ctx.drawImage(phosphorCanvas, 0, 0);
-    
-    // Fifth pass: Boost color saturation using the CLEAN untouched frame
-    ctx.globalCompositeOperation = 'overlay'; // Enhances saturation and contrast
-    ctx.globalAlpha = 0.2; // Increased from 0.15 for more saturation
-    ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame, not filtered canvas
-    
-    // Sixth pass: Enhance contrast by darkening with the clean frame
-    ctx.globalCompositeOperation = 'multiply'; // Darkens and adds contrast
-    ctx.globalAlpha = 0.15; // Reduced from 0.25 to avoid over-darkening
-    ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame for contrast definition
-    
-    // Reset composite operation
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = 'source-over';
+    // Use Apple-compatible rendering path for iOS/Safari devices
+    // Safari has poor support for certain composite operations like 'destination-out' and 'multiply'
+    if (isAppleDevice) {
+        // === APPLE-COMPATIBLE CRT EFFECT ===
+        // Uses only canvas drawing operations (no getImageData/putImageData to avoid rendering glitches)
+        // This is faster and prevents asteroids from disappearing
+        
+        // First pass: Fade phosphor layer using semi-transparent black rectangle
+        // This is Safari-compatible and doesn't cause rendering artifacts
+        phosphorCtx.globalCompositeOperation = 'source-over';
+        phosphorCtx.globalAlpha = actualDecay * 0.5;
+        phosphorCtx.fillStyle = '#000000';
+        phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
+        
+        // Second pass: Add current frame with screen blending (works well on iOS)
+        phosphorCtx.globalCompositeOperation = 'screen';
+        phosphorCtx.globalAlpha = 0.55;
+        phosphorCtx.drawImage(cleanFrameCanvas, 0, 0);
+        
+        // Reset phosphor context
+        phosphorCtx.globalCompositeOperation = 'source-over';
+        phosphorCtx.globalAlpha = 1.0;
+        
+        // Third pass: Draw phosphor trails onto main canvas with reduced opacity
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.45;
+        ctx.drawImage(phosphorCanvas, 0, 0);
+        
+        // Fourth pass: Subtle color boost using screen blend mode (Safari-compatible)
+        // Screen mode brightens without the heavy pixel manipulation
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.12; // Very subtle brightening
+        ctx.drawImage(cleanFrameCanvas, 0, 0);
+        
+        // Fifth pass: Slight darkening for contrast (using source-over with dark color)
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Reset composite operation
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+        
+    } else {
+        // === STANDARD CRT EFFECT (for non-Apple devices) ===
+        // Uses advanced composite operations for best visual quality
+        
+        // First pass: Fade the phosphor layer slowly
+        phosphorCtx.globalCompositeOperation = 'destination-out';
+        phosphorCtx.globalAlpha = actualDecay * 0.5; // Even slower decay for longer trails
+        phosphorCtx.fillStyle = '#000000';
+        phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
+        
+        // Second pass: Add CLEAN current frame to phosphor layer (not the filtered canvas)
+        phosphorCtx.globalCompositeOperation = 'lighter';
+        phosphorCtx.globalAlpha = 0.6; // Higher alpha for brighter trail accumulation
+        phosphorCtx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame to avoid feedback loop
+        
+        // Third pass: Subtle darkening to prevent excessive glow (optional, reduced impact)
+        phosphorCtx.globalCompositeOperation = 'multiply';
+        phosphorCtx.globalAlpha = 0.04; // Very subtle darkening - reduced from 0.08
+        phosphorCtx.fillStyle = '#1a1a28'; // Dark blue-grey for CRT feel
+        phosphorCtx.fillRect(0, 0, phosphorCanvas.width, phosphorCanvas.height);
+        
+        // Fourth pass: Overlay trails onto main canvas with higher visibility
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.5; // Increased from 0.5 for more visible trails
+        ctx.drawImage(phosphorCanvas, 0, 0);
+        
+        // Fifth pass: Boost color saturation using the CLEAN untouched frame
+        ctx.globalCompositeOperation = 'overlay'; // Enhances saturation and contrast
+        ctx.globalAlpha = 0.2; // Increased from 0.15 for more saturation
+        ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame, not filtered canvas
+        
+        // Sixth pass: Enhance contrast by darkening with the clean frame
+        ctx.globalCompositeOperation = 'multiply'; // Darkens and adds contrast
+        ctx.globalAlpha = 0.15; // Reduced from 0.25 to avoid over-darkening
+        ctx.drawImage(cleanFrameCanvas, 0, 0); // Use clean frame for contrast definition
+        
+        // Reset composite operation
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+    }
 }
 
 function renderStars() {
@@ -8396,10 +9343,11 @@ function renderPlayer() {
 
 function renderAsteroids() {
     // Viewport culling - only render visible asteroids
+    // Use VIEWPORT_REFERENCE dimensions (not canvas dimensions) for consistent culling across all devices
     const viewLeft = viewport.x;
-    const viewRight = viewport.x + canvas.width / viewport.zoom;
+    const viewRight = viewport.x + VIEWPORT_REFERENCE.WIDTH / viewport.zoom;
     const viewTop = viewport.y;
-    const viewBottom = viewport.y + canvas.height / viewport.zoom;
+    const viewBottom = viewport.y + VIEWPORT_REFERENCE.HEIGHT / viewport.zoom;
     const cullMargin = 100; // Extra margin to avoid pop-in
     
     const len = asteroids.length;
@@ -8500,11 +9448,11 @@ function renderAsteroids() {
 }
 
 function renderHazards() {
-    // Viewport culling
+    // Viewport culling - use VIEWPORT_REFERENCE for consistent culling across all devices
     const viewLeft = viewport.x;
-    const viewRight = viewport.x + canvas.width / viewport.zoom;
+    const viewRight = viewport.x + VIEWPORT_REFERENCE.WIDTH / viewport.zoom;
     const viewTop = viewport.y;
-    const viewBottom = viewport.y + canvas.height / viewport.zoom;
+    const viewBottom = viewport.y + VIEWPORT_REFERENCE.HEIGHT / viewport.zoom;
     const cullMargin = 100;
     
     const len = hazards.length;
@@ -8620,11 +9568,11 @@ function renderHazards() {
 }
 
 function renderParticles() {
-    // Optimized with for loop and viewport culling
+    // Optimized with for loop and viewport culling - use VIEWPORT_REFERENCE for consistency
     const viewLeft = viewport.x - 50;
-    const viewRight = viewport.x + canvas.width / viewport.zoom + 50;
+    const viewRight = viewport.x + VIEWPORT_REFERENCE.WIDTH / viewport.zoom + 50;
     const viewTop = viewport.y - 50;
-    const viewBottom = viewport.y + canvas.height / viewport.zoom + 50;
+    const viewBottom = viewport.y + VIEWPORT_REFERENCE.HEIGHT / viewport.zoom + 50;
     
     const len = particles.length;
     for (let i = 0; i < len; i++) {
@@ -9169,6 +10117,89 @@ function updateInventoryDisplay() {
                 `;
                 inventoryList.appendChild(item);
             }
+        });
+    }
+}
+
+function updateMissionsDisplay() {
+    const missionsList = document.getElementById('missionsList');
+    const missionCount = document.getElementById('missionCount');
+    
+    // Update mission count
+    const activeMissions = gameState.missions.filter(m => m.status === 'active');
+    missionCount.textContent = `(${activeMissions.length})`;
+    
+    // Clear current display
+    missionsList.innerHTML = '';
+    
+    if (gameState.missions.length === 0) {
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'mission-item empty';
+        emptyItem.innerHTML = `
+            <span class="item-icon">⊗</span>
+            <span class="item-text">NO ACTIVE MISSIONS</span>
+        `;
+        missionsList.appendChild(emptyItem);
+    } else {
+        gameState.missions.forEach(mission => {
+            const item = document.createElement('div');
+            item.className = `mission-item ${mission.status}`;
+            
+            // Calculate progress percentage
+            const progressPercent = Math.min(100, (mission.current / mission.target) * 100);
+            
+            // Status display
+            let statusText = '';
+            if (mission.status === 'completed') {
+                statusText = '<span style="color: #00ff00;">✓ COMPLETED</span>';
+            } else if (mission.status === 'failed') {
+                statusText = '<span style="color: #ff0000;">✗ FAILED</span>';
+            } else {
+                statusText = '<span style="color: #ffaa00;">◉ IN PROGRESS</span>';
+            }
+            
+            // Station name with color (use primary color from colorScheme)
+            const stationNameHtml = mission.stationName ? 
+                `<div class="mission-station-name" style="color: ${mission.stationColor?.primary || mission.stationColor};">FROM: ${mission.stationName}</div>` : '';
+            
+            // Time remaining for speed missions
+            let timeRemainingHtml = '';
+            if (mission.type === 'speed_mining' && mission.status === 'active' && !mission.failed) {
+                const elapsedTime = (Date.now() - mission.startTime) / 1000;
+                const timeRemaining = Math.max(0, mission.timeLimit - elapsedTime);
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = Math.floor(timeRemaining % 60);
+                const timeColor = timeRemaining < 30 ? '#ff0000' : timeRemaining < 60 ? '#ffaa00' : '#00ff00';
+                timeRemainingHtml = `<div class="mission-time" style="color: ${timeColor};">TIME: ${minutes}:${seconds.toString().padStart(2, '0')}</div>`;
+            }
+            
+            // Hull threshold for hazard missions
+            let hullInfoHtml = '';
+            if (mission.type === 'hazard_survival' && mission.status === 'active' && !mission.failed) {
+                const currentHullPercent = Math.floor((gameState.hull / PLAYER_CONFIG.maxHull) * 100);
+                const hullColor = currentHullPercent < mission.threshold ? '#ff0000' : '#00ff00';
+                hullInfoHtml = `<div class="mission-hull" style="color: ${hullColor};">HULL: ${currentHullPercent}% (MIN: ${mission.threshold}%)</div>`;
+            }
+            
+            item.innerHTML = `
+                <div class="mission-header">
+                    <span class="item-icon">${mission.icon}</span>
+                    <span class="mission-title">${mission.title}</span>
+                    <span class="mission-status">${statusText}</span>
+                </div>
+                <div class="mission-description">${mission.description}</div>
+                ${stationNameHtml}
+                ${timeRemainingHtml}
+                ${hullInfoHtml}
+                <div class="mission-progress">
+                    <span>${mission.current} / ${mission.target}</span>
+                    <div class="mission-progress-bar">
+                        <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
+                    </div>
+                </div>
+                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+            `;
+            missionsList.appendChild(item);
         });
     }
 }

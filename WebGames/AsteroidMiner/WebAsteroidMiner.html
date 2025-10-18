@@ -164,6 +164,21 @@
                     </div>
                 </div>
 
+                <!-- Active Missions Display -->
+                <div class="info-section">
+                    <button class="section-header missions-drawer-header" id="missionsDrawerBtn">
+                        <span class="section-icon drawer-icon">▶</span>
+                        <span class="section-title">ACTIVE MISSIONS</span>
+                        <span class="mission-count" id="missionCount">(0)</span>
+                    </button>
+                    <div class="missions-list" id="missionsList" style="display: none;">
+                        <div class="mission-item empty">
+                            <span class="item-icon">⊗</span>
+                            <span class="item-text">NO ACTIVE MISSIONS</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Navigation Controls -->
                 <div class="info-section">
                     <div class="section-header">
@@ -328,6 +343,29 @@
                         <div class="detail-item">
                             <span class="detail-label">Hull Repairs:</span>
                             <span class="detail-value" id="hullNeeded">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mission Board (Always visible) -->
+                <div class="info-section" id="missionBoard">
+                    <button class="section-header master-drawer-header" id="missionBoardDrawerBtn">
+                        <span class="section-icon drawer-icon">▶</span>
+                        <span class="section-title">MISSION BOARD</span>
+                    </button>
+                    <div class="mission-board-content" id="missionBoardContent" style="display: none;">
+                        <div class="mission-board-info">
+                            <div class="board-description">Available contracts from this station</div>
+                        </div>
+                        <div class="mission-board-list" id="missionBoardList">
+                            <div class="mission-board-item empty">
+                                <span class="item-icon">⊗</span>
+                                <span class="item-text">DOCK AT A STATION TO VIEW MISSIONS</span>
+                            </div>
+                        </div>
+                        <div class="mission-board-completion" id="missionCompletionArea" style="display: none;">
+                            <div class="completion-header">COMPLETED MISSIONS</div>
+                            <div id="completedMissionsList"></div>
                         </div>
                     </div>
                 </div>
