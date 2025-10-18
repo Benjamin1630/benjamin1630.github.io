@@ -4259,6 +4259,11 @@ function updateMissionBoard(stationName, stationColor) {
             item.className = `mission-board-item ${isAccepted ? 'accepted' : ''}`;
             
             if (isAccepted && acceptedMission) {
+                // Only show accepted missions if they're from this station
+                if (acceptedMission.stationName !== stationName) {
+                    return; // Skip accepted missions from other stations
+                }
+                
                 // Show accepted mission with full details like in active missions
                 const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
                 
