@@ -1442,7 +1442,7 @@ function processCommand(commandString) {
             
             gameState.credits += amount;
             if (amount > 0) gameState.stats.creditsEarned += amount;
-            markUIDirty('credits');
+            markUIDirty('credits', 'prestige');
             updateUI();
             logMessage(`Added ${amount} credits. New balance: ${gameState.credits.toFixed(2)} CR`, 'success');
             break;
@@ -4579,8 +4579,8 @@ function claimMissionReward(missionId) {
     gameState.stats.creditsEarned += mission.reward;
     logMessage(`Mission reward claimed: ${mission.reward}¢ from ${mission.title}!`, 'success');
     
-    // Mark UI as dirty
-    markUIDirty('credits', 'missions');
+    // Mark UI as dirty (include prestige for button state)
+    markUIDirty('credits', 'missions', 'prestige');
     
     // Remove mission from active list
     removeMission(missionId);
@@ -5005,7 +5005,7 @@ function initUpgrades() {
                 gameState.credits -= cost;
                 gameState.upgrades[upgradeType]++;
                 
-                // Apply upgrade effects
+                // Apply upgrade effects (includes prestige flag)
                 applyUpgradeEffects(upgradeType);
                 
                 logMessage(`Upgraded ${upgradeType.toUpperCase()} to level ${gameState.upgrades[upgradeType]}`);
@@ -5352,8 +5352,8 @@ function applyColorPreset(presetName) {
 }
 
 function applyUpgradeEffects(upgradeType) {
-    // Mark UI elements as dirty when upgrading
-    markUIDirty('upgrades', 'credits', 'cargo', 'fuel', 'hull');
+    // Mark UI elements as dirty when upgrading (include prestige for button state)
+    markUIDirty('upgrades', 'credits', 'cargo', 'fuel', 'hull', 'prestige');
     
     switch(upgradeType) {
         case 'speed':
@@ -5437,10 +5437,18 @@ function performPrestige() {
     gameState.inventory = {};
     gameState.firstRefuelUsed = false;  // Reset first refuel flag on prestige
     
-    // Keep 1 level in each upgrade
+    // Keep 1 level in each upgrade (except one-time purchases)
     Object.keys(gameState.upgrades).forEach(key => {
-        gameState.upgrades[key] = 1;
+        // Reset one-time purchases (advanced scanner and cargo drone) to 0
+        if (key === 'advancedScanner' || key === 'cargoDrone') {
+            gameState.upgrades[key] = 0;
+        } else {
+            gameState.upgrades[key] = 1;
+        }
     });
+    
+    // Clear cargo drone if it exists
+    cargoDrone = null;
     
     // Mark everything as dirty since prestige resets everything
     markUIDirty('credits', 'cargo', 'hull', 'fuel', 'inventory', 'missions', 'upgrades', 'station', 'prestige');
@@ -7331,7 +7339,7 @@ function updateCargoDrone(dt) {
             gameState.stats.creditsEarned += drone.credits;
             logMessage(`Drone returned with ${drone.credits}¢!`);
             createFloatingText(player.x, player.y - 30, `+${drone.credits}¢`, '#00ff00');
-            markUIDirty('credits', 'station'); // Mark station dirty to update sell cargo button
+            markUIDirty('credits', 'station', 'prestige'); // Mark station and prestige dirty
             
             // Remove drone
             cargoDrone = null;
@@ -8525,8 +8533,8 @@ function sellCargo() {
         // Update mission progress (for trader missions)
         updateAllMissions();
         
-        // Mark UI elements as dirty
-        markUIDirty('credits', 'cargo', 'inventory', 'station');
+        // Mark UI elements as dirty (include prestige for button state)
+        markUIDirty('credits', 'cargo', 'inventory', 'station', 'prestige');
     } else {
         logMessage('No cargo to sell.');
     }
@@ -8569,8 +8577,8 @@ function refuelAndRepair() {
             createFloatingText(player.x + 20, player.y - 20, `+${Math.floor(hullNeeded)}% HULL`, '#00ff00');
         }
         
-        // Mark UI elements as dirty
-        markUIDirty('credits', 'fuel', 'hull', 'station');
+        // Mark UI elements as dirty (include prestige for button state)
+        markUIDirty('credits', 'fuel', 'hull', 'station', 'prestige');
     } else {
         logMessage('Ship already at full fuel and hull.');
     }
