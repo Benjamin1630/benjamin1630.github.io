@@ -7,6 +7,7 @@
 let fpsFrames = 0;
 let fpsLastTime = 0;
 let fpsEnabled = false;
+let frameTimestamps = []; // Store last 60 frame timestamps for rolling average
 
 // Message handler
 self.onmessage = function(e) {
@@ -16,6 +17,7 @@ self.onmessage = function(e) {
         case 'init':
             fpsFrames = 0;
             fpsLastTime = timestamp || performance.now();
+            frameTimestamps = [];
             self.postMessage({ type: 'ready' });
             break;
             
@@ -23,31 +25,45 @@ self.onmessage = function(e) {
             fpsEnabled = true;
             fpsFrames = 0;
             fpsLastTime = timestamp || performance.now();
+            frameTimestamps = [];
             break;
             
         case 'disable':
             fpsEnabled = false;
             fpsFrames = 0;
+            frameTimestamps = [];
             break;
             
         case 'frame':
             if (!fpsEnabled) return;
             
-            fpsFrames++;
             const currentTime = timestamp || performance.now();
-            const elapsed = currentTime - fpsLastTime;
             
-            // Update once per second for efficiency
-            if (elapsed >= 1000) {
-                const fps = Math.round((fpsFrames * 1000) / elapsed);
+            // Add current timestamp to rolling buffer
+            frameTimestamps.push(currentTime);
+            
+            // Keep only last 60 frames for rolling average
+            if (frameTimestamps.length > 60) {
+                frameTimestamps.shift();
+            }
+            
+            // Calculate FPS every 10 frames for smoother updates
+            fpsFrames++;
+            if (fpsFrames >= 10 && frameTimestamps.length >= 2) {
+                // Calculate average FPS over the last N frames
+                const timeSpan = frameTimestamps[frameTimestamps.length - 1] - frameTimestamps[0];
+                const numFrames = frameTimestamps.length - 1;
                 
-                self.postMessage({
-                    type: 'fpsUpdate',
-                    fps: fps
-                });
+                if (timeSpan > 0) {
+                    const fps = Math.round((numFrames / timeSpan) * 1000);
+                    
+                    self.postMessage({
+                        type: 'fpsUpdate',
+                        fps: fps
+                    });
+                }
                 
                 fpsFrames = 0;
-                fpsLastTime = currentTime;
             }
             break;
     }
