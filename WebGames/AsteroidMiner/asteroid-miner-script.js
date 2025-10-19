@@ -78,7 +78,8 @@ const gameState = {
     
     // Game flags
     isPaused: false,
-    isAtStation: false
+    isAtStation: false,
+    firstRefuelUsed: false  // Track if first free remote refuel has been used
 };
 
 // ================================
@@ -422,8 +423,8 @@ let fpsWorkerReady = false;
 // Auto-pilot state
 let autoPilotActive = false;
 
-// Rescue ship state
-let rescueShip = null;
+// Remote refuelling tanker state
+let refuelTanker = null;
 
 // ================================
 // PERFORMANCE OPTIMIZATION SYSTEMS
@@ -477,7 +478,7 @@ const domCache = {
     refuelShipBtn: null,
     customizeShipBtn: null,
     returnToStation: null,
-    callForHelp: null,
+    remoteRefuel: null,
     prestigeBtn: null,
     
     // Mission displays
@@ -1947,7 +1948,7 @@ function showGameOver(credits, asteroids, sectors, distance, reason = 'damage') 
     // Update game over message based on reason
     const messageEl = modal.querySelector('.game-over-message');
     if (reason === 'fuel') {
-        messageEl.innerHTML = 'OUT OF FUEL - NO CREDITS FOR RESCUE<br>SHIP ADRIFT IN DEEP SPACE';
+        messageEl.innerHTML = 'OUT OF FUEL - NO CREDITS FOR REFUEL<br>SHIP ADRIFT IN DEEP SPACE';
     } else {
         messageEl.innerHTML = 'CRITICAL DAMAGE SUSTAINED<br>SHIP DISABLED - RETURNING TO BASE';
     }
@@ -2172,6 +2173,7 @@ function saveGame(saveName) {
             sector: gameState.sector,
             sectorName: gameState.sectorName,
             sectorsExplored: gameState.sectorsExplored,
+            firstRefuelUsed: gameState.firstRefuelUsed,  // Save first refuel flag
             missions: gameState.missions,  // Save active missions
             stationMissions: gameState.stationMissions,  // Save station-specific missions
             nextMissionId: gameState.nextMissionId,  // Save mission ID counter
@@ -2353,6 +2355,7 @@ function loadGame(saveName) {
         gameState.sector = saveData.gameState.sector;
         gameState.sectorName = saveData.gameState.sectorName || `ALPHA-${String(saveData.gameState.sector).padStart(3, '0')}`;
         gameState.sectorsExplored = saveData.gameState.sectorsExplored || saveData.gameState.sector;
+        gameState.firstRefuelUsed = saveData.gameState.firstRefuelUsed || false;  // Load first refuel flag
         
         // Restore missions (with fallback for older saves)
         gameState.missions = saveData.gameState.missions || [];
@@ -5035,17 +5038,22 @@ function initUpgrades() {
         returnToStation();
     });
     
-    document.getElementById('callForHelp').addEventListener('click', () => {
-        // Calculate rescue cost (2x fuel needed)
+    document.getElementById('remoteRefuel').addEventListener('click', () => {
+        // Calculate refuelling cost (2x fuel needed)
         const fuelNeeded = gameState.maxFuel - gameState.fuel;
-        const rescueCost = Math.ceil(fuelNeeded * 2);
+        const refuelCost = Math.ceil(fuelNeeded * 2);
+        const isFree = !gameState.firstRefuelUsed;
         
-        if (gameState.credits >= rescueCost && !rescueShip) {
+        if ((isFree || gameState.credits >= refuelCost) && !refuelTanker) {
+            const costText = isFree 
+                ? 'FREE (First time)' 
+                : `${refuelCost} Credits (2x fuel cost)`;
+            
             showConfirm(
-                'CALL FOR HELP',
-                `Send a rescue ship from the station to refuel your vessel?\n\nCOST: ${rescueCost} Credits (2x fuel cost)\n\nThe rescue ship will fly to your position, refuel your ship, then return to the station.`,
+                'REMOTE REFUELLING',
+                `Request a fuel tanker to fly to your location?\n\nSERVICE FEE: ${costText}\n\nA specialized refuelling vessel will be dispatched from the nearest station to top up your tanks.`,
                 () => {
-                    callForHelp();
+                    requestRemoteRefuel();
                 }
             );
         }
@@ -5427,6 +5435,7 @@ function performPrestige() {
     gameState.sector = 1;
     gameState.cargo = 0;
     gameState.inventory = {};
+    gameState.firstRefuelUsed = false;  // Reset first refuel flag on prestige
     
     // Keep 1 level in each upgrade
     Object.keys(gameState.upgrades).forEach(key => {
@@ -5510,30 +5519,38 @@ function findNearestStation(x, y) {
     return nearest;
 }
 
-function callForHelp() {
-    // Calculate rescue cost (2x fuel needed)
+function requestRemoteRefuel() {
+    // Check if this is the first time using remote refuel
+    const isFree = !gameState.firstRefuelUsed;
+    
+    // Calculate refuelling service cost (2x fuel needed)
     const fuelNeeded = gameState.maxFuel - gameState.fuel;
-    const rescueCost = Math.ceil(fuelNeeded * 2);
+    const refuelCost = Math.ceil(fuelNeeded * 2);
     
-    if (gameState.credits < rescueCost) {
-        logMessage(`Insufficient credits for rescue service. Need ${rescueCost}¢.`);
+    if (!isFree && gameState.credits < refuelCost) {
+        logMessage(`Insufficient credits for remote refuelling. Need ${refuelCost}¢.`);
         return;
     }
     
-    if (rescueShip) {
-        logMessage('Rescue ship already dispatched.');
+    if (refuelTanker) {
+        logMessage('Fuel tanker already en route.');
         return;
     }
     
-    // Deduct cost
-    gameState.credits -= rescueCost;
-    markUIDirty('credits');
+    // Deduct service fee (free first time)
+    if (isFree) {
+        gameState.firstRefuelUsed = true;
+        logMessage('Using your FREE first-time remote refuelling!');
+    } else {
+        gameState.credits -= refuelCost;
+        markUIDirty('credits');
+    }
     
     // Find nearest station to player
     const nearestStation = findNearestStation(player.x, player.y);
     
-    // Create rescue ship at nearest station
-    rescueShip = {
+    // Create refuelling tanker at nearest station
+    refuelTanker = {
         x: nearestStation.x,
         y: nearestStation.y,
         vx: 0,
@@ -5546,73 +5563,80 @@ function callForHelp() {
         sourceStation: nearestStation // Remember which station it came from
     };
     
-    logMessage(`Rescue ship dispatched from ${nearestStation.name} for ${rescueCost}¢. ETA: calculating...`);
+    const costMessage = isFree ? 'FREE (first time)' : `${refuelCost}¢`;
+    logMessage(`Fuel tanker dispatched from ${nearestStation.name} for ${costMessage}. ETA: calculating...`);
 }
 
-function updateRescueShip(dt = 1) {
-    if (!rescueShip) return;
+function updateRefuelTanker(dt = 1) {
+    if (!refuelTanker) return;
     
-    if (rescueShip.state === 'flying_to_player') {
+    if (refuelTanker.state === 'flying_to_player') {
         // Fly toward player
-        const dx = player.x - rescueShip.x;
-        const dy = player.y - rescueShip.y;
+        const dx = player.x - refuelTanker.x;
+        const dy = player.y - refuelTanker.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 60) {  // Doubled from 30 to 60
             // Reached player, start refueling
-            rescueShip.state = 'refueling';
-            rescueShip.vx = 0;
-            rescueShip.vy = 0;
-            logMessage('Rescue ship arrived. Refueling in progress...');
+            refuelTanker.state = 'refueling';
+            refuelTanker.vx = 0;
+            refuelTanker.vy = 0;
+            logMessage('Fuel tanker arrived. Refueling in progress...');
             logMessage('Ship locked in place during refueling.');
         } else {
             // Move toward player
-            rescueShip.angle = Math.atan2(dy, dx);
-            rescueShip.vx = Math.cos(rescueShip.angle) * rescueShip.speed;
-            rescueShip.vy = Math.sin(rescueShip.angle) * rescueShip.speed;
-            rescueShip.x += rescueShip.vx * dt;
-            rescueShip.y += rescueShip.vy * dt;
+            refuelTanker.angle = Math.atan2(dy, dx);
+            refuelTanker.vx = Math.cos(refuelTanker.angle) * refuelTanker.speed;
+            refuelTanker.vy = Math.sin(refuelTanker.angle) * refuelTanker.speed;
+            refuelTanker.x += refuelTanker.vx * dt;
+            refuelTanker.y += refuelTanker.vy * dt;
         }
-    } else if (rescueShip.state === 'refueling') {
+    } else if (refuelTanker.state === 'refueling') {
         // Refuel player from current position (no need to move)
         const maxFuel = gameState.maxFuel;
-        gameState.fuel = Math.min(maxFuel, gameState.fuel + rescueShip.refuelRate * dt);
+        const oldFuel = gameState.fuel;
+        gameState.fuel = Math.min(maxFuel, gameState.fuel + refuelTanker.refuelRate * dt);
+        
+        // Mark fuel as dirty if it changed
+        if (oldFuel !== gameState.fuel) {
+            markUIDirty('fuel');
+        }
         
         // Stay at current position - no movement needed
-        rescueShip.vx = 0;
-        rescueShip.vy = 0;
+        refuelTanker.vx = 0;
+        refuelTanker.vy = 0;
         
-        // Point rescue ship toward player
-        const angleToPlayer = Math.atan2(player.y - rescueShip.y, player.x - rescueShip.x);
-        rescueShip.angle = angleToPlayer;
+        // Point tanker toward player
+        const angleToPlayer = Math.atan2(player.y - refuelTanker.y, player.x - refuelTanker.x);
+        refuelTanker.angle = angleToPlayer;
         
         if (gameState.fuel >= maxFuel) {
             // Refueling complete - find nearest station NOW
-            const nearestStation = findNearestStation(rescueShip.x, rescueShip.y);
-            rescueShip.targetStation = nearestStation;
-            rescueShip.state = 'returning_to_station';
-            logMessage('Refueling complete. Rescue ship returning to station.');
+            const nearestStation = findNearestStation(refuelTanker.x, refuelTanker.y);
+            refuelTanker.targetStation = nearestStation;
+            refuelTanker.state = 'returning_to_station';
+            logMessage('Refueling complete. Tanker returning to station.');
             logMessage('Controls restored.');
         }
-    } else if (rescueShip.state === 'returning_to_station') {
+    } else if (refuelTanker.state === 'returning_to_station') {
         // Fly back to nearest station (determined after refueling)
-        const targetStation = rescueShip.targetStation || stations[0];
-        const dx = targetStation.x - rescueShip.x;
-        const dy = targetStation.y - rescueShip.y;
+        const targetStation = refuelTanker.targetStation || stations[0];
+        const dx = targetStation.x - refuelTanker.x;
+        const dy = targetStation.y - refuelTanker.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 20) {
             // Reached station, disappear
             const stationName = targetStation.name;
-            rescueShip = null;
-            logMessage(`Rescue ship returned to ${stationName}.`);
+            refuelTanker = null;
+            logMessage(`Fuel tanker returned to ${stationName}.`);
         } else {
             // Move toward station
-            rescueShip.angle = Math.atan2(dy, dx);
-            rescueShip.vx = Math.cos(rescueShip.angle) * rescueShip.speed;
-            rescueShip.vy = Math.sin(rescueShip.angle) * rescueShip.speed;
-            rescueShip.x += rescueShip.vx * dt;
-            rescueShip.y += rescueShip.vy * dt;
+            refuelTanker.angle = Math.atan2(dy, dx);
+            refuelTanker.vx = Math.cos(refuelTanker.angle) * refuelTanker.speed;
+            refuelTanker.vy = Math.sin(refuelTanker.angle) * refuelTanker.speed;
+            refuelTanker.x += refuelTanker.vx * dt;
+            refuelTanker.y += refuelTanker.vy * dt;
         }
     }
 }
@@ -5625,7 +5649,7 @@ function jumpToNextSector() {
     }
     
     if (gameState.fuel < 50) {
-        logMessage('Insufficient fuel for sector jump. Refuel at a station or Call for rescue.');
+        logMessage('Insufficient fuel for sector jump. Refuel at a station or request remote refuelling.');
         return;
     }
     
@@ -6226,7 +6250,7 @@ function initDOMCache() {
     domCache.refuelShipBtn = document.getElementById('refuelShipBtn');
     domCache.customizeShipBtn = document.getElementById('customizeShipBtn');
     domCache.returnToStation = document.getElementById('returnToStation');
-    domCache.callForHelp = document.getElementById('callForHelp');
+    domCache.remoteRefuel = document.getElementById('remoteRefuel');
     domCache.prestigeBtn = document.getElementById('prestigeBtn');
     
     domCache.missionsList = document.getElementById('missionsList');
@@ -6527,7 +6551,8 @@ function updateScan(deltaTime) {
                         object: ast, // Store reference to track movement
                         name: typeData.name,
                         value: totalValue,
-                        color: typeData.color
+                        color: typeData.color,
+                        rarity: typeData.rarity  // Add rarity info
                     });
                 }
             }
@@ -7201,8 +7226,6 @@ function deployCargoDrone() {
     gameState.inventory = {};
     gameState.cargo = 0;
     markUIDirty('cargo', 'inventory', 'station');
-    updateInventoryDisplay(); // Update inventory after cargo drone takes cargo
-    updateUI();
     
     // Spawn drone at ship's exact location
     // It will immediately start moving toward the station
@@ -7308,8 +7331,7 @@ function updateCargoDrone(dt) {
             gameState.stats.creditsEarned += drone.credits;
             logMessage(`Drone returned with ${drone.credits}¢!`);
             createFloatingText(player.x, player.y - 30, `+${drone.credits}¢`, '#00ff00');
-            markUIDirty('credits');
-            updateUI();
+            markUIDirty('credits', 'station'); // Mark station dirty to update sell cargo button
             
             // Remove drone
             cargoDrone = null;
@@ -7450,10 +7472,9 @@ function renderScan() {
                     }
                 }
                 
-                // Use the longest text width to determine horizontal line length
-                const maxTextWidth = Math.max(nameWidth, valueWidth);
+                // Use the name width to determine horizontal line length (value will be right-aligned)
                 const textHorizontalOffset = 5 / viewport.zoom;
-                const scaledHorizontalLength = maxTextWidth + textHorizontalOffset * 2; // Add padding on both sides
+                const scaledHorizontalLength = nameWidth + textHorizontalOffset * 2; // Add padding on both sides
                 
                 // Draw diagonal line up-right from current position
                 const diagonalEndX = currentX + scaledLabelOffset;
@@ -7475,25 +7496,27 @@ function renderScan() {
                 
                 // Draw labels with bold font
                 ctx.fillStyle = item.color;
-                ctx.textAlign = 'left';
                 
                 // Scale spacing with zoom for consistency
                 const textVerticalSpacing = 5 / viewport.zoom;
                 const textLineSpacing = 12 / viewport.zoom;
                 
-                // Name above the horizontal line
+                // Name above the horizontal line (left-aligned)
+                ctx.textAlign = 'left';
                 ctx.fillText(item.name, diagonalEndX + textHorizontalOffset, diagonalEndY - textVerticalSpacing);
                 
                 // Only show value/danger text if Advanced Scanner is purchased
                 if (gameState.upgrades.advancedScanner >= 1) {
-                    // For asteroids, show value below the line
+                    // For asteroids, show value below the line (right-aligned to end of line)
                     if (item.type === 'asteroid') {
-                        ctx.fillText(`${item.value}¢`, diagonalEndX + textHorizontalOffset, diagonalEndY + textLineSpacing);
+                        ctx.textAlign = 'right';
+                        ctx.fillText(`${item.value}¢`, horizontalEndX - textHorizontalOffset, diagonalEndY + textLineSpacing);
                     }
                     
-                    // For hazards, show danger warning below the line
+                    // For hazards, show danger warning below the line (right-aligned to end of line)
                     if (item.type === 'hazard') {
-                        ctx.fillText('DANGER!!', diagonalEndX + textHorizontalOffset, diagonalEndY + textLineSpacing);
+                        ctx.textAlign = 'right';
+                        ctx.fillText('DANGER!!', horizontalEndX - textHorizontalOffset, diagonalEndY + textLineSpacing);
                     }
                 }
             }
@@ -7547,8 +7570,8 @@ function update(deltaTime) {
     // Update station
     updateStation(dt);
     
-    // Update rescue ship
-    updateRescueShip(dt);
+    // Update remote refuel tanker
+    updateRefuelTanker(dt);
     
     // Update player
     updatePlayer(dt);
@@ -7633,14 +7656,14 @@ function update(deltaTime) {
 }
 
 function updatePlayer(dt = 1) {
-    // Only lock player during flying_to_player and refueling states, NOT when rescue ship is returning
-    if (rescueShip && (rescueShip.state === 'flying_to_player' || rescueShip.state === 'refueling')) {
+    // Only lock player during flying_to_player and refueling states, NOT when fuel tanker is returning
+    if (refuelTanker && (refuelTanker.state === 'flying_to_player' || refuelTanker.state === 'refueling')) {
         // Completely lock the ship in place - no movement at all
         player.vx = 0;
         player.vy = 0;
         
         // Don't change angle - keep player's current rotation
-        // (Removed the "point toward rescue ship" behavior)
+        // (Removed the "point toward fuel tanker" behavior)
         
         return; // Skip all normal player controls
     }
@@ -7953,20 +7976,22 @@ function updatePlayer(dt = 1) {
     
     // Out of fuel warning and game over check
     if (gameState.fuel <= 0) {
-        // Check if player can afford rescue (1.5x fuel needed) or is docked
+        // Check if player can afford remote refuel (2x fuel needed) or has free refuel available, or is docked
         const fuelNeeded = gameState.maxFuel - gameState.fuel;
-        const rescueCost = Math.ceil(fuelNeeded * 1.5);
-        const canAffordRescue = gameState.credits >= rescueCost;
+        const refuelCost = Math.ceil(fuelNeeded * 2);
+        const hasFreeRefuel = !gameState.firstRefuelUsed;
+        const canAffordRefuel = gameState.credits >= refuelCost || hasFreeRefuel;
         const isDocked = isDockedAtAnyStation();
         
-        // If player cannot afford rescue and is not docked, game over
-        if (!canAffordRescue && !isDocked && frameCount % 120 === 0) {
+        // If player cannot afford refuel (and no free refuel) and is not docked, game over
+        if (!canAffordRefuel && !isDocked && frameCount % 120 === 0) {
             gameOverOutOfFuel();
         } else if (frameCount % 120 === 0) {
             if (isDocked) {
                 logMessage('WARNING: Out of fuel! Refuel at station.');
-            } else if (canAffordRescue) {
-                logMessage('WARNING: Out of fuel! Call for rescue.');
+            } else if (canAffordRefuel) {
+                const refuelMsg = hasFreeRefuel ? 'Request FREE remote refuelling!' : 'Request remote refuelling.';
+                logMessage(`WARNING: Out of fuel! ${refuelMsg}`);
             }
         }
     }
@@ -8496,7 +8521,6 @@ function sellCargo() {
         
         createFloatingText(player.x, player.y - 30, `+${formatNumber(totalValue)}¢`, '#ffff00');
         logMessage(`Sold cargo for ${formatNumber(totalValue)} credits!`);
-        updateInventoryDisplay(); // Update inventory after selling
         
         // Update mission progress (for trader missions)
         updateAllMissions();
@@ -9047,7 +9071,6 @@ function mineAsteroid(asteroid) {
     markUIDirty('cargo', 'inventory', 'station');
     
     createFloatingText(asteroid.x, asteroid.y - 20, `+1 ${asteroidType.name}`, asteroidType.color);
-    updateInventoryDisplay(); // Update inventory after mining
     
     if (asteroid.health <= 0) {
         // Asteroid fully destroyed
@@ -9155,7 +9178,7 @@ function gameOver() {
 function gameOverOutOfFuel() {
     gameState.isPaused = true;
     
-    logMessage('CRITICAL: Out of fuel with no credits for rescue!');
+    logMessage('CRITICAL: Out of fuel with no credits for remote refuelling!');
     logMessage('Mission failed. Ship adrift in deep space...');
     
     setTimeout(() => {
@@ -9416,9 +9439,9 @@ function render() {
     // Render space station
     renderStation();
     
-    // Render rescue ship
-    if (rescueShip) {
-        renderRescueShip();
+    // Render remote refuel tanker
+    if (refuelTanker) {
+        renderRefuelTanker();
     }
     
     // Render asteroids
@@ -9720,18 +9743,18 @@ function renderStation() {
     });
 }
 
-function renderRescueShip() {
-    if (!rescueShip) return;
+function renderRefuelTanker() {
+    if (!refuelTanker) return;
     
     // Draw refueling beam first (before ship, so it appears behind)
-    if (rescueShip.state === 'refueling') {
+    if (refuelTanker.state === 'refueling') {
         ctx.save();
         
         // Animated refueling beam with enhanced particles
         const pulsePhase = (Date.now() / 100) % 1;
         const beamLength = Math.sqrt(
-            Math.pow(player.x - rescueShip.x, 2) + 
-            Math.pow(player.y - rescueShip.y, 2)
+            Math.pow(player.x - refuelTanker.x, 2) + 
+            Math.pow(player.y - refuelTanker.y, 2)
         );
         
         // Main beam - wider and more vibrant
@@ -9741,7 +9764,7 @@ function renderRescueShip() {
         ctx.setLineDash([8, 4]);
         ctx.lineDashOffset = -pulsePhase * 12;
         ctx.beginPath();
-        ctx.moveTo(rescueShip.x, rescueShip.y);
+        ctx.moveTo(refuelTanker.x, refuelTanker.y);
         ctx.lineTo(player.x, player.y);
         ctx.stroke();
         ctx.setLineDash([]);
@@ -9751,7 +9774,7 @@ function renderRescueShip() {
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.4;
         ctx.beginPath();
-        ctx.moveTo(rescueShip.x, rescueShip.y);
+        ctx.moveTo(refuelTanker.x, refuelTanker.y);
         ctx.lineTo(player.x, player.y);
         ctx.stroke();
         
@@ -9760,7 +9783,7 @@ function renderRescueShip() {
         ctx.lineWidth = 1;
         ctx.globalAlpha = 0.9;
         ctx.beginPath();
-        ctx.moveTo(rescueShip.x, rescueShip.y);
+        ctx.moveTo(refuelTanker.x, refuelTanker.y);
         ctx.lineTo(player.x, player.y);
         ctx.stroke();
         
@@ -9768,13 +9791,13 @@ function renderRescueShip() {
         const particleCount = Math.floor(beamLength / 15) + 10; // More particles for longer beams
         for (let i = 0; i < particleCount; i++) {
             const t = (pulsePhase + i / particleCount) % 1;
-            const px = rescueShip.x + (player.x - rescueShip.x) * t;
-            const py = rescueShip.y + (player.y - rescueShip.y) * t;
+            const px = refuelTanker.x + (player.x - refuelTanker.x) * t;
+            const py = refuelTanker.y + (player.y - refuelTanker.y) * t;
             
             // Random offset for particle wobble
             const wobblePhase = (Date.now() / 200 + i) % (Math.PI * 2);
             const wobble = Math.sin(wobblePhase) * 3;
-            const angle = Math.atan2(player.y - rescueShip.y, player.x - rescueShip.x);
+            const angle = Math.atan2(player.y - refuelTanker.y, player.x - refuelTanker.x);
             const wobbleX = Math.cos(angle + Math.PI / 2) * wobble;
             const wobbleY = Math.sin(angle + Math.PI / 2) * wobble;
             
@@ -9801,12 +9824,12 @@ function renderRescueShip() {
         // Swirling particles at connection points
         const time = Date.now() / 500;
         
-        // Rescue ship connection point
+        // Fuel tanker connection point
         for (let i = 0; i < 8; i++) {
             const orbitAngle = (time + i / 8 * Math.PI * 2) % (Math.PI * 2);
             const orbitRadius = 8 + Math.sin(time * 2 + i) * 2;
-            const ox = rescueShip.x + Math.cos(orbitAngle) * orbitRadius;
-            const oy = rescueShip.y + Math.sin(orbitAngle) * orbitRadius;
+            const ox = refuelTanker.x + Math.cos(orbitAngle) * orbitRadius;
+            const oy = refuelTanker.y + Math.sin(orbitAngle) * orbitRadius;
             
             ctx.fillStyle = '#00ffff';
             ctx.globalAlpha = 0.6;
@@ -9830,13 +9853,13 @@ function renderRescueShip() {
         }
         
         // Larger glow at connection points
-        const glowGradient1 = ctx.createRadialGradient(rescueShip.x, rescueShip.y, 0, rescueShip.x, rescueShip.y, 15);
+        const glowGradient1 = ctx.createRadialGradient(refuelTanker.x, refuelTanker.y, 0, refuelTanker.x, refuelTanker.y, 15);
         glowGradient1.addColorStop(0, 'rgba(0, 255, 255, 0.6)');
         glowGradient1.addColorStop(1, 'rgba(0, 255, 255, 0)');
         ctx.fillStyle = glowGradient1;
         ctx.globalAlpha = 0.5 + Math.sin(time * 3) * 0.2;
         ctx.beginPath();
-        ctx.arc(rescueShip.x, rescueShip.y, 15, 0, Math.PI * 2);
+        ctx.arc(refuelTanker.x, refuelTanker.y, 15, 0, Math.PI * 2);
         ctx.fill();
         
         const glowGradient2 = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 18);
@@ -9853,25 +9876,25 @@ function renderRescueShip() {
     }
     
     ctx.save();
-    ctx.translate(rescueShip.x, rescueShip.y);
-    ctx.rotate(rescueShip.angle);
+    ctx.translate(refuelTanker.x, refuelTanker.y);
+    ctx.rotate(refuelTanker.angle);
     
-    // Rescue ship body (smaller ship, yellow/orange)
+    // Fuel tanker body (smaller ship, yellow/orange)
     ctx.fillStyle = '#ffaa00';
     ctx.strokeStyle = '#ffff00';
     ctx.lineWidth = 2;
     
     // Main body (triangle)
     ctx.beginPath();
-    ctx.moveTo(rescueShip.size, 0);
-    ctx.lineTo(-rescueShip.size, rescueShip.size * 0.6);
-    ctx.lineTo(-rescueShip.size, -rescueShip.size * 0.6);
+    ctx.moveTo(refuelTanker.size, 0);
+    ctx.lineTo(-refuelTanker.size, refuelTanker.size * 0.6);
+    ctx.lineTo(-refuelTanker.size, -refuelTanker.size * 0.6);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     
-    // Rescue symbol (cross)
-    ctx.strokeStyle = '#ff0000';
+    // Fuel symbol (droplet)
+    ctx.strokeStyle = '#00ffff';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(-4, 0);
@@ -9881,11 +9904,11 @@ function renderRescueShip() {
     ctx.stroke();
     
     // Engine glow when moving
-    if (rescueShip.state !== 'refueling') {
+    if (refuelTanker.state !== 'refueling') {
         ctx.fillStyle = '#00ffff';
         ctx.globalAlpha = 0.6;
         ctx.beginPath();
-        ctx.arc(-rescueShip.size, 0, 4, 0, Math.PI * 2);
+        ctx.arc(-refuelTanker.size, 0, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
     }
@@ -11043,6 +11066,12 @@ function updateUI() {
         uiDirtyFlags.fuel = false;
     }
     
+    // Inventory - only update when dirty
+    if (uiDirtyFlags.inventory) {
+        updateInventoryDisplay();
+        uiDirtyFlags.inventory = false;
+    }
+    
     // Mining Lasers Display - update when actively mining OR when mining state changes
     if (player.isMining || wasMining !== player.isMining) {
         updateMiningLasersDisplay();
@@ -11074,11 +11103,29 @@ function updateUI() {
         
         domCache.returnToStation.disabled = withinStationRange;
         
-        // Call for Help button - cost is 1.5x fuel needed
-        const fuelNeededForRescue = gameState.maxFuel - gameState.fuel;
-        const rescueCost = Math.ceil(fuelNeededForRescue * 1.5);
-        domCache.callForHelp.disabled = gameState.credits < rescueCost || rescueShip !== null || rescueCost < 100 || gameState.isAtStation;
-        domCache.callForHelp.querySelector('.btn-text').textContent = `CALL FOR HELP - ${rescueCost} CR`;
+        // Remote Refuel button - cost is 2x fuel needed (free first time)
+        const fuelNeededForRefuel = gameState.maxFuel - gameState.fuel;
+        const refuelCost = Math.ceil(fuelNeededForRefuel * 2);
+        const isFreeRefuel = !gameState.firstRefuelUsed;
+        
+        // Button is enabled if: (free first time OR have enough credits) AND not already active AND need fuel AND not at station
+        const canUseRefuel = isFreeRefuel || gameState.credits >= refuelCost;
+        const needsFuel = fuelNeededForRefuel > 0;
+        domCache.remoteRefuel.disabled = !canUseRefuel || refuelTanker !== null || !needsFuel || gameState.isAtStation;
+        
+        const refuelButtonText = isFreeRefuel 
+            ? `REMOTE REFUEL - FREE` 
+            : `REMOTE REFUEL - ${refuelCost} CR`;
+        domCache.remoteRefuel.querySelector('.btn-text').textContent = refuelButtonText;
+        
+        // Flash the button if fuel is critically low (<15%) and button is enabled
+        const fuelPercentage = (gameState.fuel / gameState.maxFuel) * 100;
+        const isCriticallyLow = fuelPercentage < 15;
+        if (isCriticallyLow && !domCache.remoteRefuel.disabled) {
+            domCache.remoteRefuel.classList.add('flash-warning');
+        } else {
+            domCache.remoteRefuel.classList.remove('flash-warning');
+        }
     }
     
     // Station interface - only update when dirty
@@ -11269,7 +11316,9 @@ function updateInventoryDisplay() {
                 item.className = 'inventory-item';
                 
                 // Show value only if advanced scanner is purchased
-                const valueDisplay = hasAdvancedScanner ? `${asteroidType.value}¢ ×${count}` : `×${count}`;
+                const valueDisplay = hasAdvancedScanner 
+                    ? `${asteroidType.value}¢ ×${count}` 
+                    : `×${count}`;
                 
                 item.innerHTML = `
                     <span class="item-icon" style="color: ${asteroidType.color}">${asteroidType.icon}</span>

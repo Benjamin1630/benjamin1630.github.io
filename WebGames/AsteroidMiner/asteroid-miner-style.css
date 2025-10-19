@@ -178,6 +178,17 @@ canvas {
     50%, 100% { color: var(--term-text); }
 }
 
+@keyframes flashWarning {
+    0%, 100% { 
+        background-color: rgba(255, 100, 0, 0.3);
+        box-shadow: 0 0 10px rgba(255, 100, 0, 0.5);
+    }
+    50% { 
+        background-color: rgba(255, 50, 0, 0.6);
+        box-shadow: 0 0 20px rgba(255, 50, 0, 0.8);
+    }
+}
+
 body.booting {
     overflow: hidden;
 }
@@ -897,6 +908,10 @@ button.terminal-btn {
 .nav-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+}
+
+.nav-btn.flash-warning {
+    animation: flashWarning 1s ease-in-out infinite;
 }
 
 /* Station Interface */
