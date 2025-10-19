@@ -1673,6 +1673,8 @@ const controlSchemes = {
             { key: 'LB / L1', desc: 'Zoom Out' },
             { key: 'RB / R1', desc: 'Zoom In' },
             { key: 'D-PAD UP', desc: 'Toggle Autopilot' },
+            { key: 'D-PAD LEFT', desc: 'Toggle Missions Drawer' },
+            { key: 'D-PAD RIGHT', desc: 'Sell Cargo (Docked/Remote)' },
             { key: 'SELECT/BACK', desc: 'Virtual Mouse Mode' },
             { key: 'L-STICK (V-MOUSE)', desc: 'Move Cursor' },
             { key: 'R-STICK (V-MOUSE)', desc: 'Scroll Up/Down' },
@@ -3483,7 +3485,7 @@ let virtualMouse = {
 
 // Get all interactive elements for virtual mouse targeting
 function getInteractiveElements() {
-    return Array.from(document.querySelectorAll('button:not([disabled]), input, select, .upgrade-btn, .hint-close, .modal-btn, .modal-btn-small, .color-swatch-btn, .preset-btn, .color-swatch, a.terminal-btn, a.exit-btn'));
+    return Array.from(document.querySelectorAll('button:not([disabled]), input, select, .upgrade-btn, .hint-close, .modal-btn, .modal-btn-small, .color-swatch-btn, .preset-btn, .color-swatch, a.terminal-btn, a.exit-btn, .mission-board-item:not(.accepted):not(.completed):not(.failed):not(.empty)'));
 }
 
 // Find nearest interactive element to virtual mouse
@@ -3562,10 +3564,13 @@ function findButtonInDirection(direction) {
         }
         
         if (isInDirection) {
-            // Score based on alignment first, then distance
-            // Lower score is better
-            // Weight alignment heavily (x3) to prioritize direction over proximity
-            const score = (alignmentScore * 300) + primaryDistance + (secondaryDistance * 0.2);
+            // Priority 1: Must be in the correct direction (already filtered by isInDirection)
+            // Priority 2: Find the closest element (using total distance)
+            // Calculate total distance (Euclidean distance)
+            const totalDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Lower score is better - closest element wins
+            const score = totalDistance;
             
             if (score < bestScore) {
                 bestScore = score;
@@ -3753,6 +3758,9 @@ function updateGamepad() {
         gameState.isPaused = !gameState.isPaused;
     }
     
+    // Save START button state immediately after checking
+    lastGamepadState.buttons[9] = startButton;
+    
     // ====================
     // VIRTUAL MOUSE MODE (works even when paused for menu interaction)
     // ====================
@@ -3938,17 +3946,12 @@ function updateGamepad() {
             setInputMethod('gamepad');
         }
         
-        // Save button states for next frame
-        lastGamepadState.buttons[9] = startButton; // Save START button state
-        
         // In virtual mouse mode, disable game controls
         return;
     }
     
     // Don't process game controls if paused (but virtual mouse above still works)
     if (gameState.isPaused) {
-        // Save button states for next frame before returning
-        lastGamepadState.buttons[9] = startButton;
         return;
     }
     
@@ -4079,8 +4082,47 @@ function updateGamepad() {
         }
         
         lastGamepadState.dpadUpPressed = dpadUp;
+        
+        // D-Pad Left - Toggle Missions Drawer (only when virtual mouse is OFF)
+        const dpadLeft = gamepad.buttons[14] && gamepad.buttons[14].pressed;
+        const dpadLeftJustPressed = dpadLeft && !lastGamepadState.dpadLeftPressed;
+        
+        if (dpadLeftJustPressed) {
+            gamepadInputDetected = true;
+            toggleMissionsDrawer();
+        }
+        
+        lastGamepadState.dpadLeftPressed = dpadLeft;
+        
+        // D-Pad Right - Sell Cargo (docked or remote with drone) (only when virtual mouse is OFF)
+        const dpadRight = gamepad.buttons[15] && gamepad.buttons[15].pressed;
+        const dpadRightJustPressed = dpadRight && !lastGamepadState.dpadRightPressed;
+        
+        if (dpadRightJustPressed) {
+            gamepadInputDetected = true;
+            // Check if player has cargo to sell
+            if (gameState.cargo > 0) {
+                // Check if player is docked - if so, sell normally
+                if (isDockedAtAnyStation()) {
+                    sellCargo();
+                } else {
+                    // If not docked, check if cargo drone is available
+                    if (gameState.upgrades.cargoDrone >= 1) {
+                        deployCargoDrone();
+                    } else {
+                        logMessage('Must be docked at station to sell cargo, or purchase Cargo Drone upgrade.');
+                    }
+                }
+            } else {
+                logMessage('No cargo to sell.');
+            }
+        }
+        
+        lastGamepadState.dpadRightPressed = dpadRight;
     } else {
         lastGamepadState.dpadUpPressed = false;
+        lastGamepadState.dpadLeftPressed = false;
+        lastGamepadState.dpadRightPressed = false;
     }
     
     // Update input method if any gamepad input was detected
@@ -4088,8 +4130,10 @@ function updateGamepad() {
         setInputMethod('gamepad');
     }
     
-    // Save button states for next frame
+    // Save button states for next frame (but preserve START button state already saved earlier)
+    const startButtonState = lastGamepadState.buttons[9];
     lastGamepadState.buttons = gamepad.buttons.map(b => b.pressed);
+    lastGamepadState.buttons[9] = startButtonState; // Restore START button state to prevent double-trigger
     lastGamepadState.axes = [...gamepad.axes];
 }
 
@@ -4352,6 +4396,12 @@ function generateStationMissions(stationName, stationColor) {
     return missions;
 }
 
+// Calculate mission reward with prestige bonus
+function calculateMissionReward(baseReward) {
+    const bonusValue = Math.floor(baseReward * (gameState.prestigeBonus / 100));
+    return baseReward + bonusValue;
+}
+
 // Show mission board when docked
 function updateMissionBoard(stationName, stationColor) {
     const missionBoard = document.getElementById('missionBoard');
@@ -4401,6 +4451,7 @@ function updateMissionBoard(stationName, stationColor) {
             item.className = 'mission-board-item completed';
             
             const progressPercent = 100;
+            const rewardWithBonus = calculateMissionReward(mission.reward);
             
             item.innerHTML = `
                 <div class="mission-header">
@@ -4415,7 +4466,7 @@ function updateMissionBoard(stationName, stationColor) {
                         <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                     </div>
                 </div>
-                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+                <div class="mission-reward">REWARD: ${rewardWithBonus}¢</div>
                 <button class="claim-reward-btn" data-mission-id="${mission.id}">
                     [CLAIM REWARD]
                 </button>
@@ -4457,6 +4508,7 @@ function updateMissionBoard(stationName, stationColor) {
                     // Show failed mission with abandon button
                     item.className = 'mission-board-item failed';
                     const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
+                    const rewardWithBonus = calculateMissionReward(acceptedMission.reward);
                     
                     item.innerHTML = `
                         <div class="mission-header">
@@ -4471,7 +4523,7 @@ function updateMissionBoard(stationName, stationColor) {
                                 <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                             </div>
                         </div>
-                        <div class="mission-reward" style="color: #888888; text-decoration: line-through;">REWARD: ${acceptedMission.reward}¢</div>
+                        <div class="mission-reward" style="color: #888888; text-decoration: line-through;">REWARD: ${rewardWithBonus}¢</div>
                         <button class="claim-reward-btn" style="background-color: rgba(255, 0, 0, 0.2); border-color: #ff0000;" data-mission-id="${acceptedMission.id}">
                             [ABANDON MISSION]
                         </button>
@@ -4484,6 +4536,7 @@ function updateMissionBoard(stationName, stationColor) {
                     // Show accepted mission in progress
                     item.className = 'mission-board-item accepted';
                     const progressPercent = Math.min(100, (acceptedMission.current / acceptedMission.target) * 100);
+                    const rewardWithBonus = calculateMissionReward(acceptedMission.reward);
                     
                     item.innerHTML = `
                         <div class="mission-header">
@@ -4498,12 +4551,13 @@ function updateMissionBoard(stationName, stationColor) {
                                 <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                             </div>
                         </div>
-                        <div class="mission-reward">REWARD: ${acceptedMission.reward}¢</div>
+                        <div class="mission-reward">REWARD: ${rewardWithBonus}¢</div>
                     `;
                 }
             } else {
                 // Show unaccepted mission (clickable)
                 item.className = 'mission-board-item';
+                const rewardWithBonus = calculateMissionReward(mission.reward);
                 item.innerHTML = `
                     <div class="mission-header">
                         <span class="item-icon">${mission.icon}</span>
@@ -4511,7 +4565,7 @@ function updateMissionBoard(stationName, stationColor) {
                         <span class="mission-status"><span class="mission-board-difficulty ${mission.difficulty}">${mission.difficulty.toUpperCase()}</span></span>
                     </div>
                     <div class="mission-description">${mission.description}</div>
-                    <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+                    <div class="mission-reward">REWARD: ${rewardWithBonus}¢</div>
                 `;
                 item.addEventListener('click', () => acceptMission(mission, stationName, stationColor));
             }
@@ -4574,10 +4628,11 @@ function claimMissionReward(missionId) {
     const mission = gameState.missions.find(m => m.id === missionId);
     if (!mission || mission.status !== 'completed') return;
     
-    // Award the reward
-    gameState.credits += mission.reward;
-    gameState.stats.creditsEarned += mission.reward;
-    logMessage(`Mission reward claimed: ${mission.reward}¢ from ${mission.title}!`, 'success');
+    // Award the reward with prestige bonus
+    const rewardWithBonus = calculateMissionReward(mission.reward);
+    gameState.credits += rewardWithBonus;
+    gameState.stats.creditsEarned += rewardWithBonus;
+    logMessage(`Mission reward claimed: ${rewardWithBonus}¢ from ${mission.title}!`, 'success');
     
     // Mark UI as dirty (include prestige for button state)
     markUIDirty('credits', 'missions', 'prestige');
@@ -4819,6 +4874,23 @@ function removeMission(missionId) {
     }
 }
 
+// Helper function to toggle missions drawer (used by UI and gamepad)
+function toggleMissionsDrawer() {
+    const missionsList = document.getElementById('missionsList');
+    const missionsDrawerIcon = document.querySelector('#missionsDrawerBtn .drawer-icon');
+    const isOpen = missionsList.style.display !== 'none';
+    
+    if (isOpen) {
+        // Close the missions drawer
+        missionsList.style.display = 'none';
+        missionsDrawerIcon.textContent = '▶';
+    } else {
+        // Open the missions drawer
+        missionsList.style.display = 'block';
+        missionsDrawerIcon.textContent = '▼';
+    }
+}
+
 // ================================
 // UPGRADE SYSTEM
 // ================================
@@ -4872,17 +4944,7 @@ function initUpgrades() {
     const missionsDrawerIcon = missionsDrawerBtn.querySelector('.drawer-icon');
     
     missionsDrawerBtn.addEventListener('click', () => {
-        const isOpen = missionsList.style.display !== 'none';
-        
-        if (isOpen) {
-            // Close the missions drawer
-            missionsList.style.display = 'none';
-            missionsDrawerIcon.textContent = '▶';
-        } else {
-            // Open the missions drawer
-            missionsList.style.display = 'block';
-            missionsDrawerIcon.textContent = '▼';
-        }
+        toggleMissionsDrawer();
     });
     
     // Initialize collapsible upgrade categories (inside the master drawer)
@@ -5433,6 +5495,7 @@ function performPrestige() {
     // Reset most stats
     gameState.credits = 0;
     gameState.sector = 1;
+    gameState.sectorName = 'ALPHA-001';
     gameState.cargo = 0;
     gameState.inventory = {};
     gameState.firstRefuelUsed = false;  // Reset first refuel flag on prestige
@@ -5449,6 +5512,24 @@ function performPrestige() {
     
     // Clear cargo drone if it exists
     cargoDrone = null;
+    
+    // Clear missions when performing prestige (missions are station-specific)
+    if (gameState.missions.length > 0) {
+        gameState.missions = [];
+        updateMissionsDisplay();
+    }
+    
+    // Clear stations before generating new sector (each prestige resets stations)
+    stations = [];
+    // Clear station missions (new prestige = new stations = new missions)
+    gameState.stationMissions = {};
+    
+    // Clear mission board display
+    hideMissionBoard();
+    const missionBoardList = document.getElementById('missionBoardList');
+    if (missionBoardList) {
+        missionBoardList.innerHTML = '';
+    }
     
     // Mark everything as dirty since prestige resets everything
     markUIDirty('credits', 'cargo', 'hull', 'fuel', 'inventory', 'missions', 'upgrades', 'station', 'prestige');
@@ -5475,8 +5556,10 @@ function performPrestige() {
     viewport.y = player.y - (VIEWPORT_REFERENCE.HEIGHT / 2) / viewport.zoom;
     
     logMessage(`PRESTIGE COMPLETE! Bonus: +${gameState.prestigeBonus}% to all gains`);
+    logMessage('Generating new sector with fresh stations...');
     generateSector();
     updateUI();
+    updateUpgradeButtons();
 }
 
 function returnToStation() {
@@ -6253,6 +6336,7 @@ function initDOMCache() {
     domCache.cargoValueCredits = document.getElementById('cargoValueCredits');
     domCache.fuelNeeded = document.getElementById('fuelNeeded');
     domCache.hullNeeded = document.getElementById('hullNeeded');
+    domCache.repairTotalCost = document.getElementById('repairTotalCost');
     
     domCache.sellCargoBtn = document.getElementById('sellCargoBtn');
     domCache.refuelShipBtn = document.getElementById('refuelShipBtn');
@@ -6519,6 +6603,9 @@ function updateScan(deltaTime) {
             } else if (item.type === 'hazard') {
                 // Remove if hazard no longer exists in the array
                 return hazards.includes(item.object);
+            } else if (item.type === 'station') {
+                // Remove if station no longer exists in the array
+                return stations.includes(item.object);
             }
             return false;
         });
@@ -6585,6 +6672,30 @@ function updateScan(deltaTime) {
                         object: haz, // Store reference to track movement
                         name: typeData.name,
                         color: typeData.color
+                    });
+                }
+            }
+        }
+        
+        // Check stations
+        for (let i = 0; i < stations.length; i++) {
+            const station = stations[i];
+            const dx = station.x - player.x;
+            const dy = station.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > prevRadius && dist <= scanState.waveRadius && dist <= scanState.waveMaxRadius) {
+                const alreadyDetected = scanState.detectedItems.some(item => 
+                    item.type === 'station' && item.object === station
+                );
+                
+                if (!alreadyDetected) {
+                    const stationColors = station.colorScheme || STATION_COLORS[2];
+                    scanState.detectedItems.push({
+                        type: 'station',
+                        object: station, // Store reference to track movement
+                        name: station.name,
+                        color: stationColors.primary
                     });
                 }
             }
@@ -7341,6 +7452,9 @@ function updateCargoDrone(dt) {
             createFloatingText(player.x, player.y - 30, `+${drone.credits}¢`, '#00ff00');
             markUIDirty('credits', 'station', 'prestige'); // Mark station and prestige dirty
             
+            // Update upgrade buttons to reflect new credit balance
+            updateUpgradeButtons();
+            
             // Remove drone
             cargoDrone = null;
         } else {
@@ -7454,8 +7568,8 @@ function renderScan() {
             for (let i = 0; i < scanState.detectedItems.length; i++) {
                 const item = scanState.detectedItems[i];
                 
-                // Skip if object no longer exists or has been destroyed
-                if (!item.object || item.object.destroyed) continue;
+                // Skip if object no longer exists or has been destroyed (asteroids only have destroyed property)
+                if (!item.object || (item.object.destroyed && item.type !== 'station')) continue;
                 
                 // Use the object's current position (tracks movement)
                 const currentX = item.object.x;
@@ -7825,6 +7939,7 @@ function updatePlayer(dt = 1) {
                     const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
                     const fuelCost = CONFIG.baseFuelConsumption * efficiencyMultiplier * dt;
                     gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+                    markUIDirty('station'); // Update station stats when fuel changes
                 }
                 gameState.stats.distanceTraveled += currentSpeed * dt;
             }
@@ -7917,6 +8032,7 @@ function updatePlayer(dt = 1) {
                 const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
                 const fuelCost = CONFIG.baseFuelConsumption * efficiencyMultiplier * dt;
                 gameState.fuel = Math.max(0, gameState.fuel - fuelCost);
+                markUIDirty('station'); // Update station stats when fuel changes
             }
             
             gameState.stats.distanceTraveled += currentSpeed * dt;
@@ -8535,6 +8651,9 @@ function sellCargo() {
         
         // Mark UI elements as dirty (include prestige for button state)
         markUIDirty('credits', 'cargo', 'inventory', 'station', 'prestige');
+        
+        // Update upgrade buttons to reflect new credit balance
+        updateUpgradeButtons();
     } else {
         logMessage('No cargo to sell.');
     }
@@ -8579,6 +8698,9 @@ function refuelAndRepair() {
         
         // Mark UI elements as dirty (include prestige for button state)
         markUIDirty('credits', 'fuel', 'hull', 'station', 'prestige');
+        
+        // Update upgrade buttons to reflect new credit balance
+        updateUpgradeButtons();
     } else {
         logMessage('Ship already at full fuel and hull.');
     }
@@ -8997,6 +9119,7 @@ function attemptMining(dt = 1) {
                 // Apply fuel efficiency upgrade (x0.9 per level)
                 const efficiencyMultiplier = Math.pow(0.9, gameState.upgrades.fuelEfficiency - 1);
                 gameState.fuel = Math.max(0, gameState.fuel - CONFIG.miningFuelCost * efficiencyMultiplier * dt);
+                markUIDirty('station'); // Update station stats when fuel changes
             }
         }
         
@@ -9155,7 +9278,7 @@ function damagePlayer(amount) {
     }
     
     gameState.hull = Math.max(0, gameState.hull - amount);
-    markUIDirty('hull');
+    markUIDirty('hull', 'station'); // Update hull display and station stats
     createFloatingText(player.x, player.y - 20, `-${amount} HP`, '#ff0000');
     
     logMessage(`Hull damaged! -${amount} HP`);
@@ -11204,6 +11327,10 @@ function updateStationInterface() {
         domCache.hullNeeded.textContent = `0%`;
     }
     
+    // Display total repair cost (fuel + hull)
+    const totalCost = fuelCost + hullCost;
+    domCache.repairTotalCost.textContent = `${formatNumber(totalCost)}¢`;
+    
     // Enable/disable buttons based on docking status and availability
     if (isDockedAtAnyStation()) {
         // Normal docked behavior
@@ -11398,6 +11525,8 @@ function updateMissionsDisplay() {
                 hullInfoHtml = `<div class="mission-hull" style="color: ${hullColor};">HULL: ${currentHullPercent}% (MIN: ${mission.threshold}%)</div>`;
             }
             
+            const rewardWithBonus = calculateMissionReward(mission.reward);
+            
             item.innerHTML = `
                 <div class="mission-header">
                     <span class="item-icon">${mission.icon}</span>
@@ -11414,7 +11543,7 @@ function updateMissionsDisplay() {
                         <div class="mission-progress-fill" style="width: ${progressPercent}%"></div>
                     </div>
                 </div>
-                <div class="mission-reward">REWARD: ${mission.reward}¢</div>
+                <div class="mission-reward">REWARD: ${rewardWithBonus}¢</div>
             `;
             domCache.missionsList.appendChild(item);
         });

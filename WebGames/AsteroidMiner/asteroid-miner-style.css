@@ -968,6 +968,15 @@ button.terminal-btn {
     color: var(--term-text);
 }
 
+.detail-divider {
+    text-align: center;
+    opacity: 0.3;
+    font-size: var(--font-size-xs);
+    line-height: 1;
+    padding: 4px 0;
+    user-select: none;
+}
+
 /* ================================
    CENTER PANEL - GAME AREA
    ================================ */
