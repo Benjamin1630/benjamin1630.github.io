@@ -83,6 +83,12 @@ const gameState = {
 };
 
 // ================================
+// GAME VERSION
+// ================================
+
+const GAME_VERSION = '0.8.8'; // Major.Minor.Patch - Update when making breaking changes to save format
+
+// ================================
 // GAME CONFIGURATION
 // ================================
 
@@ -102,13 +108,13 @@ const CONFIG = {
     
     // Spawn rates (base values - multiplied by sector bonuses)
     // Sector bonuses: +10% spawn rate per sector, increased rare asteroid chances
-    asteroidSpawnChance: 0.02,
+    asteroidSpawnChance: 0.05, // Increased from 0.02 for faster spawning
     hazardSpawnChance: 0.005,
     rareAsteroidChance: 0.15,
     legendaryAsteroidChance: 0.03,
     
     // Max object limits (scaled by sector)
-    baseMaxAsteroids: 100, // Base limit for sector 1
+    baseMaxAsteroids: 150, // Increased from 100 to allow more asteroids
     maxAsteroidsPerSector: 50, // Additional asteroids allowed per sector
     baseMaxHazards: 40, // Base limit for sector 1
     maxHazardsPerSector: 15, // Additional hazards allowed per sector
@@ -154,6 +160,24 @@ const player = {
 };
 
 // ================================
+// NPC MINING SHIPS
+// ================================
+
+let npcMiners = []; // Array of NPC mining ships
+
+// NPC ship color schemes for variety
+const NPC_SHIP_COLORS = [
+    { primary: '#4488ff', secondary: '#2255aa', accent: '#66aaff', thruster: '#00ccff', name: 'Blue Nomad' },
+    { primary: '#ff4488', secondary: '#aa2255', accent: '#ff66aa', thruster: '#ff0066', name: 'Red Hauler' },
+    { primary: '#44ff88', secondary: '#22aa55', accent: '#66ffaa', thruster: '#00ff66', name: 'Green Prospector' },
+    { primary: '#ffaa44', secondary: '#aa6622', accent: '#ffcc66', thruster: '#ff8800', name: 'Orange Trader' },
+    { primary: '#aa44ff', secondary: '#6622aa', accent: '#cc66ff', thruster: '#8800ff', name: 'Purple Voyager' },
+    { primary: '#44ffff', secondary: '#22aaaa', accent: '#66ffff', thruster: '#00ffff', name: 'Cyan Explorer' },
+    { primary: '#ffff44', secondary: '#aaaa22', accent: '#ffff66', thruster: '#ffff00', name: 'Yellow Miner' },
+    { primary: '#ff44ff', secondary: '#aa22aa', accent: '#ff66ff', thruster: '#ff00ff', name: 'Magenta Runner' }
+];
+
+// ================================
 // FUEL WARNING TRACKING
 // ================================
 
@@ -188,6 +212,457 @@ const viewport = {
 // ================================
 
 let cargoDrone = null; // Will hold drone state when active
+
+// ================================
+// TRADING SYSTEM
+// ================================
+
+let tradingState = {
+    isTrading: false,
+    currentNPC: null,
+    nearbyNPC: null, // NPC within trade range
+    tradeOffer: {
+        playerGives: { iron: 0, copper: 0, silver: 0, gold: 0, platinum: 0 },
+        playerTakes: { iron: 0, copper: 0, silver: 0, gold: 0, platinum: 0 }
+    }
+};
+
+// ================================
+// NPC PERSONALITY SYSTEM
+// ================================
+
+const NPC_PERSONALITIES = {
+    cautious: {
+        name: 'Cautious',
+        description: 'Careful and risk-averse, prioritizes safety',
+        traits: {
+            hazardAvoidance: 1.5,      // Avoids hazards at 1.5x distance
+            miningSpeed: 0.9,          // Mines 10% slower
+            cargoThreshold: 0.6,       // Returns at 60% cargo capacity
+            dockDuration: [15, 35],    // Longer dock times (seconds)
+            asteroidPreference: 'safe' // Prefers common asteroids away from hazards
+        },
+        color: '#88ccff'  // Light blue
+    },
+    aggressive: {
+        name: 'Aggressive',
+        description: 'Bold and risk-taking, pushes for maximum profit',
+        traits: {
+            hazardAvoidance: 0.7,      // Less concerned about hazards
+            miningSpeed: 1.2,          // Mines 20% faster
+            cargoThreshold: 0.95,      // Returns at 95% cargo (very full)
+            dockDuration: [5, 12],     // Quick dock times
+            asteroidPreference: 'valuable' // Prefers rare/valuable asteroids
+        },
+        color: '#ff6644'  // Red-orange
+    },
+    efficient: {
+        name: 'Efficient',
+        description: 'Optimized and methodical, balanced approach',
+        traits: {
+            hazardAvoidance: 1.0,      // Normal hazard avoidance
+            miningSpeed: 1.1,          // Mines 10% faster
+            cargoThreshold: 0.85,      // Returns at 85% cargo
+            dockDuration: [8, 18],     // Average dock times
+            asteroidPreference: 'balanced' // Balanced selection
+        },
+        color: '#66ff66'  // Green
+    },
+    greedy: {
+        name: 'Greedy',
+        description: 'Money-focused, chases high-value targets',
+        traits: {
+            hazardAvoidance: 0.8,      // Willing to risk for profit
+            miningSpeed: 1.0,          // Normal mining speed
+            cargoThreshold: 1.0,       // Returns only when completely full
+            dockDuration: [6, 15],     // Moderate dock times
+            asteroidPreference: 'valuable' // Always seeks valuable asteroids
+        },
+        color: '#ffdd44'  // Gold
+    },
+    lazy: {
+        name: 'Lazy',
+        description: 'Easygoing and relaxed, minimal effort',
+        traits: {
+            hazardAvoidance: 1.3,      // Avoids danger (too much work)
+            miningSpeed: 0.8,          // Mines 20% slower
+            cargoThreshold: 0.5,       // Returns at 50% cargo (can't be bothered)
+            dockDuration: [20, 45],    // Very long dock times (taking breaks)
+            asteroidPreference: 'nearest' // Takes whatever is closest
+        },
+        color: '#aa88ff'  // Purple
+    },
+    professional: {
+        name: 'Professional',
+        description: 'Experienced and reliable, consistent performance',
+        traits: {
+            hazardAvoidance: 1.1,      // Slightly cautious
+            miningSpeed: 1.05,         // Slightly faster
+            cargoThreshold: 0.8,       // Returns at 80% cargo
+            dockDuration: [10, 20],    // Consistent dock times
+            asteroidPreference: 'balanced' // Well-rounded choices
+        },
+        color: '#ffffff'  // White
+    },
+    opportunist: {
+        name: 'Opportunist',
+        description: 'Adaptable and opportunistic, follows trends',
+        traits: {
+            hazardAvoidance: 1.0,      // Normal avoidance
+            miningSpeed: 1.0,          // Normal speed
+            cargoThreshold: 0.75,      // Returns at 75% cargo
+            dockDuration: [8, 22],     // Variable dock times
+            asteroidPreference: 'random' // Unpredictable selection
+        },
+        color: '#ffaa44'  // Orange
+    },
+    reckless: {
+        name: 'Reckless',
+        description: 'Daring and unpredictable, ignores danger',
+        traits: {
+            hazardAvoidance: 0.5,      // Minimal hazard concern
+            miningSpeed: 1.3,          // Mines very fast (rushing)
+            cargoThreshold: 0.9,       // Returns at 90% cargo
+            dockDuration: [4, 10],     // Very quick docks
+            asteroidPreference: 'valuable' // Chases valuable targets
+        },
+        color: '#ff3366'  // Hot pink
+    }
+};
+
+// Helper function to get random personality
+function getRandomPersonality() {
+    const personalities = Object.keys(NPC_PERSONALITIES);
+    return personalities[Math.floor(Math.random() * personalities.length)];
+}
+
+// ================================
+// NPC RADIO CHATTER SYSTEM
+// ================================
+
+const RADIO_MESSAGES = {
+    // Greeting messages when player approaches
+    greeting: {
+        cautious: [
+            "Oh, hello there... please keep your distance.",
+            "Greetings. I hope you're not here to cause trouble.",
+            "Hello. Just... give me some space, okay?",
+            "Hi. Let's keep this civil, shall we?"
+        ],
+        aggressive: [
+            "What do you want?",
+            "This is MY sector, back off!",
+            "You looking for trouble?",
+            "Better not be after my asteroids!"
+        ],
+        efficient: [
+            "Hello, <PLAYER>. Mining efficiency optimal today.",
+            "Greetings. Good hunting out here.",
+            "Hello there. May your cargo bay fill quickly.",
+            "Good to see another professional at work."
+        ],
+        greedy: [
+            "Hello, <PLAYER>. Don't even think about my finds.",
+            "Hey there. Remember, I saw that platinum first!",
+            "Greetings. Looking for a trade perhaps?",
+            "Hello. Keep your eyes on your own asteroids."
+        ],
+        lazy: [
+            "Oh... hey. Too tired to chat much.",
+            "Hello. You're working hard, aren't you? Good for you.",
+            "Hey there... mind if I just drift here a bit?",
+            "Hello. Don't suppose you want to trade shifts?"
+        ],
+        professional: [
+            "Hello, <PLAYER>. Safe mining out there.",
+            "Greetings, colleague. Beautiful day for mining.",
+            "Hello there. May your yields be high.",
+            "Good day, <PLAYER>. Fly safe."
+        ],
+        opportunist: [
+            "Well, well, look who it is!",
+            "Hey there! Got any rare finds today?",
+            "Hello! Anything interesting in your sector?",
+            "Hey, <PLAYER>! Let me know if you find anything good."
+        ],
+        reckless: [
+            "Hey! Want to race?",
+            "What's up? Fancy some competition?",
+            "Yo! Bet I can mine faster than you!",
+            "Hey there! Let's make this interesting!"
+        ]
+    },
+    
+    // Player gets too close
+    tooClose: {
+        cautious: [
+            "Too close! Please back away!",
+            "You're making me nervous!",
+            "Personal space, please!",
+            "Watch it! Too close!"
+        ],
+        aggressive: [
+            "Back off before I make you!",
+            "Get out of my way!",
+            "Move it or lose it!",
+            "You want a problem? Keep it up!"
+        ],
+        efficient: [
+            "Please maintain safe distance.",
+            "You're in my flight path.",
+            "Recommend you adjust course.",
+            "Mind the proximity alarm."
+        ],
+        greedy: [
+            "Back off, this is my territory!",
+            "Stay away from my finds!",
+            "Too close to my operation!",
+            "This sector's claimed, move along!"
+        ],
+        lazy: [
+            "Ugh, do you mind?",
+            "Really? You have to be right here?",
+            "Can't a miner get some peace?",
+            "You're blocking my view..."
+        ],
+        professional: [
+            "Please maintain safe distance, <PLAYER>.",
+            "Collision risk detected. Suggest course correction.",
+            "Professional courtesy: please give me room.",
+            "Safety protocols, <PLAYER>. A bit more space?"
+        ],
+        opportunist: [
+            "Whoa, easy there!",
+            "Hey, watch it!",
+            "Little too close for comfort!",
+            "Personal space, friend!"
+        ],
+        reckless: [
+            "Ha! Trying to intimidate me?",
+            "Come any closer, I dare you!",
+            "Oh, we're playing chicken now?",
+            "Bring it on!"
+        ]
+    },
+    
+    // Lost asteroid to player
+    lostAsteroid: {
+        cautious: [
+            "Oh... you got it. That's fine, I suppose.",
+            "Well, there are plenty more...",
+            "You needed it more than me, I'm sure.",
+            "Okay then. I'll find another."
+        ],
+        aggressive: [
+            "Damn you! That was mine!",
+            "Hey! I was mining that!",
+            "You just made my list!",
+            "That's it, we're enemies now!"
+        ],
+        efficient: [
+            "You claimed that asteroid efficiently. Well done.",
+            "Noted. Moving to next target.",
+            "Fair acquisition. Proceeding to alternate target.",
+            "Your claim is recognized. Updating search parameters."
+        ],
+        greedy: [
+            "That was MINE! You'll pay for this!",
+            "Thief! I saw it first!",
+            "You're going to regret that!",
+            "I'll remember this, <PLAYER>!"
+        ],
+        lazy: [
+            "Eh, saved me the effort.",
+            "You can have it. Too much work anyway.",
+            "One less for me to worry about.",
+            "Thanks for taking that off my list."
+        ],
+        professional: [
+            "Professional courtesy would appreciate acknowledgment.",
+            "I had targeted that, but I respect your claim.",
+            "Your asteroid. I'll find another.",
+            "Fair play, <PLAYER>. That was yours."
+        ],
+        opportunist: [
+            "Hey! I was going for that!",
+            "Sneaky move, <PLAYER>!",
+            "Alright, you win this round!",
+            "Nice grab! I'll get the next one!"
+        ],
+        reckless: [
+            "You got lucky!",
+            "Damn! Beat me to it!",
+            "Next one's mine!",
+            "Ha! Nice steal! Game on!"
+        ]
+    },
+    
+    // Successfully destroyed asteroid
+    success: {
+        cautious: [
+            "Got one. That wasn't too difficult.",
+            "Success. Small victories matter.",
+            "Another one down safely.",
+            "Good. No complications."
+        ],
+        aggressive: [
+            "Yeah! That's how it's done!",
+            "Crushed it!",
+            "Who's the best? I'm the best!",
+            "Too easy!"
+        ],
+        efficient: [
+            "Target eliminated. 87.3% efficiency.",
+            "Successful extraction. Optimal yield.",
+            "Asteroid processed. Moving to next target.",
+            "Another unit secured."
+        ],
+        greedy: [
+            "Cha-ching! More credits!",
+            "Yes! That's valuable cargo!",
+            "Profit secured!",
+            "Money in the bank!"
+        ],
+        lazy: [
+            "Finally. That took forever.",
+            "Ugh, about time.",
+            "Done. Can I nap now?",
+            "Whew. Need a break."
+        ],
+        professional: [
+            "Clean extraction. Textbook execution.",
+            "Asteroid secured. Professional standard maintained.",
+            "Successful operation.",
+            "Another satisfied customer."
+        ],
+        opportunist: [
+            "Nice! Got a good one!",
+            "Score!",
+            "That'll sell well!",
+            "Jackpot!"
+        ],
+        reckless: [
+            "BOOM! Demolished!",
+            "Wrecked it!",
+            "Obliterated!",
+            "That was awesome!"
+        ]
+    },
+    
+    // Near hazard
+    danger: {
+        cautious: [
+            "Warning! Hazard detected!",
+            "Danger! Proceeding carefully!",
+            "This is too risky!",
+            "Alert! Hazard proximity!"
+        ],
+        aggressive: [
+            "Hazard? I laugh at danger!",
+            "Bring it on, I'm not scared!",
+            "I can handle this!",
+            "Danger is my middle name!"
+        ],
+        efficient: [
+            "Hazard detected. Calculating safe trajectory.",
+            "Warning: environmental risk. Adjusting course.",
+            "Anomaly proximity alert. Proceeding with caution.",
+            "Hazard acknowledged. Optimal path computed."
+        ],
+        greedy: [
+            "Hazard here, but so is profit!",
+            "Risk versus reward... I'll take it!",
+            "Danger means everyone else stays away!",
+            "High risk, high reward!"
+        ],
+        lazy: [
+            "Ugh, seriously? A hazard?",
+            "Too much effort to avoid this...",
+            "Why is there always something?",
+            "Can't catch a break..."
+        ],
+        professional: [
+            "Hazard detected. Maintaining safe distance.",
+            "Professional advisory: danger zone ahead.",
+            "Proceeding with standard safety protocols.",
+            "Hazard noted. Adjusting mining pattern."
+        ],
+        opportunist: [
+            "Whoa! Hazard! Time to relocate!",
+            "Yikes! Danger zone!",
+            "Not worth the risk!",
+            "Time to find safer pastures!"
+        ],
+        reckless: [
+            "Hazard? Pfft! I've seen worse!",
+            "This is NOTHING!",
+            "Just makes it more exciting!",
+            "Danger is where the action is!"
+        ]
+    },
+    
+    // Full cargo
+    fullCargo: {
+        cautious: [
+            "Cargo full. Better head back safely.",
+            "That's enough for now. Time to dock.",
+            "Full load. Heading home before something happens.",
+            "Cargo bay full. Safe return to station."
+        ],
+        aggressive: [
+            "Maxed out! Time to cash in!",
+            "Cargo full! Everyone out of my way!",
+            "Full load, making my run!",
+            "Got my haul, heading back!"
+        ],
+        efficient: [
+            "Maximum capacity reached. Returning to base.",
+            "Cargo optimal. Initiating return sequence.",
+            "100% capacity. En route to station.",
+            "Full manifest. RTB initiated."
+        ],
+        greedy: [
+            "Overflowing with riches!",
+            "Maximum profit achieved! Heading to cash out!",
+            "Can't fit any more! Time to count my credits!",
+            "Jackpot! Full cargo, full wallet!"
+        ],
+        lazy: [
+            "Ugh, finally full. Can rest at the station.",
+            "That's enough work for one trip.",
+            "Time for a long dock break.",
+            "Full. Thank goodness."
+        ],
+        professional: [
+            "Cargo manifest complete. Professional standards met.",
+            "Optimal load achieved. Returning to station.",
+            "Capacity reached. Clean return initiated.",
+            "Full cargo. Excellent productivity today."
+        ],
+        opportunist: [
+            "Cargo's full! Good haul today!",
+            "Maxed out! Time to sell!",
+            "Full up! Station here I come!",
+            "Perfect timing! Full cargo!"
+        ],
+        reckless: [
+            "Cargo maxed! Record time!",
+            "Full already? I'm on fire!",
+            "Fastest fill ever! Let's go!",
+            "Loaded and ready to race back!"
+        ]
+    }
+};
+
+// Helper function to get appropriate message
+function getNPCMessage(npc, context, playerName = "Captain") {
+    const personality = npc.personality || 'efficient';
+    const messages = RADIO_MESSAGES[context]?.[personality];
+    if (!messages || messages.length === 0) return null;
+    
+    const message = messages[Math.floor(Math.random() * messages.length)];
+    return message.replace('<PLAYER>', playerName);
+}
 
 // ================================
 // ASTEROID TYPES
@@ -419,6 +894,11 @@ let pendingCollisionCheck = false;
 // FPS counter worker for zero-overhead FPS tracking
 let fpsWorker = null;
 let fpsWorkerReady = false;
+
+// NPC miner worker for offloading AI pathfinding
+let npcWorker = null;
+let npcWorkerReady = false;
+let pendingNPCUpdate = false;
 
 // Auto-pilot state
 let autoPilotActive = false;
@@ -767,14 +1247,15 @@ let isPinching = false;
 // Warp animation state
 let warpState = {
     active: false,
-    phase: 'countdown', // 'countdown', 'warp', 'fadeOut', 'fadeIn'
+    phase: 'countdown', // 'countdown', 'warp', 'fadeOut', 'blackHold', 'fadeIn'
     startTime: 0,
     elapsedTime: 0,
     countdownDuration: 3000, // 3 seconds countdown
     warpDuration: 1000, // 1 second warp effect
     fadeOutDuration: 500, // 0.5 seconds fade to black
+    blackHoldDuration: 500, // 0.5 seconds holding at black screen
     fadeInDuration: 500, // 0.5 seconds fade from black
-    totalDuration: 5000, // Total 5 seconds
+    totalDuration: 5500, // Total 5.5 seconds (increased from 5)
     nextSectorData: null, // Stores data for sector jump
     sectorJumped: false, // Flag to ensure sector jump only happens once
     shipScale: 1.0, // Current ship scale multiplier
@@ -834,7 +1315,7 @@ let shipName = 'PROSPECTOR-1'; // Default name
 
 function getBootMessages(includeNamePrompt = false, isDocked = true) {
     const messages = [
-        "DEEP SPACE MINING SYSTEMS v2.3.1",
+        `DEEP SPACE MINING SYSTEMS v${GAME_VERSION}`,
         "Copyright (c) 2385 Interstellar Resource Corp.",
         "",
         "Initializing ship systems...",
@@ -1117,7 +1598,7 @@ function displayBootSequence() {
 
 function promptShipName() {
     const bootText = document.getElementById('bootText');
-    bootText.textContent = "DEEP SPACE MINING SYSTEMS v2.3.1\n";
+    bootText.textContent = `DEEP SPACE MINING SYSTEMS v${GAME_VERSION}\n`;
     bootText.textContent += "Copyright (c) 2385 Interstellar Resource Corp.\n\n";
     bootText.textContent += "VESSEL REGISTRATION REQUIRED\n\n";
     bootText.textContent += "Enter ship designation: ";
@@ -1268,6 +1749,729 @@ function initStationState() {
             logMessage(`Tertiary station detected: ${name3}`);
         }
     }
+    
+    // Spawn NPC miners for each station
+    spawnNPCMiners();
+}
+
+// ================================
+// NPC MINER FUNCTIONS
+// ================================
+
+function spawnNPCMiners() {
+    // Clear existing NPC miners
+    npcMiners = [];
+    
+    // Spawn 5 NPC miners per station with staggered departure times
+    stations.forEach((station, stationIndex) => {
+        for (let i = 0; i < 5; i++) {
+            const colorScheme = NPC_SHIP_COLORS[(stationIndex * 5 + i) % NPC_SHIP_COLORS.length];
+            
+            // Random delay before departure (0-10 seconds)
+            const departureDelay = Math.random() * 10000;
+            
+            setTimeout(() => {
+                const personality = getRandomPersonality();
+                const personalityData = NPC_PERSONALITIES[personality];
+                
+                npcMiners.push({
+                    id: `npc_${stationIndex}_${i}`,
+                    x: station.x,
+                    y: station.y,
+                    vx: 0,
+                    vy: 0,
+                    angle: Math.random() * Math.PI * 2,
+                    angularVelocity: 0, // For smooth turning
+                    departureAngle: Math.random() * Math.PI * 2, // Random direction to leave station
+                    size: 28, // Slightly smaller than player
+                    homeStation: station,
+                    cargo: Math.floor(10 + Math.random() * 31), // Random cargo 10-40
+                    maxCargo: 50,
+                    state: 'departing', // States: departing, seeking, mining, returning, docked
+                    targetAsteroid: null,
+                    miningProgress: 0,
+                    miningSpeed: 80 * personalityData.traits.miningSpeed, // Personality affects mining speed
+                    colors: {
+                        primary: colorScheme.primary,
+                        secondary: colorScheme.secondary,
+                        accent: colorScheme.accent,
+                        thruster: colorScheme.thruster
+                    },
+                    name: `${colorScheme.name} ${i + 1}`,
+                    // Personality system
+                    personality: personality,
+                    personalityTraits: personalityData.traits,
+                    // Interaction system
+                    proximityToPlayer: Infinity,
+                    playerInRange: false,
+                    lastPlayerProximityChange: 0,
+                    lastMessageTime: 0,
+                    messageQueue: [],
+                    reputation: 0, // -100 to +100, tracks relationship with player
+                    lastInteractionTime: 0,
+                    awarenessIndicator: null, // Visual indicator state
+                    // Tracking properties for smarter asteroid selection
+                    trackingTarget: null,
+                    trackingStartDist: 0,
+                    trackingStartTime: 0,
+                    trackingDuration: 1000 + Math.random() * 1000, // Random 1-2 seconds
+                    seekingTimer: Math.random() * 500 // Random offset to desync NPCs
+                });
+            }, departureDelay);
+        }
+    });
+    
+    logMessage(`${stations.length * 5} NPC miners preparing for deployment...`);
+}
+
+// ================================
+// NPC INTERACTION & PROXIMITY DETECTION
+// ================================
+
+const PROXIMITY_RANGE = 400; // Distance for NPCs to detect player
+const TRADE_RANGE = 200; // Distance required for trading (half of proximity range)
+const CLOSE_RANGE = 75; // Distance considered "too close" (reduced from 150)
+const MESSAGE_COOLDOWN = 5000; // Minimum time between messages (ms)
+
+function updateNPCProximityAndInteractions(dt = 1) {
+    const currentTime = Date.now();
+    
+    // Track the nearest NPC for trading
+    let nearestNPC = null;
+    let nearestDistance = Infinity;
+    
+    for (const npc of npcMiners) {
+        if (npc.state === 'docked') continue;
+        
+        // Calculate distance to player
+        const dx = player.x - npc.x;
+        const dy = player.y - npc.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        npc.proximityToPlayer = distance;
+        
+        // Track nearest NPC within trade range (not just proximity range)
+        if (distance < TRADE_RANGE && distance < nearestDistance) {
+            nearestNPC = npc;
+            nearestDistance = distance;
+        }
+        
+        const wasInRange = npc.playerInRange;
+        const nowInRange = distance < PROXIMITY_RANGE;
+        
+        // Player entered proximity range
+        if (nowInRange && !wasInRange) {
+            npc.playerInRange = true;
+            npc.lastPlayerProximityChange = currentTime;
+            
+            // Send greeting message
+            if (currentTime - npc.lastMessageTime > MESSAGE_COOLDOWN) {
+                const message = getNPCMessage(npc, 'greeting', player.name || 'Captain');
+                if (message) {
+                    npc.messageQueue.push({
+                        text: message,
+                        timestamp: currentTime,
+                        type: 'greeting'
+                    });
+                    npc.lastMessageTime = currentTime;
+                }
+            }
+            
+            // Activate awareness indicator
+            npc.awarenessIndicator = {
+                type: 'detected',
+                startTime: currentTime,
+                duration: 2000 // 2 seconds
+            };
+        }
+        // Player left proximity range
+        else if (!nowInRange && wasInRange) {
+            npc.playerInRange = false;
+            npc.lastPlayerProximityChange = currentTime;
+            npc.awarenessIndicator = null;
+        }
+        
+        // Player is too close
+        if (nowInRange && distance < CLOSE_RANGE) {
+            if (currentTime - npc.lastMessageTime > MESSAGE_COOLDOWN) {
+                const message = getNPCMessage(npc, 'tooClose', player.name || 'Captain');
+                if (message) {
+                    npc.messageQueue.push({
+                        text: message,
+                        timestamp: currentTime,
+                        type: 'warning'
+                    });
+                    npc.lastMessageTime = currentTime;
+                }
+                
+                // Visual warning indicator
+                npc.awarenessIndicator = {
+                    type: 'warning',
+                    startTime: currentTime,
+                    duration: 1500
+                };
+            }
+        }
+        
+        // Clean old messages from queue (keep last 3)
+        if (npc.messageQueue.length > 3) {
+            npc.messageQueue.shift();
+        }
+    }
+    
+    // Update trading state with nearest NPC
+    tradingState.nearbyNPC = nearestNPC;
+}
+
+function updateNPCMiners(dt = 1) {
+    // Use worker if available and not already updating
+    if (npcWorkerReady && !pendingNPCUpdate && npcMiners.length > 0) {
+        pendingNPCUpdate = true;
+        
+        // Prepare data for worker (serialize everything needed)
+        const npcData = npcMiners.map((npc, index) => ({
+            ...npc,
+            targetAsteroidIndex: npc.targetAsteroid ? asteroids.indexOf(npc.targetAsteroid) : -1,
+            trackingTargetIndex: npc.trackingTarget ? asteroids.indexOf(npc.trackingTarget) : -1,
+            homeStation: {
+                x: npc.homeStation.x,
+                y: npc.homeStation.y,
+                name: npc.homeStation.name,
+                dockingRange: npc.homeStation.dockingRange
+            }
+        }));
+        
+        const asteroidData = asteroids.map(a => ({
+            x: a.x,
+            y: a.y,
+            vx: a.vx,
+            vy: a.vy,
+            health: a.health,
+            maxHealth: a.maxHealth,
+            destroyed: a.destroyed,
+            type: a.type,
+            radius: a.radius
+        }));
+        
+        const hazardData = hazards.map(h => ({
+            x: h.x,
+            y: h.y,
+            size: HAZARD_TYPES[h.type].size
+        }));
+        
+        const playerMiningTargetData = player.miningTargets.map(mt => ({
+            asteroidIndex: mt.asteroid ? asteroids.indexOf(mt.asteroid) : -1
+        }));
+        
+        npcWorker.postMessage({
+            type: 'updateNPCs',
+            data: {
+                npcMiners: npcData,
+                asteroids: asteroidData,
+                hazards: hazardData,
+                stations: stations.map(s => ({ x: s.x, y: s.y, name: s.name, dockingRange: s.dockingRange })),
+                playerMiningTargets: playerMiningTargetData,
+                dt: dt
+            }
+        });
+        
+        return; // Worker will handle update
+    }
+    
+    // Fallback to main thread if worker not ready or already updating
+    const miningRange = 75; // Same as player base range
+    const speed = 0.8; // NPC ship speed
+    const acceleration = 0.3;
+    const friction = 0.92;
+    
+    for (let i = npcMiners.length - 1; i >= 0; i--) {
+        const npc = npcMiners[i];
+        
+        // Handle docked state
+        if (npc.state === 'docked') {
+            // Check if docking duration is complete
+            if (Date.now() >= npc.dockedUntil) {
+                // Undock and depart
+                npc.state = 'departing';
+                npc.departureAngle = Math.random() * Math.PI * 2; // New random direction
+            }
+            continue; // Skip physics updates while docked
+        }
+        
+        switch (npc.state) {
+            case 'departing':
+                // Move away from station until outside docking range
+                const dxDepart = npc.x - npc.homeStation.x;
+                const dyDepart = npc.y - npc.homeStation.y;
+                const distToStation = Math.sqrt(dxDepart * dxDepart + dyDepart * dyDepart);
+                
+                if (distToStation > npc.homeStation.dockingRange + 50) {
+                    npc.state = 'seeking';
+                } else {
+                    // Move in the random departure direction set when spawned
+                    npc.vx += Math.cos(npc.departureAngle) * acceleration * dt;
+                    npc.vy += Math.sin(npc.departureAngle) * acceleration * dt;
+                }
+                break;
+                
+            case 'seeking':
+                // Add independent timing to each NPC
+                npc.seekingTimer = (npc.seekingTimer || 0) + dt;
+                
+                // Only evaluate new asteroids periodically (creates independence)
+                const evaluationInterval = 100 + (Math.abs(Math.sin(npc.x + npc.y)) * 100); // 100-200ms varied per NPC (was 300-500ms)
+                
+                if (npc.trackingTarget) {
+                    // Currently tracking an asteroid to see if we're getting closer
+                    const trackingElapsed = Date.now() - npc.trackingStartTime;
+                    
+                    if (trackingElapsed >= npc.trackingDuration) {
+                        // Tracking period complete - check if we got closer
+                        const dx = npc.trackingTarget.x - npc.x;
+                        const dy = npc.trackingTarget.y - npc.y;
+                        const currentDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // If we're getting closer or reasonably close, commit to this asteroid
+                        if (currentDist <= npc.trackingStartDist * 1.3) { // More forgiving threshold (was 1.1)
+                            npc.targetAsteroid = npc.trackingTarget;
+                            npc.state = 'approaching';
+                            npc.trackingTarget = null;
+                        } else {
+                            // Getting further - abandon this target and pick a new tracking duration
+                            npc.trackingTarget = null;
+                            npc.trackingDuration = 400 + Math.random() * 400; // Shorter evaluation (was 1000-2000ms)
+                            npc.seekingTimer = 0; // Reset to immediately look for another
+                        }
+                    } else {
+                        // Continue moving toward tracking target while evaluating
+                        const dx = npc.trackingTarget.x - npc.x;
+                        const dy = npc.trackingTarget.y - npc.y;
+                        const angleToTarget = Math.atan2(dy, dx);
+                        npc.vx += Math.cos(angleToTarget) * acceleration * dt * 0.8; // Faster while tracking (was 0.5)
+                        npc.vy += Math.sin(angleToTarget) * acceleration * dt * 0.8;
+                    }
+                } else if (npc.seekingTimer >= evaluationInterval) {
+                    // Time to look for a new asteroid to track
+                    npc.seekingTimer = 0;
+                    
+                    let closestAsteroid = null;
+                    let closestDist = Infinity;
+                    
+                    for (const asteroid of asteroids) {
+                        if (asteroid.destroyed) continue;
+                        
+                        // Check if any NPC is already mining, approaching, or tracking this asteroid
+                        const beingMined = npcMiners.some(other => 
+                            other !== npc && (
+                                other.targetAsteroid === asteroid || 
+                                other.trackingTarget === asteroid
+                            )
+                        );
+                        
+                        // Also check if player is mining it
+                        const playerMining = player.miningTargets.some(mt => mt.asteroid === asteroid);
+                        
+                        if (beingMined || playerMining) continue;
+                        
+                        const dx = asteroid.x - npc.x;
+                        const dy = asteroid.y - npc.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closestAsteroid = asteroid;
+                        }
+                    }
+                    
+                    if (closestAsteroid) {
+                        // Start tracking this asteroid
+                        npc.trackingTarget = closestAsteroid;
+                        npc.trackingStartDist = closestDist;
+                        npc.trackingStartTime = Date.now();
+                        // Set shorter initial tracking duration (was not set here)
+                        if (!npc.trackingDuration) {
+                            npc.trackingDuration = 400 + Math.random() * 400; // 400-800ms
+                        }
+                    }
+                }
+                break;
+                
+            case 'approaching':
+                // Navigate toward target asteroid
+                if (!npc.targetAsteroid || npc.targetAsteroid.destroyed) {
+                    npc.targetAsteroid = null;
+                    npc.state = 'seeking';
+                    break;
+                }
+                
+                const dxApproach = npc.targetAsteroid.x - npc.x;
+                const dyApproach = npc.targetAsteroid.y - npc.y;
+                const distToAsteroid = Math.sqrt(dxApproach * dxApproach + dyApproach * dyApproach);
+                
+                if (distToAsteroid < miningRange) {
+                    npc.state = 'mining';
+                    npc.miningProgress = 0;
+                } else {
+                    // Navigate toward asteroid with smooth turning
+                    const angleToAsteroid = Math.atan2(dyApproach, dxApproach);
+                    npc.vx += Math.cos(angleToAsteroid) * acceleration * dt;
+                    npc.vy += Math.sin(angleToAsteroid) * acceleration * dt;
+                    // Don't instantly set angle - will be smoothed below
+                }
+                break;
+                
+            case 'mining':
+                // Mine the target asteroid
+                // Check cargo threshold based on personality
+                const cargoPercentage = npc.cargo / npc.maxCargo;
+                const shouldReturn = cargoPercentage >= npc.personalityTraits.cargoThreshold;
+                
+                if (!npc.targetAsteroid || npc.targetAsteroid.destroyed || shouldReturn) {
+                    npc.targetAsteroid = null;
+                    npc.miningProgress = 0;
+                    
+                    if (shouldReturn) {
+                        npc.state = 'returning';
+                    } else {
+                        npc.state = 'seeking';
+                    }
+                    break;
+                }
+                
+                // Check if player started mining this asteroid - if so, stop and find another
+                const playerMiningThis = player.miningTargets.some(mt => mt.asteroid === npc.targetAsteroid);
+                if (playerMiningThis) {
+                    npc.targetAsteroid = null;
+                    npc.miningProgress = 0;
+                    npc.state = 'seeking';
+                    break;
+                }
+                
+                // Stay near asteroid
+                const dxMine = npc.targetAsteroid.x - npc.x;
+                const dyMine = npc.targetAsteroid.y - npc.y;
+                const distMine = Math.sqrt(dxMine * dxMine + dyMine * dyMine);
+                
+                if (distMine > miningRange * 1.5) {
+                    // Lost target, go back to approaching
+                    npc.state = 'approaching';
+                    npc.miningProgress = 0;
+                    break;
+                }
+                
+                // Apply tractor beam to pull asteroid toward NPC ship (same as player's tractor beam)
+                const asteroid = npc.targetAsteroid;
+                const pullDistance = npc.size * 1.5; // Extended distance in front of ship (was 0.5)
+                
+                // Calculate pull target: position in front of NPC ship's nose
+                const pullTargetX = npc.x + Math.cos(npc.angle) * pullDistance;
+                const pullTargetY = npc.y + Math.sin(npc.angle) * pullDistance;
+                
+                const dx = pullTargetX - asteroid.x;
+                const dy = pullTargetY - asteroid.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Tractor beam physics (matching player's system)
+                const holdRadius = 8;      // Distance where asteroid is "locked" in place
+                const approachRadius = 25; // Distance where approach behavior begins
+                const maxPullSpeed = 2.5;  // Maximum speed asteroid can move while being pulled
+                
+                // Normalized direction to target
+                const dirX = dx / dist;
+                const dirY = dy / dist;
+                
+                // Velocity component toward target
+                const velocityTowardTarget = asteroid.vx * dirX + asteroid.vy * dirY;
+                
+                if (dist > holdRadius) {
+                    // === PULLING PHASE ===
+                    // Proportional force: stronger when further from target
+                    const normalizedDist = Math.min(dist / miningRange, 1);
+                    const proportionalStrength = 0.3 + normalizedDist * 0.4; // Range: 0.3-0.7
+                    const proportionalForce = dirX * proportionalStrength * dt;
+                    const proportionalForceY = dirY * proportionalStrength * dt;
+                    
+                    // Apply proportional force
+                    asteroid.vx += proportionalForce;
+                    asteroid.vy += proportionalForceY;
+                    
+                    // Derivative damping: reduce velocity to prevent overshoot
+                    let dampingStrength = 0.02; // Base damping (2% per frame at 60fps)
+                    
+                    if (dist < approachRadius) {
+                        // Increase damping dramatically in approach zone
+                        const approachFactor = 1 - (dist / approachRadius); // 0 at edge, 1 at center
+                        dampingStrength += approachFactor * 0.15; // Up to 17% damping near target
+                    }
+                    
+                    if (velocityTowardTarget > 0) {
+                        // Extra damping when moving toward target to prevent overshoot
+                        const velocityFactor = Math.min(velocityTowardTarget / 2, 1);
+                        dampingStrength += velocityFactor * 0.08; // Up to 8% extra damping
+                    }
+                    
+                    // Apply velocity damping (frame-rate independent)
+                    const dampingFactor = Math.pow(1 - dampingStrength, dt);
+                    asteroid.vx *= dampingFactor;
+                    asteroid.vy *= dampingFactor;
+                    
+                    // Speed limiter: Clamp overall velocity
+                    const currentSpeed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy);
+                    if (currentSpeed > maxPullSpeed) {
+                        const speedRatio = maxPullSpeed / currentSpeed;
+                        asteroid.vx *= speedRatio;
+                        asteroid.vy *= speedRatio;
+                    }
+                    
+                } else {
+                    // === HOLDING PHASE ===
+                    // Asteroid is within hold radius - lock it in place
+                    
+                    // Apply very strong damping to kill all velocity
+                    const holdDampingFactor = Math.pow(0.1, dt); // 90% damping per frame
+                    asteroid.vx *= holdDampingFactor;
+                    asteroid.vy *= holdDampingFactor;
+                    
+                    // Apply gentle centering force to keep asteroid exactly at target
+                    const centeringStrength = 0.02 * dt;
+                    asteroid.vx += dirX * centeringStrength;
+                    asteroid.vy += dirY * centeringStrength;
+                    
+                    // Clamp velocity to prevent any significant movement while held
+                    const maxHoldSpeed = 0.1;
+                    const currentSpeed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy);
+                    if (currentSpeed > maxHoldSpeed) {
+                        const speedRatio = maxHoldSpeed / currentSpeed;
+                        asteroid.vx *= speedRatio;
+                        asteroid.vy *= speedRatio;
+                    }
+                }
+                
+                // Create laser particles for visual effect (matching player)
+                if (frameCount % 3 === 0) {
+                    const laserOriginX = npc.x + Math.cos(npc.angle) * npc.size * 0.85;
+                    const laserOriginY = npc.y + Math.sin(npc.angle) * npc.size * 0.85;
+                    createLaserParticle(laserOriginX, laserOriginY, npc.targetAsteroid.x, npc.targetAsteroid.y);
+                }
+                
+                // Increment mining progress
+                npc.miningProgress += dt;
+                
+                // Complete mining cycle - use same visual system as player but don't add to player cargo
+                if (npc.miningProgress >= npc.miningSpeed) {
+                    // Reduce asteroid health
+                    npc.targetAsteroid.health--;
+                    
+                    // Calculate health ratio for proportional scaling
+                    const healthRatio = npc.targetAsteroid.health / npc.targetAsteroid.maxHealth;
+                    
+                    // Create chunk breaking effect at damaged vertices (same as player)
+                    if (npc.targetAsteroid.geometry && npc.targetAsteroid.geometry.length > 0) {
+                        const numChunks = 1 + Math.floor(Math.random() * 2);
+                        
+                        for (let chunk = 0; chunk < numChunks; chunk++) {
+                            const damageIndex = Math.floor(Math.random() * npc.targetAsteroid.geometry.length);
+                            const vertsToShrink = [damageIndex];
+                            
+                            if (Math.random() > 0.5) {
+                                const leftIndex = (damageIndex - 1 + npc.targetAsteroid.geometry.length) % npc.targetAsteroid.geometry.length;
+                                vertsToShrink.push(leftIndex);
+                            }
+                            
+                            if (Math.random() > 0.5) {
+                                const rightIndex = (damageIndex + 1) % npc.targetAsteroid.geometry.length;
+                                vertsToShrink.push(rightIndex);
+                            }
+                            
+                            vertsToShrink.forEach(index => {
+                                const point = npc.targetAsteroid.geometry[index];
+                                const originalPoint = npc.targetAsteroid.originalGeometry[index];
+                                
+                                // Calculate world position for particles BEFORE shrinking
+                                const worldX = npc.targetAsteroid.x + point.x * Math.cos(npc.targetAsteroid.rotation) - point.y * Math.sin(npc.targetAsteroid.rotation);
+                                const worldY = npc.targetAsteroid.y + point.x * Math.sin(npc.targetAsteroid.rotation) + point.y * Math.cos(npc.targetAsteroid.rotation);
+                                
+                                // Create particles at the vertex location
+                                for (let i = 0; i < 5; i++) {
+                                    createParticle(worldX, worldY, ASTEROID_TYPES[npc.targetAsteroid.type].color);
+                                }
+                                
+                                // Shrink this vertex proportionally based on health ratio
+                                point.x = originalPoint.x * healthRatio;
+                                point.y = originalPoint.y * healthRatio;
+                            });
+                        }
+                    }
+                    
+                    // Add to NPC cargo (not player cargo!)
+                    npc.cargo++;
+                    npc.miningProgress = 0;
+                    
+                    // Check if asteroid destroyed
+                    if (npc.targetAsteroid.health <= 0) {
+                        // Asteroid fully destroyed
+                        gameState.stats.asteroidsDestroyed++;
+                        
+                        const asteroidType = ASTEROID_TYPES[npc.targetAsteroid.type];
+                        createFloatingText(npc.targetAsteroid.x, npc.targetAsteroid.y, `DESTROYED`, asteroidType.color);
+                        
+                        // Mark asteroid as destroyed
+                        npc.targetAsteroid.destroyed = true;
+                        
+                        // Large explosion particles
+                        for (let i = 0; i < 20; i++) {
+                            createParticle(npc.targetAsteroid.x, npc.targetAsteroid.y, asteroidType.color);
+                        }
+                        
+                        npc.targetAsteroid = null;
+                        
+                        // Check if should return based on personality cargo threshold
+                        const cargoPercentage = npc.cargo / npc.maxCargo;
+                        if (cargoPercentage >= npc.personalityTraits.cargoThreshold) {
+                            npc.state = 'returning';
+                        } else {
+                            npc.state = 'seeking';
+                        }
+                    }
+                }
+                break;
+                
+            case 'returning':
+                // Navigate back to home station
+                const dxReturn = npc.homeStation.x - npc.x;
+                const dyReturn = npc.homeStation.y - npc.y;
+                const distReturn = Math.sqrt(dxReturn * dxReturn + dyReturn * dyReturn);
+                
+                if (distReturn < npc.homeStation.dockingRange) {
+                    // Dock at station - set docked state with timer
+                    npc.state = 'docked';
+                    npc.dockedUntil = Date.now() + (10000 + Math.random() * 20000); // 10-30 seconds
+                    npc.cargo = 0; // Sold cargo
+                    npc.vx = 0;
+                    npc.vy = 0;
+                    continue; // Skip rest of update for this NPC
+                } else {
+                    // Navigate toward station with smooth turning
+                    const angleToStation = Math.atan2(dyReturn, dxReturn);
+                    npc.vx += Math.cos(angleToStation) * acceleration * dt;
+                    npc.vy += Math.sin(angleToStation) * acceleration * dt;
+                    // Don't instantly set angle - will be smoothed below
+                }
+                break;
+        }
+        
+        // Smooth turning - calculate desired angle from velocity
+        if (npc.vx !== 0 || npc.vy !== 0) {
+            const desiredAngle = Math.atan2(npc.vy, npc.vx);
+            
+            // Calculate angle difference (shortest path)
+            let angleDiff = desiredAngle - npc.angle;
+            
+            // Normalize angle difference to [-PI, PI]
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            
+            // Apply angular acceleration (turn rate)
+            const turnSpeed = 0.08 * dt; // Adjust this value for faster/slower turning
+            const maxAngularVelocity = 0.1; // Maximum rotation speed per frame
+            
+            // Calculate angular acceleration toward desired angle
+            const angularAcceleration = angleDiff * turnSpeed;
+            npc.angularVelocity += angularAcceleration;
+            
+            // Clamp angular velocity
+            if (npc.angularVelocity > maxAngularVelocity) npc.angularVelocity = maxAngularVelocity;
+            if (npc.angularVelocity < -maxAngularVelocity) npc.angularVelocity = -maxAngularVelocity;
+            
+            // Apply angular damping
+            npc.angularVelocity *= 0.85;
+            
+            // Update angle
+            npc.angle += npc.angularVelocity * dt;
+            
+            // Normalize angle to [0, 2PI]
+            while (npc.angle > Math.PI * 2) npc.angle -= Math.PI * 2;
+            while (npc.angle < 0) npc.angle += Math.PI * 2;
+        }
+        
+        // Apply friction
+        const frictionFactor = Math.pow(friction, dt);
+        npc.vx *= frictionFactor;
+        npc.vy *= frictionFactor;
+        
+        // Limit speed
+        const currentSpeed = Math.sqrt(npc.vx * npc.vx + npc.vy * npc.vy);
+        if (currentSpeed > speed) {
+            npc.vx = (npc.vx / currentSpeed) * speed;
+            npc.vy = (npc.vy / currentSpeed) * speed;
+        }
+        
+        // Update position
+        npc.x += npc.vx * dt;
+        npc.y += npc.vy * dt;
+        
+        // Clamp to world bounds
+        npc.x = Math.max(npc.size, Math.min(CONFIG.worldWidth - npc.size, npc.x));
+        npc.y = Math.max(npc.size, Math.min(CONFIG.worldHeight - npc.size, npc.y));
+        
+        // Check for hazard collisions (simple avoidance)
+        for (const hazard of hazards) {
+            const hazardData = HAZARD_TYPES[hazard.type];
+            const dx = hazard.x - npc.x;
+            const dy = hazard.y - npc.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < hazardData.size + npc.size + 50) {
+                // Steer away from hazard
+                const avoidAngle = Math.atan2(-dy, -dx);
+                npc.vx += Math.cos(avoidAngle) * 0.5 * dt;
+                npc.vy += Math.sin(avoidAngle) * 0.5 * dt;
+            }
+        }
+    }
+}
+
+function spawnSingleNPCMiner(station, colors, name) {
+    const personality = getRandomPersonality();
+    const personalityData = NPC_PERSONALITIES[personality];
+    
+    npcMiners.push({
+        id: `npc_respawn_${Date.now()}_${Math.random()}`,
+        x: station.x,
+        y: station.y,
+        vx: 0,
+        vy: 0,
+        angle: Math.random() * Math.PI * 2,
+        angularVelocity: 0, // For smooth turning
+        departureAngle: Math.random() * Math.PI * 2, // Random direction to leave station
+        size: 28,
+        homeStation: station,
+        cargo: 0, // Always start with 0 cargo after docking/selling
+        maxCargo: 50,
+        state: 'departing',
+        targetAsteroid: null,
+        miningProgress: 0,
+        miningSpeed: 80 * personalityData.traits.miningSpeed, // Personality affects mining speed
+        colors: colors,
+        name: name,
+        // Personality system
+        personality: personality,
+        personalityTraits: personalityData.traits,
+        // Interaction system
+        proximityToPlayer: Infinity,
+        playerInRange: false,
+        lastPlayerProximityChange: 0,
+        lastMessageTime: 0,
+        messageQueue: [],
+        reputation: 0,
+        lastInteractionTime: 0,
+        awarenessIndicator: null,
+        // Tracking properties for smarter asteroid selection
+        trackingTarget: null,
+        trackingStartDist: 0,
+        trackingStartTime: 0,
+        trackingDuration: 1000 + Math.random() * 1000, // Random 1-2 seconds
+        seekingTimer: Math.random() * 500 // Random offset to desync NPCs
+    });
 }
 
 // ================================
@@ -2167,7 +3371,7 @@ function initCustomization() {
 function saveGame(saveName) {
     // Only save essential data that can't be inferred
     const saveData = {
-        version: '1.0',
+        version: GAME_VERSION,
         timestamp: Date.now(),
         shipName: shipName,
         gameState: {
@@ -2272,6 +3476,46 @@ function saveGame(saveName) {
             dockTime: cargoDrone.dockTime
         } : null,
         recentStationNames: recentStationNames,
+        npcMiners: npcMiners.map(npc => ({
+            id: npc.id,
+            x: npc.x,
+            y: npc.y,
+            vx: npc.vx,
+            vy: npc.vy,
+            angle: npc.angle,
+            angularVelocity: npc.angularVelocity || 0,
+            departureAngle: npc.departureAngle || 0,
+            size: npc.size,
+            homeStationName: npc.homeStation.name,  // Save station reference by name
+            homeStationX: npc.homeStation.x,
+            homeStationY: npc.homeStation.y,
+            cargo: npc.cargo,
+            maxCargo: npc.maxCargo,
+            state: npc.state,
+            dockedUntil: npc.dockedUntil || 0,
+            targetAsteroidIndex: npc.targetAsteroid ? asteroids.indexOf(npc.targetAsteroid) : -1,  // Save by index
+            miningProgress: npc.miningProgress,
+            miningSpeed: npc.miningSpeed,
+            colors: {
+                primary: npc.colors.primary,
+                secondary: npc.colors.secondary,
+                accent: npc.colors.accent,
+                thruster: npc.colors.thruster
+            },
+            name: npc.name,
+            // Save personality
+            personality: npc.personality || 'efficient',
+            personalityTraits: npc.personalityTraits || NPC_PERSONALITIES.efficient.traits,
+            // Save interaction state
+            reputation: npc.reputation || 0,
+            inventory: npc.inventory || null,
+            // Save tracking properties
+            trackingTargetIndex: npc.trackingTarget ? asteroids.indexOf(npc.trackingTarget) : -1,
+            trackingStartDist: npc.trackingStartDist || 0,
+            trackingStartTime: npc.trackingStartTime || 0,
+            trackingDuration: npc.trackingDuration || 1500,
+            seekingTimer: npc.seekingTimer || 0
+        })),
         asteroids: asteroids.map(ast => ({
             x: ast.x,
             y: ast.y,
@@ -2347,6 +3591,23 @@ function loadGame(saveName) {
         if (!saveData) {
             console.error('Save not found:', saveName);
             return false;
+        }
+        
+        // Check save version and log compatibility info
+        const saveVersion = saveData.version || '1.0.0';
+        console.log(`Loading save: ${saveName} (Version: ${saveVersion}, Current: ${GAME_VERSION})`);
+        
+        if (saveVersion !== GAME_VERSION) {
+            const isOlder = compareVersions(saveVersion, GAME_VERSION) < 0;
+            if (isOlder) {
+                logMessage(`⚠ Loading older save (v${saveVersion}). Some features may not work as expected.`);
+                console.warn(`Save version ${saveVersion} is older than current version ${GAME_VERSION}`);
+            } else {
+                logMessage(`⚠ Loading newer save (v${saveVersion}). Attempting compatibility...`);
+                console.warn(`Save version ${saveVersion} is newer than current version ${GAME_VERSION}`);
+            }
+        } else {
+            logMessage(`✓ Save version matches (v${GAME_VERSION})`);
         }
         
         // Restore ship name
@@ -2513,6 +3774,75 @@ function loadGame(saveName) {
         // Restore recent station names
         recentStationNames = saveData.recentStationNames || [];
         
+        // Restore NPC miners if saved
+        if (saveData.npcMiners && Array.isArray(saveData.npcMiners)) {
+            npcMiners = saveData.npcMiners.map(npcData => {
+                // Find the home station by name and position
+                const homeStation = stations.find(st => 
+                    st.name === npcData.homeStationName &&
+                    Math.abs(st.x - npcData.homeStationX) < 10 &&
+                    Math.abs(st.y - npcData.homeStationY) < 10
+                );
+                
+                // Skip this NPC if station not found (shouldn't happen)
+                if (!homeStation) {
+                    console.warn('Could not find home station for NPC:', npcData.name);
+                    return null;
+                }
+                
+                return {
+                    id: npcData.id,
+                    x: npcData.x,
+                    y: npcData.y,
+                    vx: npcData.vx,
+                    vy: npcData.vy,
+                    angle: npcData.angle,
+                    angularVelocity: npcData.angularVelocity || 0,
+                    departureAngle: npcData.departureAngle || (Math.random() * Math.PI * 2),
+                    size: npcData.size,
+                    homeStation: homeStation,
+                    cargo: npcData.cargo,
+                    maxCargo: npcData.maxCargo,
+                    state: npcData.state,
+                    dockedUntil: npcData.dockedUntil || 0,
+                    targetAsteroid: null,  // Will be restored after asteroids are loaded
+                    targetAsteroidIndex: npcData.targetAsteroidIndex,  // Temp storage for index
+                    miningProgress: npcData.miningProgress,
+                    miningSpeed: npcData.miningSpeed,
+                    colors: {
+                        primary: npcData.colors.primary,
+                        secondary: npcData.colors.secondary,
+                        accent: npcData.colors.accent,
+                        thruster: npcData.colors.thruster
+                    },
+                    name: npcData.name,
+                    // Restore personality
+                    personality: npcData.personality || 'efficient',
+                    personalityTraits: npcData.personalityTraits || NPC_PERSONALITIES.efficient.traits,
+                    // Restore interaction system
+                    proximityToPlayer: Infinity,
+                    playerInRange: false,
+                    lastPlayerProximityChange: 0,
+                    lastMessageTime: 0,
+                    messageQueue: [],
+                    reputation: npcData.reputation || 0,
+                    inventory: npcData.inventory || null,
+                    lastInteractionTime: 0,
+                    awarenessIndicator: null,
+                    // Restore tracking properties
+                    trackingTarget: null,  // Will be restored after asteroids are loaded
+                    trackingTargetIndex: npcData.trackingTargetIndex || -1,
+                    trackingStartDist: npcData.trackingStartDist || 0,
+                    trackingStartTime: npcData.trackingStartTime || 0,
+                    trackingDuration: npcData.trackingDuration || (1000 + Math.random() * 1000),
+                    seekingTimer: npcData.seekingTimer || (Math.random() * 500)
+                };
+            }).filter(npc => npc !== null);  // Remove any NPCs that couldn't be restored
+        } else {
+            // No saved NPCs or old save format - spawn new ones
+            npcMiners = [];
+        }
+        
         // Reset fuel warnings
         fuelWarnings.warning50.triggered = false;
         fuelWarnings.warning50.timestamp = 0;
@@ -2561,6 +3891,24 @@ function loadGame(saveName) {
         } else {
             // Old save format or missing data - generate new sector
             generateSector();
+        }
+        
+        // Restore NPC target asteroid references (now that asteroids are loaded)
+        for (const npc of npcMiners) {
+            if (npc.targetAsteroidIndex >= 0 && npc.targetAsteroidIndex < asteroids.length) {
+                npc.targetAsteroid = asteroids[npc.targetAsteroidIndex];
+            } else {
+                npc.targetAsteroid = null;
+            }
+            // Restore tracking target reference
+            if (npc.trackingTargetIndex >= 0 && npc.trackingTargetIndex < asteroids.length) {
+                npc.trackingTarget = asteroids[npc.trackingTargetIndex];
+            } else {
+                npc.trackingTarget = null;
+            }
+            // Clean up the temporary index properties
+            delete npc.targetAsteroidIndex;
+            delete npc.trackingTargetIndex;
         }
         
         // Clear particles and floating text (runtime visual effects)
@@ -2761,6 +4109,75 @@ function loadGameData(saveName) {
         // Restore recent station names
         recentStationNames = saveData.recentStationNames || [];
         
+        // Restore NPC miners if saved
+        if (saveData.npcMiners && Array.isArray(saveData.npcMiners)) {
+            npcMiners = saveData.npcMiners.map(npcData => {
+                // Find the home station by name and position
+                const homeStation = stations.find(st => 
+                    st.name === npcData.homeStationName &&
+                    Math.abs(st.x - npcData.homeStationX) < 10 &&
+                    Math.abs(st.y - npcData.homeStationY) < 10
+                );
+                
+                // Skip this NPC if station not found (shouldn't happen)
+                if (!homeStation) {
+                    console.warn('Could not find home station for NPC:', npcData.name);
+                    return null;
+                }
+                
+                return {
+                    id: npcData.id,
+                    x: npcData.x,
+                    y: npcData.y,
+                    vx: npcData.vx,
+                    vy: npcData.vy,
+                    angle: npcData.angle,
+                    angularVelocity: npcData.angularVelocity || 0,
+                    departureAngle: npcData.departureAngle || (Math.random() * Math.PI * 2),
+                    size: npcData.size,
+                    homeStation: homeStation,
+                    cargo: npcData.cargo,
+                    maxCargo: npcData.maxCargo,
+                    state: npcData.state,
+                    dockedUntil: npcData.dockedUntil || 0,
+                    targetAsteroid: null,  // Will be restored after asteroids are loaded
+                    targetAsteroidIndex: npcData.targetAsteroidIndex,  // Temp storage for index
+                    miningProgress: npcData.miningProgress,
+                    miningSpeed: npcData.miningSpeed,
+                    colors: {
+                        primary: npcData.colors.primary,
+                        secondary: npcData.colors.secondary,
+                        accent: npcData.colors.accent,
+                        thruster: npcData.colors.thruster
+                    },
+                    name: npcData.name,
+                    // Restore personality
+                    personality: npcData.personality || 'efficient',
+                    personalityTraits: npcData.personalityTraits || NPC_PERSONALITIES.efficient.traits,
+                    // Restore interaction system
+                    proximityToPlayer: Infinity,
+                    playerInRange: false,
+                    lastPlayerProximityChange: 0,
+                    lastMessageTime: 0,
+                    messageQueue: [],
+                    reputation: npcData.reputation || 0,
+                    inventory: npcData.inventory || null,
+                    lastInteractionTime: 0,
+                    awarenessIndicator: null,
+                    // Restore tracking properties
+                    trackingTarget: null,  // Will be restored after asteroids are loaded
+                    trackingTargetIndex: npcData.trackingTargetIndex || -1,
+                    trackingStartDist: npcData.trackingStartDist || 0,
+                    trackingStartTime: npcData.trackingStartTime || 0,
+                    trackingDuration: npcData.trackingDuration || (1000 + Math.random() * 1000),
+                    seekingTimer: npcData.seekingTimer || (Math.random() * 500)
+                };
+            }).filter(npc => npc !== null);  // Remove any NPCs that couldn't be restored
+        } else {
+            // No saved NPCs or old save format - spawn new ones
+            npcMiners = [];
+        }
+        
         // Restore asteroids and hazards if saved
         if (saveData.asteroids && saveData.hazards) {
             asteroids = saveData.asteroids.map(ast => ({
@@ -2790,6 +4207,24 @@ function loadGameData(saveName) {
                 rotation: haz.rotation,
                 rotationSpeed: haz.rotationSpeed
             }));
+            
+            // Restore NPC target asteroid references (now that asteroids are loaded)
+            for (const npc of npcMiners) {
+                if (npc.targetAsteroidIndex >= 0 && npc.targetAsteroidIndex < asteroids.length) {
+                    npc.targetAsteroid = asteroids[npc.targetAsteroidIndex];
+                } else {
+                    npc.targetAsteroid = null;
+                }
+                // Restore tracking target reference
+                if (npc.trackingTargetIndex >= 0 && npc.trackingTargetIndex < asteroids.length) {
+                    npc.trackingTarget = asteroids[npc.trackingTargetIndex];
+                } else {
+                    npc.trackingTarget = null;
+                }
+                // Clean up the temporary index properties
+                delete npc.targetAsteroidIndex;
+                delete npc.trackingTargetIndex;
+            }
         }
         // If no asteroids/hazards in save, they'll be generated later in initGame
         
@@ -2857,12 +4292,19 @@ function refreshSaveList() {
     saveList.innerHTML = saves.map(save => {
         const date = new Date(save.timestamp);
         const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        const saveVersion = save.version || '1.0.0';
+        const isCurrentVersion = saveVersion === GAME_VERSION;
+        const versionClass = isCurrentVersion ? '' : 'version-warning';
+        const versionText = isCurrentVersion ? `v${saveVersion}` : `v${saveVersion} ⚠`;
+        const rebirths = save.prestige?.level || 0;
+        const rebirthText = rebirths > 0 ? `Rebirths: ${rebirths} | ` : '';
+        
         return `
             <div class="save-item">
                 <div class="save-item-info">
                     <div class="save-item-name">${save.name}</div>
                     <div class="save-item-details">
-                        Sector ${save.gameState.sector} | ${save.gameState.credits}¢ | ${dateStr}
+                        ${rebirthText}Sector ${save.gameState.sector} | ${save.gameState.credits}¢ | <span class="${versionClass}">${versionText}</span> | ${dateStr}
                     </div>
                 </div>
                 <div class="save-item-buttons">
@@ -3023,6 +4465,616 @@ function initSaveLoad() {
 }
 
 // ================================
+// TRADING MODAL FUNCTIONS
+// ================================
+
+function openTradeModal(npc) {
+    if (!npc || gameState.isPaused || tradingState.isTrading) return;
+    
+    // Set trading state
+    tradingState.isTrading = true;
+    tradingState.currentNPC = npc;
+    gameState.isPaused = true;
+    
+    // Get modal elements
+    const tradeModal = document.getElementById('tradeModal');
+    const tradeTitle = document.getElementById('tradeTitle');
+    const tradeSubtitle = document.getElementById('tradeSubtitle');
+    const tradeNpcName = document.getElementById('tradeNpcName');
+    const tradeNpcPersonality = document.getElementById('tradeNpcPersonality');
+    const tradeNpcReputation = document.getElementById('tradeNpcReputation');
+    const tradeNpcCargo = document.getElementById('tradeNpcCargo');
+    const tradeMultiplier = document.getElementById('tradeMultiplier');
+    
+    // Update NPC info with modern styling
+    tradeTitle.textContent = `SECURE TRADE PROTOCOL`;
+    tradeSubtitle.textContent = `CONNECTION ESTABLISHED WITH ${npc.name.toUpperCase()}`;
+    tradeNpcName.textContent = npc.name.toUpperCase();
+    tradeNpcPersonality.textContent = npc.personality || 'Professional';
+    tradeNpcReputation.textContent = npc.reputation || 0;
+    tradeNpcCargo.textContent = Math.floor(npc.cargo) || 0;
+    
+    // Calculate and display price multiplier based on personality
+    const multiplier = getPersonalityPriceMultiplier(npc);
+    tradeMultiplier.textContent = `${multiplier.toFixed(2)}x`;
+    
+    // Update player inventory display
+    updateTradeInventoryDisplays(npc);
+    
+    // Reset trade inputs
+    resetTradeInputs();
+    
+    // Check for personality event
+    checkPersonalityEvent(npc);
+    
+    // Show modal
+    tradeModal.classList.add('active');
+}
+
+function closeTradeModal() {
+    const tradeModal = document.getElementById('tradeModal');
+    tradeModal.classList.remove('active');
+    
+    // Reset trading state
+    tradingState.isTrading = false;
+    tradingState.currentNPC = null;
+    gameState.isPaused = false;
+    
+    // Hide personality event section
+    const eventSection = document.getElementById('personalityEventSection');
+    if (eventSection) eventSection.style.display = 'none';
+}
+
+function getPersonalityPriceMultiplier(npc) {
+    const personality = npc.personality || 'Professional';
+    const traits = NPC_PERSONALITIES[personality];
+    
+    if (!traits) return 1.0;
+    
+    // Base multiplier on personality
+    switch (personality) {
+        case 'Greedy': return 1.5; // Wants more from player
+        case 'Lazy': return 0.8; // Gives better deals (less work)
+        case 'Professional': return 1.0; // Fair 1:1
+        case 'Opportunist': return 1.2; // Slight markup
+        case 'Cautious': return 1.1; // Slightly careful
+        case 'Aggressive': return 0.9; // Competitive pricing
+        case 'Efficient': return 1.0; // Fair pricing
+        case 'Reckless': return 0.85; // Doesn't care about value
+        default: return 1.0;
+    }
+}
+
+function updateTradeInventoryDisplays(npc) {
+    // Update player inventory amounts
+    const playerInventory = gameState.inventory;
+    
+    // Update NPC inventory amounts (simulated)
+    const npcInventory = npc.inventory || generateNPCInventory(npc);
+    npc.inventory = npcInventory; // Store it
+    
+    // Get all unique asteroid types from both inventories
+    const allTypes = new Set([
+        ...Object.keys(playerInventory),
+        ...Object.keys(npcInventory)
+    ]);
+    
+    // Clear existing cards
+    const playerGrid = document.getElementById('playerCargoGrid');
+    const npcGrid = document.getElementById('npcCargoGrid');
+    playerGrid.innerHTML = '';
+    npcGrid.innerHTML = '';
+    
+    // Generate cards for each type that exists
+    allTypes.forEach(resourceType => {
+        const playerAmount = playerInventory[resourceType] || 0;
+        const npcAmount = npcInventory[resourceType] || 0;
+        
+        // Only show if at least one party has some
+        if (playerAmount > 0 || npcAmount > 0) {
+            const asteroidData = ASTEROID_TYPES[resourceType];
+            if (asteroidData) {
+                // Create player card
+                playerGrid.appendChild(createCargoCard(resourceType, asteroidData, playerAmount, 'player', 'give'));
+                
+                // Create NPC card
+                npcGrid.appendChild(createCargoCard(resourceType, asteroidData, npcAmount, 'npc', 'take'));
+            }
+        }
+    });
+    
+    // Re-setup button listeners for new cards
+    setupTradeButtons();
+    
+    // Update trade summary
+    updateTradeSummary();
+}
+
+function createCargoCard(resourceType, asteroidData, amount, owner, action) {
+    const card = document.createElement('div');
+    card.className = 'cargo-card';
+    card.setAttribute('data-resource', resourceType);
+    card.id = `${owner}${capitalize(resourceType)}Card`;
+    
+    // Use asteroid color for the card
+    card.style.setProperty('--resource-color', asteroidData.color);
+    
+    const tradeValue = asteroidData.value * 5; // Same multiplier as calculateTradeValue
+    
+    card.innerHTML = `
+        <div class="card-glow"></div>
+        <div class="card-header">
+            <span class="resource-icon" style="color: ${asteroidData.color}; text-shadow: 0 0 10px ${asteroidData.color};">${asteroidData.icon}</span>
+            <span class="resource-name">${asteroidData.name.toUpperCase()}</span>
+        </div>
+        <div class="card-value">
+            <span class="value-label">VALUE:</span>
+            <span class="value-amount">${tradeValue} CR</span>
+        </div>
+        <div class="card-amount">
+            <span class="amount-label">AVAILABLE:</span>
+            <span class="amount-value" id="${owner}${capitalize(resourceType)}">${amount}</span>
+        </div>
+        <div class="card-controls">
+            <div class="input-controls">
+                <button class="control-btn decrease-btn" data-input="${owner}${capitalize(resourceType)}Input">-</button>
+                <input type="number" class="resource-input" id="${owner}${capitalize(resourceType)}Input" min="0" max="${amount}" value="0" placeholder="0">
+                <button class="control-btn increase-btn" data-input="${owner}${capitalize(resourceType)}Input">+</button>
+            </div>
+            <button class="transfer-btn ${action}-btn" data-resource="${resourceType}" data-action="${action}">
+                <span class="btn-icon">${action === 'give' ? '→' : '←'}</span>
+                <span class="btn-label">${action === 'give' ? 'GIVE' : 'TAKE'}</span>
+            </button>
+        </div>
+    `;
+    
+    return card;
+}
+
+function generateNPCInventory(npc) {
+    // Generate random inventory based on personality and cargo
+    const cargo = Math.floor(npc.cargo) || 20;
+    const inventory = {};
+    
+    // Get all asteroid types and their base chances to use as weights
+    const asteroidTypes = Object.keys(ASTEROID_TYPES);
+    const totalWeight = asteroidTypes.reduce((sum, type) => sum + ASTEROID_TYPES[type].baseChance, 0);
+    
+    // Distribute cargo across all asteroid types (weighted by their spawn chances)
+    let remaining = cargo;
+    asteroidTypes.forEach((type, index) => {
+        const weight = ASTEROID_TYPES[type].baseChance / totalWeight;
+        const isLast = index === asteroidTypes.length - 1;
+        
+        if (isLast) {
+            // Give all remaining to last type to ensure we use all cargo
+            inventory[type] = remaining;
+        } else {
+            const amount = Math.floor(remaining * weight * (0.7 + Math.random() * 0.6));
+            inventory[type] = amount;
+            remaining -= amount;
+        }
+    });
+    
+    return inventory;
+}
+
+function resetTradeInputs() {
+    // Reset trade offers for all asteroid types
+    tradingState.tradeOffer.playerGives = {};
+    tradingState.tradeOffer.playerTakes = {};
+    
+    // Initialize all asteroid types to 0
+    Object.keys(ASTEROID_TYPES).forEach(type => {
+        tradingState.tradeOffer.playerGives[type] = 0;
+        tradingState.tradeOffer.playerTakes[type] = 0;
+    });
+    
+    // Reset all input values (they're dynamically created, so we need to query them)
+    document.querySelectorAll('.resource-input').forEach(input => {
+        input.value = 0;
+    });
+    
+    // Update summary to show initial state
+    updateTradeSummary();
+}
+
+function checkPersonalityEvent(npc) {
+    const personality = npc.personality || 'Professional';
+    const eventSection = document.getElementById('personalityEventSection');
+    const eventMessage = document.getElementById('eventMessage');
+    const eventButtons = document.getElementById('eventButtons');
+    
+    // 30% chance of personality event
+    if (Math.random() > 0.3) {
+        eventSection.style.display = 'none';
+        return;
+    }
+    
+    // Generate event based on personality
+    const events = getPersonalityEvents(personality, npc);
+    if (!events || events.length === 0) {
+        eventSection.style.display = 'none';
+        return;
+    }
+    
+    const event = events[Math.floor(Math.random() * events.length)];
+    
+    // Display event
+    eventMessage.textContent = event.message;
+    eventButtons.innerHTML = '';
+    
+    event.options.forEach(option => {
+        const btn = document.createElement('button');
+        btn.className = 'modal-btn modal-btn-small';
+        btn.innerHTML = `<span class="btn-bracket">[</span><span class="btn-text">${option.text}</span><span class="btn-bracket">]</span>`;
+        btn.onclick = () => handleEventOption(option, npc);
+        eventButtons.appendChild(btn);
+    });
+    
+    eventSection.style.display = 'block';
+}
+
+function getPersonalityEvents(personality, npc) {
+    const playerName = player.name || 'Captain';
+    
+    switch (personality) {
+        case 'Aggressive':
+            return [{
+                message: `${npc.name} challenges you: "Think you can out-mine me? Bet 100 credits you can't get 50 ore before I do!"`,
+                options: [
+                    { text: 'ACCEPT', action: 'challenge-accept', reward: 200, reputation: 10 },
+                    { text: 'DECLINE', action: 'challenge-decline', reputation: -5 }
+                ]
+            }];
+            
+        case 'Greedy':
+            return [{
+                message: `${npc.name} offers: "I've got some 'premium' platinum here. Only 500 credits for 5 units. Great deal!"`,
+                options: [
+                    { text: 'BUY', action: 'scam-buy', cost: 500, platinum: 5, reputation: -10 },
+                    { text: 'REFUSE', action: 'scam-refuse', reputation: 5 }
+                ]
+            }];
+            
+        case 'Reckless':
+            return [{
+                message: `${npc.name} grins: "Dare you to fly into that hazard field. I'll give you 50 gold if you survive!"`,
+                options: [
+                    { text: 'DO IT', action: 'dare-accept', gold: 50, hull: -30, reputation: 15 },
+                    { text: 'NO WAY', action: 'dare-decline', reputation: -5 }
+                ]
+            }];
+            
+        case 'Lazy':
+            return [{
+                message: `${npc.name} yawns: "Hey ${playerName}, mind grabbing me 20 iron? I'll make it worth your while..."`,
+                options: [
+                    { text: 'HELP', action: 'delegate-accept', ironCost: 20, reward: 150, reputation: 15 },
+                    { text: 'BUSY', action: 'delegate-decline', reputation: 0 }
+                ]
+            }];
+            
+        default:
+            return [];
+    }
+}
+
+function handleEventOption(option, npc) {
+    const eventSection = document.getElementById('personalityEventSection');
+    const eventMessage = document.getElementById('eventMessage');
+    
+    switch (option.action) {
+        case 'challenge-accept':
+            eventMessage.textContent = `Challenge accepted! Mine 50 ore to win 200 credits.`;
+            if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+            // Note: Actual challenge would be implemented in game loop
+            setTimeout(() => eventSection.style.display = 'none', 3000);
+            break;
+            
+        case 'challenge-decline':
+            eventMessage.textContent = `${npc.name} scoffs: "Thought so..."`; 
+            if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+            
+        case 'scam-buy':
+            if (gameState.credits >= option.cost) {
+                gameState.credits -= option.cost;
+                gameState.inventory.platinum = (gameState.inventory.platinum || 0) + option.platinum;
+                eventMessage.textContent = `Purchased! (You overpaid...)`;
+                if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+                updateTradeInventoryDisplays(npc);
+            } else {
+                eventMessage.textContent = `Not enough credits!`;
+            }
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+            
+        case 'scam-refuse':
+            eventMessage.textContent = `${npc.name} mutters: "Your loss..."`; 
+            if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+            
+        case 'dare-accept':
+            gameState.hull = Math.max(1, gameState.hull + option.hull);
+            gameState.inventory.gold = (gameState.inventory.gold || 0) + option.gold;
+            eventMessage.textContent = `You did it! +${option.gold} gold (but -${Math.abs(option.hull)} hull!)`;
+            if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+            setTimeout(() => eventSection.style.display = 'none', 3000);
+            break;
+            
+        case 'dare-decline':
+            eventMessage.textContent = `${npc.name} shrugs: "Smart choice, probably."`; 
+            if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+            
+        case 'delegate-accept':
+            if ((gameState.inventory.iron || 0) >= option.ironCost) {
+                gameState.inventory.iron -= option.ironCost;
+                gameState.credits += option.reward;
+                eventMessage.textContent = `Thanks! Here's ${option.reward} credits.`;
+                if (option.reputation) npc.reputation = (npc.reputation || 0) + option.reputation;
+                updateTradeInventoryDisplays(npc);
+            } else {
+                eventMessage.textContent = `You don't have enough iron!`;
+            }
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+            
+        case 'delegate-decline':
+            eventMessage.textContent = `${npc.name} sighs: "Fine, I'll do it myself... eventually."`; 
+            setTimeout(() => eventSection.style.display = 'none', 2000);
+            break;
+    }
+}
+
+function setupTradeModalEventListeners() {
+    // Close button
+    const closeBtn = document.getElementById('tradeClose');
+    if (closeBtn) closeBtn.onclick = closeTradeModal;
+    
+    // Cancel button
+    const cancelBtn = document.getElementById('cancelTrade');
+    if (cancelBtn) cancelBtn.onclick = closeTradeModal;
+    
+    // Propose trade button
+    const proposeBtn = document.getElementById('proposeTrade');
+    if (proposeBtn) proposeBtn.onclick = proposeTrade;
+    
+    // Set up trade input buttons
+    setupTradeButtons();
+}
+
+function setupTradeButtons() {
+    const tradeButtons = document.querySelectorAll('.transfer-btn');
+    
+    tradeButtons.forEach(btn => {
+        if (btn.hasAttribute('data-listener-added')) return;
+        
+        btn.addEventListener('click', () => {
+            const resource = btn.getAttribute('data-resource');
+            const action = btn.getAttribute('data-action');
+            const input = action === 'give' 
+                ? document.getElementById(`player${capitalize(resource)}Input`)
+                : document.getElementById(`npc${capitalize(resource)}Input`);
+            
+            if (input) {
+                const max = parseInt(input.max) || 0;
+                input.value = max;
+                
+                // Update trade offer
+                if (action === 'give') {
+                    tradingState.tradeOffer.playerGives[resource] = max;
+                } else {
+                    tradingState.tradeOffer.playerTakes[resource] = max;
+                }
+                
+                // Update summary
+                updateTradeSummary();
+            }
+        });
+        
+        btn.setAttribute('data-listener-added', 'true');
+    });
+    
+    // Setup increment/decrement buttons
+    const controlButtons = document.querySelectorAll('.control-btn');
+    controlButtons.forEach(btn => {
+        if (btn.hasAttribute('data-listener-added')) return;
+        
+        btn.addEventListener('click', () => {
+            const inputId = btn.getAttribute('data-input');
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            
+            const currentValue = parseInt(input.value) || 0;
+            const max = parseInt(input.max) || 0;
+            const min = parseInt(input.min) || 0;
+            
+            if (btn.classList.contains('increase-btn')) {
+                input.value = Math.min(currentValue + 1, max);
+            } else if (btn.classList.contains('decrease-btn')) {
+                input.value = Math.max(currentValue - 1, min);
+            }
+            
+            // Trigger input event to update trade offer
+            input.dispatchEvent(new Event('input'));
+        });
+        
+        btn.setAttribute('data-listener-added', 'true');
+    });
+    
+    // Setup input change listeners
+    const inputs = document.querySelectorAll('.resource-input');
+    inputs.forEach(input => {
+        if (input.hasAttribute('data-listener-added')) return;
+        
+        input.addEventListener('input', () => {
+            const inputId = input.id;
+            const value = parseInt(input.value) || 0;
+            
+            // Determine resource and action
+            let resource, action;
+            if (inputId.startsWith('player')) {
+                action = 'give';
+                resource = inputId.replace('player', '').replace('Input', '').toLowerCase();
+            } else if (inputId.startsWith('npc')) {
+                action = 'take';
+                resource = inputId.replace('npc', '').replace('Input', '').toLowerCase();
+            }
+            
+            // Update trade offer
+            if (action === 'give') {
+                tradingState.tradeOffer.playerGives[resource] = value;
+            } else if (action === 'take') {
+                tradingState.tradeOffer.playerTakes[resource] = value;
+            }
+            
+            // Update summary
+            updateTradeSummary();
+        });
+        
+        input.setAttribute('data-listener-added', 'true');
+    });
+}
+
+function updateTradeSummary() {
+    // Calculate what player gives
+    let giveValue = 0;
+    let giveItems = [];
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerGives)) {
+        if (amount > 0) {
+            const asteroidData = ASTEROID_TYPES[resource];
+            if (asteroidData) {
+                giveValue += asteroidData.value * 5 * amount;
+                giveItems.push(`${amount}x ${asteroidData.name}`);
+            }
+        }
+    }
+    
+    // Calculate what player takes
+    let takeValue = 0;
+    let takeItems = [];
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerTakes)) {
+        if (amount > 0) {
+            const asteroidData = ASTEROID_TYPES[resource];
+            if (asteroidData) {
+                takeValue += asteroidData.value * 5 * amount;
+                takeItems.push(`${amount}x ${asteroidData.name}`);
+            }
+        }
+    }
+    
+    // Update summary display
+    document.getElementById('summaryGiveItems').textContent = giveItems.length > 0 ? giveItems.join(', ') : '---';
+    document.getElementById('summaryGiveValue').textContent = `${giveValue} CR`;
+    document.getElementById('summaryTakeItems').textContent = takeItems.length > 0 ? takeItems.join(', ') : '---';
+    document.getElementById('summaryTakeValue').textContent = `${takeValue} CR`;
+    
+    // Calculate net balance (what you receive - what you give)
+    const netBalance = takeValue - giveValue;
+    const balanceElement = document.getElementById('balanceValue');
+    balanceElement.textContent = `${netBalance >= 0 ? '+' : ''}${netBalance} CR`;
+    balanceElement.style.color = netBalance >= 0 ? '#00ff00' : '#ff0000';
+}
+
+function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function proposeTrade() {
+    const npc = tradingState.currentNPC;
+    if (!npc) return;
+    
+    // Calculate trade values
+    const playerGiveValue = calculateTradeValue(tradingState.tradeOffer.playerGives);
+    const playerTakeValue = calculateTradeValue(tradingState.tradeOffer.playerTakes);
+    const multiplier = getPersonalityPriceMultiplier(npc);
+    const adjustedTakeValue = playerTakeValue * multiplier;
+    
+    // Validate trade
+    if (playerGiveValue < adjustedTakeValue * 0.8) {
+        showTradeWarning('NPC wants a fairer deal!');
+        return;
+    }
+    
+    // Check player has resources
+    const playerInventory = gameState.inventory;
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerGives)) {
+        if (amount > 0 && (playerInventory[resource] || 0) < amount) {
+            const asteroidData = ASTEROID_TYPES[resource];
+            const resourceName = asteroidData ? asteroidData.name : resource;
+            showTradeWarning(`Not enough ${resourceName}!`);
+            return;
+        }
+    }
+    
+    // Check NPC has resources
+    const npcInventory = npc.inventory;
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerTakes)) {
+        if (amount > 0 && (npcInventory[resource] || 0) < amount) {
+            const asteroidData = ASTEROID_TYPES[resource];
+            const resourceName = asteroidData ? asteroidData.name : resource;
+            showTradeWarning(`NPC doesn't have enough ${resourceName}!`);
+            return;
+        }
+    }
+    
+    // Execute trade
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerGives)) {
+        if (amount > 0) {
+            playerInventory[resource] = (playerInventory[resource] || 0) - amount;
+            npcInventory[resource] = (npcInventory[resource] || 0) + amount;
+        }
+    }
+    
+    for (const [resource, amount] of Object.entries(tradingState.tradeOffer.playerTakes)) {
+        if (amount > 0) {
+            playerInventory[resource] = (playerInventory[resource] || 0) + amount;
+            npcInventory[resource] = (npcInventory[resource] || 0) - amount;
+        }
+    }
+    
+    // Update reputation
+    npc.reputation = (npc.reputation || 0) + 2;
+    
+    // Show success message
+    showTradeWarning('Trade successful!');
+    
+    // Update displays and reset
+    setTimeout(() => {
+        updateTradeInventoryDisplays(npc);
+        resetTradeInputs();
+        document.getElementById('tradeWarning').style.display = 'none';
+    }, 1500);
+}
+
+function calculateTradeValue(resources) {
+    let total = 0;
+    
+    for (const [resource, amount] of Object.entries(resources)) {
+        const asteroidType = ASTEROID_TYPES[resource];
+        if (asteroidType && amount > 0) {
+            // Use the asteroid's value, multiplied by 5 to make trade values more meaningful
+            total += asteroidType.value * 5 * amount;
+        }
+    }
+    
+    return total;
+}
+
+function showTradeWarning(message) {
+    const warning = document.getElementById('tradeWarning');
+    if (warning) {
+        warning.textContent = message;
+        warning.style.display = 'block';
+    }
+}
+
+// ================================
 // CANVAS SETUP
 // ================================
 
@@ -3174,6 +5226,14 @@ function initInput() {
             triggerScan();
         }
         
+        // Trade function (T key)
+        if (e.key.toLowerCase() === 't' && !gameState.isPaused && !tradingState.isTrading) {
+            // Check if there's a nearby NPC to trade with
+            if (tradingState.nearbyNPC) {
+                openTradeModal(tradingState.nearbyNPC);
+            }
+        }
+        
         // Quick Save (F5)
         if (e.key === 'F5') {
             e.preventDefault();
@@ -3312,6 +5372,24 @@ function initTouchControls() {
         
         // Track touch input
         setInputMethod('touch');
+        
+        // Check if touch is on trade button
+        if (e.touches.length === 1 && window.tradeButtonBounds && tradingState.nearbyNPC) {
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = touch.clientX - rect.left;
+            const canvasY = touch.clientY - rect.top;
+            
+            const bounds = window.tradeButtonBounds;
+            if (canvasX >= bounds.x && canvasX <= bounds.x + bounds.width &&
+                canvasY >= bounds.y && canvasY <= bounds.y + bounds.height) {
+                // Trade button was tapped
+                if (!tradingState.isTrading) {
+                    openTradeModal(tradingState.nearbyNPC);
+                }
+                return; // Don't process as movement
+            }
+        }
         
         if (e.touches.length === 2) {
             // Two fingers - start pinch zoom
@@ -3485,7 +5563,7 @@ let virtualMouse = {
 
 // Get all interactive elements for virtual mouse targeting
 function getInteractiveElements() {
-    return Array.from(document.querySelectorAll('button:not([disabled]), input, select, .upgrade-btn, .hint-close, .modal-btn, .modal-btn-small, .color-swatch-btn, .preset-btn, .color-swatch, a.terminal-btn, a.exit-btn, .mission-board-item:not(.accepted):not(.completed):not(.failed):not(.empty)'));
+    return Array.from(document.querySelectorAll('button:not([disabled]), input, select, .upgrade-btn, .hint-close, .modal-btn, .modal-btn-small, .transfer-btn, .control-btn, .color-swatch-btn, .preset-btn, .color-swatch, a.terminal-btn, a.exit-btn, .mission-board-item:not(.accepted):not(.completed):not(.failed):not(.empty)'));
 }
 
 // Find nearest interactive element to virtual mouse
@@ -4048,6 +6126,24 @@ function updateGamepad() {
         gamepadInputDetected = true;
         triggerScan();
     }
+    
+    // ====================
+    // Y/Triangle Button - Trade with Nearby NPC
+    // ====================
+    const yButton = gamepad.buttons[3] && gamepad.buttons[3].pressed;
+    const yButtonJustPressed = yButton && !(lastGamepadState.buttons[3]);
+    
+    if (yButtonJustPressed && !tradingState.isTrading) {
+        gamepadInputDetected = true;
+        // Check if there's a nearby NPC to trade with
+        if (tradingState.nearbyNPC) {
+            openTradeModal(tradingState.nearbyNPC);
+        }
+    }
+    
+    // Update button state tracking
+    lastGamepadState.buttons[1] = bButton;
+    lastGamepadState.buttons[3] = yButton;
     
     // ====================
     // LB/L1 - Zoom Out (works in both modes)
@@ -5134,13 +7230,15 @@ function initUpgrades() {
         // Calculate current sector stats
         const currentAsteroids = 30 + currentSector * 5;
         const currentHazards = Math.floor(2 + currentSector * 0.5);
-        const currentRareChance = (currentSector - 1) * 10; // As percentage
+        const currentUncommonChance = (currentSector - 1) * 1.5; // Uncommon increase per sector
+        const currentRareChance = (currentSector - 1) * 1.2; // Rare increase per sector
         const currentSpawnRate = (currentSector - 1) * 10; // As percentage above base
         
         // Calculate next sector stats
         const nextAsteroids = 30 + nextSectorNum * 5;
         const nextHazards = Math.floor(2 + nextSectorNum * 0.5);
-        const nextRareChance = (nextSectorNum - 1) * 10; // As percentage
+        const nextUncommonChance = (nextSectorNum - 1) * 1.5; // Uncommon increase per sector
+        const nextRareChance = (nextSectorNum - 1) * 1.2; // Rare increase per sector
         const nextSpawnRate = (nextSectorNum - 1) * 10; // As percentage above base
         
         // Calculate mission reward multipliers
@@ -5151,11 +7249,12 @@ function initUpgrades() {
         // Calculate differences
         const asteroidIncrease = nextAsteroids - currentAsteroids;
         const hazardIncrease = nextHazards - currentHazards;
+        const uncommonChanceIncrease = nextUncommonChance - currentUncommonChance;
         const rareChanceIncrease = nextRareChance - currentRareChance;
         const spawnRateIncrease = nextSpawnRate - currentSpawnRate;
         
         // Check for missing requirements
-        const missingCredits = gameState.credits < 10000;
+        const missingCredits = gameState.credits < 5000;
         const missingFuel = gameState.fuel < 50;
         const hasActiveMissions = gameState.missions.length > 0;
         let warningText = '';
@@ -5163,7 +7262,7 @@ function initUpgrades() {
         if (missingCredits || missingFuel) {
             warningText = '\n\n<b style="color: #ff0000;">INSUFFICIENT RESOURCES:</b>\n';
             if (missingCredits) {
-                warningText += `<b style="color: #ff0000;">• Need ${10000 - gameState.credits} more credits</b>\n`;
+                warningText += `<b style="color: #ff0000;">• Need ${5000 - gameState.credits} more credits</b>\n`;
             }
             if (missingFuel) {
                 warningText += `<b style="color: #ff0000;">• Need ${Math.ceil(50 - gameState.fuel)} more fuel</b>\n`;
@@ -5182,12 +7281,13 @@ function initUpgrades() {
             'JUMP TO NEXT SECTOR',
             `SECTOR JUMP ANALYSIS:\n\n` +
             `Destination: ${nextSectorName}\n` +
-            `Cost: 10,000 Credits + 50 Fuel\n\n` +
+            `Cost: 5,000 Credits + 50 Fuel\n\n` +
             `SECTOR DIFFICULTY INCREASE:\n` +
             `• Map size: ${currentMapSize} → ${nextMapSize} (+${mapSizeIncrease})\n` +
             `• Asteroid density: ${currentAsteroids} → ${nextAsteroids} (+${asteroidIncrease})\n` +
             `• Hazard encounters: ${currentHazards} → ${nextHazards} (+${hazardIncrease})\n` +
-            `• Rare asteroid chance: ${currentRareChance}% → ${nextRareChance}% (+${rareChanceIncrease}%)\n` +
+            `• Uncommon drops: +${currentUncommonChance.toFixed(1)}% → +${nextUncommonChance.toFixed(1)}% (+${uncommonChanceIncrease.toFixed(1)}%)\n` +
+            `• Rare drops: +${currentRareChance.toFixed(1)}% → +${nextRareChance.toFixed(1)}% (+${rareChanceIncrease.toFixed(1)}%)\n` +
             `• Spawn rate bonus: +${currentSpawnRate}% → +${nextSpawnRate}% (+${spawnRateIncrease}%)\n` +
             `• Mission rewards: ${currentRewardMultiplier.toFixed(1)}x → ${nextRewardMultiplier.toFixed(1)}x (+${rewardIncreasePercent}%)\n\n` +
             `WARNING: Higher sectors contain more valuable\n` +
@@ -5200,7 +7300,7 @@ function initUpgrades() {
                 jumpToNextSector();
             },
             null,
-            () => gameState.fuel < 50 || gameState.credits < 10000 // Disable confirm if insufficient resources
+            () => gameState.fuel < 50 || gameState.credits < 5000 // Disable confirm if insufficient resources
         );
     });
     
@@ -5513,6 +7613,9 @@ function performPrestige() {
     // Clear cargo drone if it exists
     cargoDrone = null;
     
+    // Clear NPC miners
+    npcMiners = [];
+    
     // Clear missions when performing prestige (missions are station-specific)
     if (gameState.missions.length > 0) {
         gameState.missions = [];
@@ -5544,6 +7647,17 @@ function performPrestige() {
     // Reset world size to base values
     CONFIG.worldWidth = CONFIG.baseWorldWidth;
     CONFIG.worldHeight = CONFIG.baseWorldHeight;
+    
+    // Update NPC worker with reset world bounds
+    if (npcWorkerReady) {
+        npcWorker.postMessage({
+            type: 'updateConfig',
+            data: {
+                worldWidth: CONFIG.worldWidth,
+                worldHeight: CONFIG.worldHeight
+            }
+        });
+    }
     
     // Reset world
     asteroids = [];
@@ -5744,8 +7858,8 @@ function jumpToNextSector() {
         return;
     }
     
-    if (gameState.credits < 10000) {
-        logMessage('Insufficient credits for sector jump. Need 10,000¢');
+    if (gameState.credits < 5000) {
+        logMessage('Insufficient credits for sector jump. Need 5,000¢');
         return;
     }
     
@@ -5763,8 +7877,10 @@ function jumpToNextSector() {
     // Disable navigation buttons during warp
     const nextSectorBtn = document.getElementById('nextSector');
     const autoPilotBtn = document.getElementById('returnToStation');
+    const remoteRefuelBtn = document.getElementById('remoteRefuel');
     if (nextSectorBtn) nextSectorBtn.disabled = true;
     if (autoPilotBtn) autoPilotBtn.disabled = true;
+    if (remoteRefuelBtn) remoteRefuelBtn.disabled = true;
     
     // Start warp animation sequence
     warpState.active = true;
@@ -5792,7 +7908,7 @@ function executeSectorJump() {
     } else {
         gameState.fuel -= 50;
     }
-    gameState.credits -= 10000;
+    gameState.credits -= 5000;
     gameState.sector++;
     gameState.sectorName = `ALPHA-${String(gameState.sector).padStart(3, '0')}`;
     gameState.stats.sectorsVisited++;
@@ -5803,6 +7919,17 @@ function executeSectorJump() {
     // Increase world size by 250 per sector
     CONFIG.worldWidth = CONFIG.baseWorldWidth + (gameState.sector - 1) * 250;
     CONFIG.worldHeight = CONFIG.baseWorldHeight + (gameState.sector - 1) * 250;
+    
+    // Update NPC worker with new world bounds
+    if (npcWorkerReady) {
+        npcWorker.postMessage({
+            type: 'updateConfig',
+            data: {
+                worldWidth: CONFIG.worldWidth,
+                worldHeight: CONFIG.worldHeight
+            }
+        });
+    }
     
     player.x = CONFIG.worldWidth / 2;
     player.y = CONFIG.worldHeight / 2;
@@ -5969,6 +8096,9 @@ function generateStars() {
     
     // Initialize FPS worker
     initFPSWorker();
+    
+    // Initialize NPC miner worker
+    initNPCWorker();
 }
 
 function initStarWorker() {
@@ -6154,6 +8284,194 @@ function initFPSWorker() {
     } catch (error) {
         console.warn('Could not initialize FPS worker, FPS counter may have minor overhead:', error);
         fpsWorkerReady = false;
+    }
+}
+
+function initNPCWorker() {
+    try {
+        // Create the worker
+        npcWorker = new Worker('asteroid-miner-npc-worker.js');
+        
+        // Handle messages from worker
+        npcWorker.onmessage = function(e) {
+            const { type, data } = e.data;
+            
+            if (type === 'ready') {
+                npcWorkerReady = true;
+                console.log('NPC worker ready');
+            } else if (type === 'npcUpdated') {
+                // Apply updates from worker
+                const { npcMiners: updatedNPCs, removedNPCs, respawnRequests, asteroidUpdates, stateChanges } = data;
+                
+                // Update NPC positions and velocities
+                for (let i = 0; i < npcMiners.length && i < updatedNPCs.length; i++) {
+                    npcMiners[i].x = updatedNPCs[i].x;
+                    npcMiners[i].y = updatedNPCs[i].y;
+                    npcMiners[i].vx = updatedNPCs[i].vx;
+                    npcMiners[i].vy = updatedNPCs[i].vy;
+                    npcMiners[i].angle = updatedNPCs[i].angle;
+                    npcMiners[i].angularVelocity = updatedNPCs[i].angularVelocity || 0;
+                    npcMiners[i].state = updatedNPCs[i].state;
+                    npcMiners[i].cargo = updatedNPCs[i].cargo;
+                    npcMiners[i].miningProgress = updatedNPCs[i].miningProgress;
+                    npcMiners[i].targetAsteroidIndex = updatedNPCs[i].targetAsteroidIndex;
+                    
+                    // Update tracking properties
+                    npcMiners[i].trackingTargetIndex = updatedNPCs[i].trackingTargetIndex;
+                    npcMiners[i].trackingStartDist = updatedNPCs[i].trackingStartDist;
+                    npcMiners[i].trackingStartTime = updatedNPCs[i].trackingStartTime;
+                    npcMiners[i].trackingDuration = updatedNPCs[i].trackingDuration;
+                    npcMiners[i].seekingTimer = updatedNPCs[i].seekingTimer;
+                    
+                    // Update target asteroid reference
+                    if (updatedNPCs[i].targetAsteroidIndex >= 0 && updatedNPCs[i].targetAsteroidIndex < asteroids.length) {
+                        npcMiners[i].targetAsteroid = asteroids[updatedNPCs[i].targetAsteroidIndex];
+                    } else {
+                        npcMiners[i].targetAsteroid = null;
+                    }
+                    
+                    // Update tracking target reference
+                    if (updatedNPCs[i].trackingTargetIndex >= 0 && updatedNPCs[i].trackingTargetIndex < asteroids.length) {
+                        npcMiners[i].trackingTarget = asteroids[updatedNPCs[i].trackingTargetIndex];
+                    } else {
+                        npcMiners[i].trackingTarget = null;
+                    }
+                }
+                
+                // Apply asteroid updates (health, velocity from tractor beam)
+                for (const update of asteroidUpdates) {
+                    if (update.index >= 0 && update.index < asteroids.length) {
+                        if (update.vx !== undefined) asteroids[update.index].vx = update.vx;
+                        if (update.vy !== undefined) asteroids[update.index].vy = update.vy;
+                        if (update.health !== undefined) asteroids[update.index].health = update.health;
+                        if (update.destroyed !== undefined) asteroids[update.index].destroyed = update.destroyed;
+                    }
+                }
+                
+                // Handle state changes (mining, asteroid destruction, particles, etc.)
+                for (const change of stateChanges) {
+                    // Process NPC mining events - visual effects only, no player cargo changes
+                    if (change.npcMinedAsteroid && change.asteroidIndex >= 0 && change.asteroidIndex < asteroids.length) {
+                        const asteroid = asteroids[change.asteroidIndex];
+                        
+                        // Validate that the NPC still exists and is in a valid state
+                        if (change.index < 0 || change.index >= npcMiners.length) {
+                            console.warn('NPC mining event from invalid NPC index:', change.index);
+                            continue;
+                        }
+                        
+                        const miningNPC = npcMiners[change.index];
+                        if (!miningNPC) {
+                            console.warn('NPC mining event but NPC does not exist:', change.index);
+                            continue;
+                        }
+                        
+                        // Only process if asteroid hasn't been destroyed yet
+                        if (asteroid.destroyed) {
+                            console.warn('NPC tried to mine already destroyed asteroid');
+                            continue;
+                        }
+                        
+                        // Update asteroid health (already done in worker, but sync it)
+                        asteroid.health = change.asteroidHealth;
+                        
+                        // Calculate health ratio for proportional scaling
+                        const healthRatio = asteroid.health / asteroid.maxHealth;
+                        
+                        // Create chunk breaking effect at damaged vertices (same as player)
+                        if (asteroid.geometry && asteroid.geometry.length > 0) {
+                            const numChunks = 1 + Math.floor(Math.random() * 2);
+                            
+                            for (let chunk = 0; chunk < numChunks; chunk++) {
+                                const damageIndex = Math.floor(Math.random() * asteroid.geometry.length);
+                                const vertsToShrink = [damageIndex];
+                                
+                                if (Math.random() > 0.5) {
+                                    const leftIndex = (damageIndex - 1 + asteroid.geometry.length) % asteroid.geometry.length;
+                                    vertsToShrink.push(leftIndex);
+                                }
+                                
+                                if (Math.random() > 0.5) {
+                                    const rightIndex = (damageIndex + 1) % asteroid.geometry.length;
+                                    vertsToShrink.push(rightIndex);
+                                }
+                                
+                                vertsToShrink.forEach(index => {
+                                    const point = asteroid.geometry[index];
+                                    const originalPoint = asteroid.originalGeometry[index];
+                                    
+                                    // Calculate world position for particles BEFORE shrinking
+                                    const worldX = asteroid.x + point.x * Math.cos(asteroid.rotation) - point.y * Math.sin(asteroid.rotation);
+                                    const worldY = asteroid.y + point.x * Math.sin(asteroid.rotation) + point.y * Math.cos(asteroid.rotation);
+                                    
+                                    // Create particles at the vertex location
+                                    for (let i = 0; i < 5; i++) {
+                                        createParticle(worldX, worldY, ASTEROID_TYPES[asteroid.type].color);
+                                    }
+                                    
+                                    // Shrink this vertex proportionally based on health ratio
+                                    point.x = originalPoint.x * healthRatio;
+                                    point.y = originalPoint.y * healthRatio;
+                                });
+                            }
+                        }
+                        
+                        // Check if asteroid was destroyed
+                        if (change.asteroidDestroyed) {
+                            asteroid.destroyed = true;
+                            gameState.stats.asteroidsDestroyed++;
+                            
+                            const asteroidType = ASTEROID_TYPES[asteroid.type];
+                            createFloatingText(asteroid.x, asteroid.y, `DESTROYED`, asteroidType.color);
+                            
+                            // Large explosion particles
+                            for (let i = 0; i < 20; i++) {
+                                createParticle(asteroid.x, asteroid.y, asteroidType.color);
+                            }
+                        }
+                    }
+                    
+                    // Legacy asteroid destruction handling (for old code paths)
+                    if (change.asteroidDestroyed && !change.npcMinedAsteroid) {
+                        gameState.stats.asteroidsDestroyed++;
+                        
+                        // Get asteroid type for particles
+                        if (change.asteroidIndex >= 0 && change.asteroidIndex < asteroids.length) {
+                            const asteroidType = ASTEROID_TYPES[asteroids[change.asteroidIndex].type];
+                            for (let j = 0; j < 20; j++) {
+                                createParticle(change.asteroidX, change.asteroidY, asteroidType.color);
+                            }
+                        }
+                    }
+                }
+                
+                // Note: NPCs are no longer removed when docking - they remain in array with state='docked'
+                // The removedNPCs and respawnRequests arrays are kept for backward compatibility but should be empty
+                
+                pendingNPCUpdate = false;
+            }
+        };
+        
+        npcWorker.onerror = function(error) {
+            console.error('NPC worker error:', error);
+            npcWorkerReady = false;
+            pendingNPCUpdate = false;
+        };
+        
+        // Send initial config to worker
+        npcWorker.postMessage({
+            type: 'init',
+            data: { 
+                worldWidth: CONFIG.worldWidth,
+                worldHeight: CONFIG.worldHeight 
+            }
+        });
+        
+        console.log('NPC worker initialized');
+        
+    } catch (error) {
+        console.warn('Could not initialize NPC worker, using main thread:', error);
+        npcWorkerReady = false;
     }
 }
 
@@ -6386,6 +8704,7 @@ function initGame() {
     initMissions();  // Initialize mission system
     initMinimapScanner();
     initConsoleInput();
+    setupTradeModalEventListeners(); // Initialize trading system
     
     document.getElementById('clearConsole').addEventListener('click', clearConsole);
     
@@ -6474,6 +8793,14 @@ function initGame() {
     updateMiningLasersDisplay(); // Initialize the laser display
     updateInventoryDisplay(); // Initialize the inventory display
     updateMissionsDisplay(); // Initialize missions display (especially important after loading from boot)
+    
+    // Open missions drawer by default
+    const missionsList = document.getElementById('missionsList');
+    const missionsDrawerIcon = document.querySelector('#missionsDrawerBtn .drawer-icon');
+    if (missionsList && missionsDrawerIcon) {
+        missionsList.style.display = 'block';
+        missionsDrawerIcon.textContent = '▼';
+    }
     
     // Check if player is docked and update mission board if needed
     const dockedStation = stations.find(s => s.isDocked);
@@ -6728,13 +9055,15 @@ function updateWarpAnimation(deltaTime) {
         const warpProgress = (warpState.elapsedTime - warpState.countdownDuration) / warpState.warpDuration;
         warpState.shipScale = 1.5 - (warpProgress * 1.5);
     } else if (warpState.phase === 'fadeOut') {
-        // During fadeOut: keep ship at 0 (invisible) until screen is black, then instantly restore to 1.0
-        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
-        if (fadeProgress >= 0.99) {
-            // Screen is completely black - instantly restore ship to normal size
+        // During fadeOut: keep ship invisible
+        warpState.shipScale = 0;
+    } else if (warpState.phase === 'blackHold') {
+        // During blackHold: ship is invisible, but will be restored to normal size at the end
+        const holdProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration - warpState.fadeOutDuration) / warpState.blackHoldDuration;
+        if (holdProgress >= 0.9) {
+            // Near end of black screen hold - restore ship to normal size
             warpState.shipScale = 1.0;
         } else {
-            // Still fading - keep ship invisible
             warpState.shipScale = 0;
         }
     } else if (warpState.phase === 'fadeIn') {
@@ -6756,15 +9085,15 @@ function updateWarpAnimation(deltaTime) {
     } else if (warpState.elapsedTime < warpState.countdownDuration + warpState.warpDuration + warpState.fadeOutDuration) {
         // PHASE 3: Fade to black (4-4.5s)
         warpState.phase = 'fadeOut';
-        
-        // Execute sector jump ONLY when screen is completely black (at the very end of fadeOut)
-        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration) / warpState.fadeOutDuration;
-        if (fadeProgress >= 0.99 && !warpState.sectorJumped) {
+    } else if (warpState.elapsedTime < warpState.countdownDuration + warpState.warpDuration + warpState.fadeOutDuration + warpState.blackHoldDuration) {
+        // PHASE 4: Hold at black screen (4.5-5s) - execute sector jump here
+        if (warpState.phase !== 'blackHold' && !warpState.sectorJumped) {
             executeSectorJump();
             warpState.sectorJumped = true;
         }
+        warpState.phase = 'blackHold';
     } else if (warpState.elapsedTime < warpState.totalDuration) {
-        // PHASE 4: Fade from black (4.5-5s)
+        // PHASE 5: Fade from black (5-5.5s)
         warpState.phase = 'fadeIn';
     } else {
         // Animation complete - reset ship scale
@@ -6778,8 +9107,10 @@ function updateWarpAnimation(deltaTime) {
         // Re-enable navigation buttons after warp completes
         const nextSectorBtn = document.getElementById('nextSector');
         const autoPilotBtn = document.getElementById('returnToStation');
+        const remoteRefuelBtn = document.getElementById('remoteRefuel');
         if (nextSectorBtn) nextSectorBtn.disabled = false;
         if (autoPilotBtn) autoPilotBtn.disabled = false;
+        if (remoteRefuelBtn) remoteRefuelBtn.disabled = false;
         
         // Unpause the game after warp completes
         gameState.isPaused = false;
@@ -7280,9 +9611,15 @@ function renderWarpAnimation() {
         ctx.fillStyle = `rgba(0, 0, 0, ${fadeProgress})`;
         ctx.fillRect(0, 0, scaledWidth, scaledHeight);
         
+    } else if (warpState.phase === 'blackHold') {
+        // Hold at black screen (4.5-5s)
+        // Screen stays completely black while sector jump executes
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+        ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+        
     } else if (warpState.phase === 'fadeIn') {
-        // Fade from black (4.5-5s)
-        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration - warpState.fadeOutDuration) / warpState.fadeInDuration;
+        // Fade from black (5-5.5s)
+        const fadeProgress = (warpState.elapsedTime - warpState.countdownDuration - warpState.warpDuration - warpState.fadeOutDuration - warpState.blackHoldDuration) / warpState.fadeInDuration;
         const alpha = 1 - fadeProgress;
         
         // Add brief flash/shimmer effect as world appears
@@ -7689,6 +10026,12 @@ function update(deltaTime) {
     // Update cargo drone
     updateCargoDrone(dt);
     
+    // Update NPC proximity and interactions
+    updateNPCProximityAndInteractions(dt);
+    
+    // Update NPC miners
+    updateNPCMiners(dt);
+    
     // Update station
     updateStation(dt);
     
@@ -7744,13 +10087,14 @@ function update(deltaTime) {
     // Only spawn if under the limit
     if (asteroids.length < maxAsteroids && Math.random() < CONFIG.asteroidSpawnChance * sectorSpawnMultiplier * dt) {
         const edge = Math.floor(Math.random() * 4);
+        const margin = 100; // Spawn margin to prevent appearing too far inside the world
         let x, y;
         
         switch(edge) {
-            case 0: x = Math.random() * CONFIG.worldWidth; y = 0; break;
-            case 1: x = CONFIG.worldWidth; y = Math.random() * CONFIG.worldHeight; break;
-            case 2: x = Math.random() * CONFIG.worldWidth; y = CONFIG.worldHeight; break;
-            case 3: x = 0; y = Math.random() * CONFIG.worldHeight; break;
+            case 0: x = Math.random() * CONFIG.worldWidth; y = -margin; break; // Top edge
+            case 1: x = CONFIG.worldWidth + margin; y = Math.random() * CONFIG.worldHeight; break; // Right edge
+            case 2: x = Math.random() * CONFIG.worldWidth; y = CONFIG.worldHeight + margin; break; // Bottom edge
+            case 3: x = -margin; y = Math.random() * CONFIG.worldHeight; break; // Left edge
         }
         
         spawnAsteroid(x, y);
@@ -7759,13 +10103,14 @@ function update(deltaTime) {
     // Only spawn hazards if under the limit
     if (hazards.length < maxHazards && Math.random() < CONFIG.hazardSpawnChance * sectorSpawnMultiplier * dt) {
         const edge = Math.floor(Math.random() * 4);
+        const margin = 100; // Spawn margin to prevent appearing too far inside the world
         let x, y;
         
         switch(edge) {
-            case 0: x = Math.random() * CONFIG.worldWidth; y = 0; break;
-            case 1: x = CONFIG.worldWidth; y = Math.random() * CONFIG.worldHeight; break;
-            case 2: x = Math.random() * CONFIG.worldWidth; y = CONFIG.worldHeight; break;
-            case 3: x = 0; y = Math.random() * CONFIG.worldHeight; break;
+            case 0: x = Math.random() * CONFIG.worldWidth; y = -margin; break; // Top edge
+            case 1: x = CONFIG.worldWidth + margin; y = Math.random() * CONFIG.worldHeight; break; // Right edge
+            case 2: x = Math.random() * CONFIG.worldWidth; y = CONFIG.worldHeight + margin; break; // Bottom edge
+            case 3: x = -margin; y = Math.random() * CONFIG.worldHeight; break; // Left edge
         }
         
         spawnHazard(x, y);
@@ -7958,6 +10303,7 @@ function updatePlayer(dt = 1) {
                 player.isMining = false;
                 player.miningTarget = null;
                 player.miningProgress = 0;
+                player.miningTargets = []; // Clear all mining targets and their progress
             }
             
             // Check hazard collisions during autopilot using worker if available
@@ -8071,6 +10417,7 @@ function updatePlayer(dt = 1) {
         player.isMining = false;
         player.miningTarget = null;
         player.miningProgress = 0;
+        player.miningTargets = []; // Clear all mining targets and their progress
     }
     
     // Check hazard collisions using worker if available
@@ -9325,7 +11672,60 @@ function gameOverOutOfFuel() {
 
 function updateAsteroids(dt = 1) {
     // Clean up destroyed asteroids BEFORE processing
+    // IMPORTANT: Filtering changes indices, so we need to update NPC target references
+    const oldAsteroids = asteroids;
     asteroids = asteroids.filter(a => !a.destroyed);
+    
+    // If asteroids were removed, update NPC target indices
+    if (oldAsteroids.length !== asteroids.length) {
+        // Create mapping of old indices to new indices
+        const indexMap = new Map();
+        let newIndex = 0;
+        for (let oldIndex = 0; oldIndex < oldAsteroids.length; oldIndex++) {
+            if (!oldAsteroids[oldIndex].destroyed) {
+                indexMap.set(oldIndex, newIndex);
+                newIndex++;
+            }
+        }
+        
+        // Update all NPC target asteroid indices
+        for (const npc of npcMiners) {
+            if (npc.targetAsteroidIndex >= 0) {
+                const newIdx = indexMap.get(npc.targetAsteroidIndex);
+                if (newIdx !== undefined) {
+                    npc.targetAsteroidIndex = newIdx;
+                    // Also update the direct reference if it exists
+                    if (npc.targetAsteroid && !npc.targetAsteroid.destroyed) {
+                        npc.targetAsteroid = asteroids[newIdx];
+                    } else {
+                        npc.targetAsteroid = null;
+                        npc.targetAsteroidIndex = -1;
+                    }
+                } else {
+                    // Old asteroid was destroyed
+                    npc.targetAsteroid = null;
+                    npc.targetAsteroidIndex = -1;
+                }
+            }
+            
+            // Also update tracking target index
+            if (npc.trackingTargetIndex >= 0) {
+                const newIdx = indexMap.get(npc.trackingTargetIndex);
+                if (newIdx !== undefined) {
+                    npc.trackingTargetIndex = newIdx;
+                    if (npc.trackingTarget && !npc.trackingTarget.destroyed) {
+                        npc.trackingTarget = asteroids[newIdx];
+                    } else {
+                        npc.trackingTarget = null;
+                        npc.trackingTargetIndex = -1;
+                    }
+                } else {
+                    npc.trackingTarget = null;
+                    npc.trackingTargetIndex = -1;
+                }
+            }
+        }
+    }
     
     // Main thread physics - simple and reliable
     // Physics is trivial (position += velocity) so multi-threading overhead isn't worth it
@@ -9342,12 +11742,20 @@ function updateAsteroids(dt = 1) {
         asteroid.y += asteroid.vy * dt;
         asteroid.rotation += asteroid.rotationSpeed * dt;
         
-        // Wrap around world (optimized with single checks)
-        if (asteroid.x < 0) asteroid.x = CONFIG.worldWidth;
-        else if (asteroid.x > CONFIG.worldWidth) asteroid.x = 0;
+        // Wrap around world with proper margin
+        const margin = asteroid.radius || 50; // Use asteroid radius for proper wrapping
         
-        if (asteroid.y < 0) asteroid.y = CONFIG.worldHeight;
-        else if (asteroid.y > CONFIG.worldHeight) asteroid.y = 0;
+        if (asteroid.x < -margin) {
+            asteroid.x = CONFIG.worldWidth + margin;
+        } else if (asteroid.x > CONFIG.worldWidth + margin) {
+            asteroid.x = -margin;
+        }
+        
+        if (asteroid.y < -margin) {
+            asteroid.y = CONFIG.worldHeight + margin;
+        } else if (asteroid.y > CONFIG.worldHeight + margin) {
+            asteroid.y = -margin;
+        }
     }
 }
 
@@ -9362,12 +11770,20 @@ function updateHazards(dt = 1) {
         hazard.y += hazard.vy * dt;
         hazard.rotation += 0.05 * dt;
         
-        // Wrap around world
-        if (hazard.x < -50) hazard.x = CONFIG.worldWidth + 50;
-        else if (hazard.x > CONFIG.worldWidth + 50) hazard.x = -50;
+        // Wrap around world with proper margin based on hazard size
+        const margin = hazard.radius || 50; // Use hazard radius for proper wrapping
         
-        if (hazard.y < -50) hazard.y = CONFIG.worldHeight + 50;
-        else if (hazard.y > CONFIG.worldHeight + 50) hazard.y = -50;
+        if (hazard.x < -margin) {
+            hazard.x = CONFIG.worldWidth + margin;
+        } else if (hazard.x > CONFIG.worldWidth + margin) {
+            hazard.x = -margin;
+        }
+        
+        if (hazard.y < -margin) {
+            hazard.y = CONFIG.worldHeight + margin;
+        } else if (hazard.y > CONFIG.worldHeight + margin) {
+            hazard.y = -margin;
+        }
     }
 }
 
@@ -9592,6 +12008,9 @@ function render() {
     // Render player (on top of mining laser)
     renderPlayer();
     
+    // Render NPC miners
+    renderNPCMiners();
+    
     // Render cargo drone
     renderCargoDrone(ctx);
     
@@ -9602,6 +12021,11 @@ function render() {
     renderFloatingText();
     
     ctx.restore();
+    
+    // Render trade prompt (in screen space, after ctx.restore())
+    if (!gameState.isPaused && tradingState.nearbyNPC && !tradingState.isTrading) {
+        renderTradePrompt();
+    }
     
     // Apply phosphor decay effect if CRT mode is enabled
     if (crtEnabled) {
@@ -10602,6 +13026,189 @@ function renderPlayer() {
     ctx.restore();
 }
 
+function renderNPCMiners() {
+    // Viewport culling
+    const viewLeft = viewport.x;
+    const viewRight = viewport.x + VIEWPORT_REFERENCE.WIDTH / viewport.zoom;
+    const viewTop = viewport.y;
+    const viewBottom = viewport.y + VIEWPORT_REFERENCE.HEIGHT / viewport.zoom;
+    const cullMargin = 100;
+    
+    for (const npc of npcMiners) {
+        // Cull NPCs outside viewport
+        if (npc.x + npc.size < viewLeft - cullMargin || 
+            npc.x - npc.size > viewRight + cullMargin ||
+            npc.y + npc.size < viewTop - cullMargin || 
+            npc.y - npc.size > viewBottom + cullMargin) {
+            continue;
+        }
+        
+        ctx.save();
+        ctx.translate(npc.x, npc.y);
+        ctx.rotate(npc.angle);
+        
+        // Show thruster if moving
+        const currentSpeed = Math.sqrt(npc.vx ** 2 + npc.vy ** 2);
+        if (currentSpeed > 0.1) {
+            const thrusterLength = Math.min(currentSpeed * 10, npc.size * 6);
+            const flicker = Math.random() * 0.3 + 0.7;
+            
+            const thrusterColor = `${npc.colors.thruster}${Math.floor(flicker * 204 + 51).toString(16).padStart(2, '0')}`;
+            
+            ctx.fillStyle = thrusterColor;
+            ctx.beginPath();
+            ctx.moveTo(-npc.size * 0.75, -npc.size * 0.2);
+            ctx.lineTo(-npc.size * 0.75 - thrusterLength, 0);
+            ctx.lineTo(-npc.size * 0.75, npc.size * 0.2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // Main ship body (simplified version of player ship)
+        ctx.fillStyle = npc.colors.primary;
+        ctx.strokeStyle = npc.colors.secondary;
+        ctx.lineWidth = 1.5;
+        
+        // Nose
+        ctx.beginPath();
+        ctx.moveTo(npc.size * 0.85, 0);
+        ctx.lineTo(npc.size * 0.4, -npc.size * 0.25);
+        ctx.lineTo(npc.size * 0.4, npc.size * 0.25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Body
+        ctx.beginPath();
+        ctx.rect(-npc.size * 0.4, -npc.size * 0.25, npc.size * 0.8, npc.size * 0.5);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Rear
+        ctx.beginPath();
+        ctx.moveTo(-npc.size * 0.4, -npc.size * 0.25);
+        ctx.lineTo(-npc.size * 0.75, -npc.size * 0.15);
+        ctx.lineTo(-npc.size * 0.75, npc.size * 0.15);
+        ctx.lineTo(-npc.size * 0.4, npc.size * 0.25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Cockpit
+        ctx.fillStyle = npc.colors.accent;
+        ctx.beginPath();
+        ctx.arc(npc.size * 0.15, 0, npc.size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore(); // Restore before drawing laser so it's in world space
+        
+        // Mining beam if mining (match player's laser visual style)
+        if (npc.state === 'mining' && npc.targetAsteroid) {
+            // Calculate laser origin at ship's nose (in world coordinates)
+            const laserOriginX = npc.x + Math.cos(npc.angle) * npc.size * 0.85;
+            const laserOriginY = npc.y + Math.sin(npc.angle) * npc.size * 0.85;
+            
+            // Main laser beam (60% opacity like player)
+            ctx.strokeStyle = `${npc.colors.accent}99`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(laserOriginX, laserOriginY);
+            ctx.lineTo(npc.targetAsteroid.x, npc.targetAsteroid.y);
+            ctx.stroke();
+            
+            // Glow effect (30% opacity like player)
+            ctx.strokeStyle = `${npc.colors.accent}4D`;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(laserOriginX, laserOriginY);
+            ctx.lineTo(npc.targetAsteroid.x, npc.targetAsteroid.y);
+            ctx.stroke();
+        }
+        
+        // Visual awareness indicators
+        if (npc.awarenessIndicator) {
+            const elapsed = Date.now() - npc.awarenessIndicator.startTime;
+            if (elapsed < npc.awarenessIndicator.duration) {
+                const alpha = 1 - (elapsed / npc.awarenessIndicator.duration);
+                
+                if (npc.awarenessIndicator.type === 'detected') {
+                    // Exclamation mark above ship
+                    ctx.save();
+                    ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
+                    ctx.font = 'bold 24px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText('!', npc.x, npc.y - npc.size * 1.5);
+                    ctx.restore();
+                    
+                    // Pulsing ring
+                    const ringSize = npc.size * 1.5 + Math.sin(elapsed / 200) * 10;
+                    ctx.strokeStyle = `rgba(255, 255, 0, ${alpha * 0.5})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(npc.x, npc.y, ringSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                else if (npc.awarenessIndicator.type === 'warning') {
+                    // Warning symbol
+                    ctx.save();
+                    ctx.fillStyle = `rgba(255, 100, 0, ${alpha})`;
+                    ctx.font = 'bold 28px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText('!', npc.x, npc.y - npc.size * 1.5);
+                    ctx.restore();
+                    
+                    // Red warning ring
+                    const ringSize = npc.size * 1.5 + Math.sin(elapsed / 150) * 8;
+                    ctx.strokeStyle = `rgba(255, 50, 0, ${alpha * 0.7})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(npc.x, npc.y, ringSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else {
+                npc.awarenessIndicator = null;
+            }
+        }
+        
+        // Display most recent message
+        if (npc.messageQueue.length > 0) {
+            const latestMessage = npc.messageQueue[npc.messageQueue.length - 1];
+            const messageAge = Date.now() - latestMessage.timestamp;
+            const messageDuration = 3000; // 3 seconds
+            
+            if (messageAge < messageDuration) {
+                const alpha = messageAge < 500 ? messageAge / 500 : 
+                             messageAge > messageDuration - 500 ? (messageDuration - messageAge) / 500 : 1;
+                
+                ctx.save();
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                
+                // Background
+                const textWidth = ctx.measureText(latestMessage.text).width;
+                ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.7})`;
+                ctx.fillRect(
+                    npc.x - textWidth / 2 - 6,
+                    npc.y - npc.size * 2.5 - 20,
+                    textWidth + 12,
+                    18
+                );
+                
+                // Text color based on message type
+                const color = latestMessage.type === 'warning' ? '255, 100, 0' :
+                             latestMessage.type === 'greeting' ? '100, 255, 100' :
+                             '200, 200, 255';
+                ctx.fillStyle = `rgba(${color}, ${alpha})`;
+                ctx.fillText(latestMessage.text, npc.x, npc.y - npc.size * 2.5);
+                ctx.restore();
+            }
+        }
+    }
+}
+
 function renderAsteroids() {
     // Viewport culling - only render visible asteroids
     // Use VIEWPORT_REFERENCE dimensions (not canvas dimensions) for consistent culling across all devices
@@ -10634,8 +13241,68 @@ function renderAsteroids() {
         
         // Draw custom geometry
         if (asteroid.geometry && asteroid.geometry.length > 0) {
-            ctx.fillStyle = data.color;
-            ctx.strokeStyle = data.color;
+            // Use gradients for high rarity asteroids
+            if (data.rarity === 'rare' || data.rarity === 'epic' || data.rarity === 'legendary') {
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, data.size * 1.5);
+                
+                // Define gradient colors based on rarity
+                if (data.rarity === 'legendary') {
+                    // Shimmering, multi-color gradients for legendary
+                    if (asteroid.type === 'crystal') {
+                        gradient.addColorStop(0, '#ffffff');
+                        gradient.addColorStop(0.3, '#ff00ff');
+                        gradient.addColorStop(0.6, '#ff00aa');
+                        gradient.addColorStop(1, '#8800ff');
+                    } else if (asteroid.type === 'nebulite') {
+                        gradient.addColorStop(0, '#ffffff');
+                        gradient.addColorStop(0.3, '#00ffff');
+                        gradient.addColorStop(0.6, '#0088ff');
+                        gradient.addColorStop(1, '#0044aa');
+                    } else if (asteroid.type === 'darkMatter') {
+                        gradient.addColorStop(0, '#aa88ff');
+                        gradient.addColorStop(0.3, '#6600ff');
+                        gradient.addColorStop(0.6, '#4400aa');
+                        gradient.addColorStop(1, '#220055');
+                    }
+                } else if (data.rarity === 'epic') {
+                    // Rich gradients for epic
+                    if (asteroid.type === 'ruby') {
+                        gradient.addColorStop(0, '#ff88aa');
+                        gradient.addColorStop(0.5, '#ff0066');
+                        gradient.addColorStop(1, '#aa0044');
+                    } else if (asteroid.type === 'sapphire') {
+                        gradient.addColorStop(0, '#6699ff');
+                        gradient.addColorStop(0.5, '#0066ff');
+                        gradient.addColorStop(1, '#0044aa');
+                    } else if (asteroid.type === 'obsidian') {
+                        gradient.addColorStop(0, '#4d0066');
+                        gradient.addColorStop(0.5, '#1a0033');
+                        gradient.addColorStop(1, '#000000');
+                    }
+                } else if (data.rarity === 'rare') {
+                    // Subtle gradients for rare
+                    if (asteroid.type === 'gold') {
+                        gradient.addColorStop(0, '#ffffaa');
+                        gradient.addColorStop(0.5, '#ffdd00');
+                        gradient.addColorStop(1, '#cc9900');
+                    } else if (asteroid.type === 'emerald') {
+                        gradient.addColorStop(0, '#88ffcc');
+                        gradient.addColorStop(0.5, '#00ff88');
+                        gradient.addColorStop(1, '#00aa55');
+                    } else if (asteroid.type === 'platinum') {
+                        gradient.addColorStop(0, '#ffffff');
+                        gradient.addColorStop(0.5, '#aaffff');
+                        gradient.addColorStop(1, '#66cccc');
+                    }
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.strokeStyle = data.color;
+            } else {
+                ctx.fillStyle = data.color;
+                ctx.strokeStyle = data.color;
+            }
+            
             ctx.lineWidth = 2;
             
             // Draw filled polygon
@@ -10678,14 +13345,100 @@ function renderAsteroids() {
             ctx.fillText(data.icon, 0, 0);
         }
         
+        // Draw laser glow outline if this asteroid is being mined
+        const miningTarget = player.miningTargets.find(mt => mt.asteroid === asteroid);
+        const npcMiningThis = npcMiners.find(npc => npc.targetAsteroid === asteroid && npc.state === 'mining');
+        
+        if (miningTarget) {
+            // Use the player's laser color (accent color) for the glow
+            const laserColor = player.colors.accent;
+            
+            // Parse the laser color for gradient
+            const r = parseInt(laserColor.substr(1, 2), 16);
+            const g = parseInt(laserColor.substr(3, 2), 16);
+            const b = parseInt(laserColor.substr(5, 2), 16);
+            
+            // Draw multiple layers for glowing effect
+            // Outer glow (largest, most transparent)
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(asteroid.geometry[0].x, asteroid.geometry[0].y);
+            const geomLen = asteroid.geometry.length;
+            for (let j = 1; j < geomLen; j++) {
+                ctx.lineTo(asteroid.geometry[j].x, asteroid.geometry[j].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Middle glow
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            
+            // Inner glow (brightest)
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else if (npcMiningThis) {
+            // Use the NPC's laser color (accent color) for the glow
+            const laserColor = npcMiningThis.colors.accent;
+            
+            // Parse the laser color for gradient
+            const r = parseInt(laserColor.substr(1, 2), 16);
+            const g = parseInt(laserColor.substr(3, 2), 16);
+            const b = parseInt(laserColor.substr(5, 2), 16);
+            
+            // Draw multiple layers for glowing effect
+            // Outer glow (largest, most transparent)
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(asteroid.geometry[0].x, asteroid.geometry[0].y);
+            const geomLen = asteroid.geometry.length;
+            for (let j = 1; j < geomLen; j++) {
+                ctx.lineTo(asteroid.geometry[j].x, asteroid.geometry[j].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Middle glow
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            
+            // Inner glow (brightest)
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
         ctx.restore();
         
         // Draw mining progress bar if this asteroid is being mined
-        const miningTarget = player.miningTargets.find(mt => mt.asteroid === asteroid);
+        let showProgressBar = false;
+        let progress = 0;
+        let barColor = '#ffff00';
+        
+        // Check if player is mining this asteroid
         if (miningTarget) {
             const miningSpeed = CONFIG.baseMiningSpeed * (1 - (gameState.upgrades.mining - 1) * 0.1);
-            const progress = miningTarget.progress / miningSpeed;
-            
+            progress = miningTarget.progress / miningSpeed;
+            showProgressBar = true;
+            barColor = '#ffff00'; // Yellow for player
+        } else {
+            // Check if any NPC is mining this asteroid
+            for (let npc of npcMiners) {
+                if (npc.state === 'mining' && npc.targetAsteroid === asteroid) {
+                    progress = npc.miningProgress / npc.miningSpeed;
+                    showProgressBar = true;
+                    barColor = '#00ffff'; // Cyan for NPCs
+                    break;
+                }
+            }
+        }
+        
+        if (showProgressBar) {
             // Draw progress bar above the asteroid
             const barWidth = 40;
             const barHeight = 6;
@@ -10697,11 +13450,11 @@ function renderAsteroids() {
             ctx.fillRect(barX, barY, barWidth, barHeight);
             
             // Progress fill
-            ctx.fillStyle = '#ffff00';
+            ctx.fillStyle = barColor;
             ctx.fillRect(barX, barY, barWidth * progress, barHeight);
             
             // Border
-            ctx.strokeStyle = '#ffff00';
+            ctx.strokeStyle = barColor;
             ctx.lineWidth = 1;
             ctx.strokeRect(barX, barY, barWidth, barHeight);
         }
@@ -10945,6 +13698,211 @@ function renderFloatingText() {
         ctx.fillText(text.text, text.x, text.y);
     });
     ctx.globalAlpha = 1;
+}
+
+function renderTradePrompt() {
+    const npc = tradingState.nearbyNPC;
+    if (!npc) return;
+    
+    // Calculate distance for pulsing effect
+    const dx = player.x - npc.x;
+    const dy = player.y - npc.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Pulse effect based on time
+    const pulse = Math.sin(Date.now() / 300) * 0.15 + 0.85;
+    
+    // Position at bottom center of screen
+    const x = canvas.width / 2;
+    const y = canvas.height - 80;
+    
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    
+    // Determine prompt text based on input method
+    let promptText = '';
+    let keyDisplay = '';
+    
+    if (lastInputMethod === 'touch') {
+        // For touch, we'll create a clickable button instead of just text
+        ctx.globalAlpha = 1.0; // Full opacity for button
+        
+        // Button dimensions
+        const buttonWidth = 240;
+        const buttonHeight = 60;
+        const buttonX = x - buttonWidth / 2;
+        const buttonY = y - buttonHeight / 2;
+        
+        // Store button bounds for click detection
+        if (!window.tradeButtonBounds) {
+            window.tradeButtonBounds = {};
+        }
+        window.tradeButtonBounds = {
+            x: buttonX,
+            y: buttonY,
+            width: buttonWidth,
+            height: buttonHeight
+        };
+        
+        // Retro terminal background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        
+        // Animated double border
+        const borderPulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+        ctx.strokeStyle = `rgba(0, 255, 0, ${borderPulse})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(buttonX + 4, buttonY + 4, buttonWidth - 8, buttonHeight - 8);
+        
+        // Corner brackets
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        const cornerLen = 10;
+        // Top-left
+        ctx.beginPath();
+        ctx.moveTo(buttonX + cornerLen, buttonY);
+        ctx.lineTo(buttonX, buttonY);
+        ctx.lineTo(buttonX, buttonY + cornerLen);
+        ctx.stroke();
+        // Top-right
+        ctx.beginPath();
+        ctx.moveTo(buttonX + buttonWidth - cornerLen, buttonY);
+        ctx.lineTo(buttonX + buttonWidth, buttonY);
+        ctx.lineTo(buttonX + buttonWidth, buttonY + cornerLen);
+        ctx.stroke();
+        // Bottom-left
+        ctx.beginPath();
+        ctx.moveTo(buttonX, buttonY + buttonHeight - cornerLen);
+        ctx.lineTo(buttonX, buttonY + buttonHeight);
+        ctx.lineTo(buttonX + cornerLen, buttonY + buttonHeight);
+        ctx.stroke();
+        // Bottom-right
+        ctx.beginPath();
+        ctx.moveTo(buttonX + buttonWidth, buttonY + buttonHeight - cornerLen);
+        ctx.lineTo(buttonX + buttonWidth, buttonY + buttonHeight);
+        ctx.lineTo(buttonX + buttonWidth - cornerLen, buttonY + buttonHeight);
+        ctx.stroke();
+        
+        // Button text with scanline effect
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'bold 16px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#00ff00';
+        ctx.shadowBlur = 8;
+        ctx.fillText('[ TAP TO TRADE ]', x, y - 6);
+        
+        // NPC name below
+        ctx.font = '12px "Courier New", monospace';
+        ctx.fillStyle = '#007700';
+        ctx.shadowBlur = 4;
+        ctx.fillText(`> ${npc.name.toUpperCase()} <`, x, y + 10);
+        
+        ctx.restore();
+        return;
+    } else if (lastInputMethod === 'gamepad') {
+        keyDisplay = 'Y/△';
+        promptText = `TRADE: ${npc.name.toUpperCase()}`;
+    } else { // keyboard
+        keyDisplay = 'T';
+        promptText = `TRADE: ${npc.name.toUpperCase()}`;
+    }
+    
+    // Retro terminal HUD-style background
+    ctx.font = 'bold 14px "Courier New", monospace';
+    const textWidth = ctx.measureText(promptText).width;
+    const padding = 16;
+    const keyBoxSize = 36;
+    const totalWidth = keyBoxSize + padding + textWidth + padding * 2;
+    const boxHeight = 54;
+    const boxX = x - totalWidth / 2;
+    const boxY = y - boxHeight / 2;
+    
+    // Solid black background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(boxX, boxY, totalWidth, boxHeight);
+    
+    // Double border effect
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX, boxY, totalWidth, boxHeight);
+    
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 3, boxY + 3, totalWidth - 6, boxHeight - 6);
+    
+    // Retro corner brackets
+    const cornerSize = 10;
+    const accentAlpha = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+    ctx.strokeStyle = `rgba(0, 255, 0, ${accentAlpha})`;
+    ctx.lineWidth = 2;
+    
+    // Top-left corner
+    ctx.beginPath();
+    ctx.moveTo(boxX, boxY + cornerSize);
+    ctx.lineTo(boxX, boxY);
+    ctx.lineTo(boxX + cornerSize, boxY);
+    ctx.stroke();
+    
+    // Top-right corner
+    ctx.beginPath();
+    ctx.moveTo(boxX + totalWidth - cornerSize, boxY);
+    ctx.lineTo(boxX + totalWidth, boxY);
+    ctx.lineTo(boxX + totalWidth, boxY + cornerSize);
+    ctx.stroke();
+    
+    // Bottom-left corner
+    ctx.beginPath();
+    ctx.moveTo(boxX, boxY + boxHeight - cornerSize);
+    ctx.lineTo(boxX, boxY + boxHeight);
+    ctx.lineTo(boxX + cornerSize, boxY + boxHeight);
+    ctx.stroke();
+    
+    // Bottom-right corner
+    ctx.beginPath();
+    ctx.moveTo(boxX + totalWidth - cornerSize, boxY + boxHeight);
+    ctx.lineTo(boxX + totalWidth, boxY + boxHeight);
+    ctx.lineTo(boxX + totalWidth, boxY + boxHeight - cornerSize);
+    ctx.stroke();
+    
+    // Key button background (terminal style)
+    const keyBoxX = boxX + padding;
+    const keyBoxY = boxY + (boxHeight - keyBoxSize) / 2;
+    
+    ctx.fillStyle = 'rgba(0, 100, 0, 0.3)';
+    ctx.fillRect(keyBoxX, keyBoxY, keyBoxSize, keyBoxSize);
+    
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(keyBoxX, keyBoxY, keyBoxSize, keyBoxSize);
+    
+    // Inner border for depth
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(keyBoxX + 2, keyBoxY + 2, keyBoxSize - 4, keyBoxSize - 4);
+    
+    // Key text with glow
+    ctx.fillStyle = '#00ff00';
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 6;
+    ctx.fillText(keyDisplay, keyBoxX + keyBoxSize / 2, keyBoxY + keyBoxSize / 2);
+    
+    // Prompt text with glow
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = '#00ff00';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 4;
+    ctx.fillText(promptText, keyBoxX + keyBoxSize + padding / 2, y);
+    
+    ctx.restore();
 }
 
 function renderMinimap() {
@@ -11733,7 +14691,11 @@ function updateUpgradeButtons() {
                 
                 if (costDisplay) costDisplay.textContent = cost;
                 // Disable upgrade buttons if not docked OR insufficient credits
-                btn.disabled = !isDockedAtAnyStation() || gameState.credits < cost;
+                const isDocked = isDockedAtAnyStation();
+                btn.disabled = !isDocked || gameState.credits < cost;
+                // Update button text
+                const btnText = btn.querySelector('.btn-text');
+                if (btnText) btnText.textContent = `UPGRADE: ${cost}¢`;
             }
         }
     });
@@ -11748,6 +14710,23 @@ function formatNumber(num) {
     if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(2) + 'K';
     return Math.floor(num).toString();
+}
+
+function compareVersions(v1, v2) {
+    // Compare two semantic version strings (e.g., "2.0.0" vs "1.5.3")
+    // Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        const num1 = parts1[i] || 0;
+        const num2 = parts2[i] || 0;
+        
+        if (num1 < num2) return -1;
+        if (num1 > num2) return 1;
+    }
+    
+    return 0;
 }
 
 // ================================

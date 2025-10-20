@@ -553,7 +553,7 @@
                                         <div class="upgrade-stats">
                                             <span class="stat-label">LEVEL:</span>
                                             <span class="stat-value" id="multiMiningLevel">1</span>
-                                            <span class="stat-label">/ MAX: 10</span>
+                                            <span class="stat-label">/ MAX: 6</span>
                                         </div>
                                     </div>
                                     <button class="upgrade-btn" id="upgradeMultiMining" data-upgrade="multiMining">
@@ -850,6 +850,166 @@
                         <span class="btn-bracket">[</span>
                         <span class="btn-text">NO</span>
                         <span class="btn-bracket">]</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trading Modal -->
+    <div class="modal" id="tradeModal">
+        <div class="modal-content modal-xlarge trade-modal-redesign">
+            <!-- Fancy Header with scan line effect -->
+            <div class="trade-modal-header">
+                <div class="header-scan-line"></div>
+                <div class="header-content">
+                    <div class="header-icon">⚡</div>
+                    <div class="header-text">
+                        <div class="header-title" id="tradeTitle">SECURE TRADE PROTOCOL</div>
+                        <div class="header-subtitle" id="tradeSubtitle">INITIATING CONNECTION...</div>
+                    </div>
+                    <button class="trade-close-btn" id="tradeClose">
+                        <span class="close-icon">✕</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="trade-modal-body">
+                <!-- NPC Profile Card -->
+                <div class="npc-profile-card">
+                    <div class="profile-border-glow"></div>
+                    <div class="profile-content">
+                        <div class="profile-avatar">
+                            <div class="avatar-ring"></div>
+                            <div class="avatar-icon">◊</div>
+                        </div>
+                        <div class="profile-info">
+                            <div class="profile-name" id="tradeNpcName">UNKNOWN MINER</div>
+                            <div class="profile-stats">
+                                <div class="stat-badge">
+                                    <span class="stat-icon">★</span>
+                                    <span class="stat-label">PERSONALITY</span>
+                                    <span class="stat-value" id="tradeNpcPersonality">---</span>
+                                </div>
+                                <div class="stat-badge">
+                                    <span class="stat-icon">❤</span>
+                                    <span class="stat-label">REPUTATION</span>
+                                    <span class="stat-value reputation-value" id="tradeNpcReputation">0</span>
+                                </div>
+                                <div class="stat-badge">
+                                    <span class="stat-icon">📦</span>
+                                    <span class="stat-label">CARGO</span>
+                                    <span class="stat-value" id="tradeNpcCargo">0</span>
+                                </div>
+                                <div class="stat-badge multiplier-badge">
+                                    <span class="stat-icon">⚖</span>
+                                    <span class="stat-label">RATE</span>
+                                    <span class="stat-value" id="tradeMultiplier">1.0x</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Personality Event Banner -->
+                <div class="event-banner" id="personalityEventSection" style="display: none;">
+                    <div class="event-banner-glow"></div>
+                    <div class="event-banner-content">
+                        <div class="event-icon">⚠</div>
+                        <div class="event-text">
+                            <div class="event-title">SPECIAL INTERACTION DETECTED</div>
+                            <div class="event-message" id="eventMessage"></div>
+                        </div>
+                    </div>
+                    <div class="event-actions" id="eventButtons"></div>
+                </div>
+
+                <!-- Trading Interface -->
+                <div class="trade-interface-modern">
+                    <!-- Your Cargo -->
+                    <div class="cargo-panel your-cargo-panel">
+                        <div class="panel-header-modern">
+                            <div class="panel-title-bar">
+                                <span class="panel-icon">►</span>
+                                <span class="panel-title">YOUR INVENTORY</span>
+                            </div>
+                            <div class="panel-decorative-line"></div>
+                        </div>
+                        <div class="cargo-grid" id="playerCargoGrid">
+                            <!-- Dynamically populated with cargo cards -->
+                        </div>
+                    </div>
+
+                    <!-- Exchange Indicator -->
+                    <div class="exchange-indicator">
+                        <div class="exchange-icon-container">
+                            <div class="exchange-pulse"></div>
+                            <div class="exchange-icon">⇄</div>
+                        </div>
+                    </div>
+
+                    <!-- NPC Cargo -->
+                    <div class="cargo-panel npc-cargo-panel">
+                        <div class="panel-header-modern">
+                            <div class="panel-title-bar">
+                                <span class="panel-icon">◄</span>
+                                <span class="panel-title" id="npcInventoryHeader">NPC INVENTORY</span>
+                            </div>
+                            <div class="panel-decorative-line"></div>
+                        </div>
+                        <div class="cargo-grid" id="npcCargoGrid">
+                            <!-- Dynamically populated with cargo cards -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trade Summary -->
+                <div class="trade-summary" id="tradeSummary">
+                    <!-- Exchange Status Warning -->
+                    <div class="exchange-status" id="tradeWarning" style="display: none;"></div>
+                    
+                    <div class="summary-header">
+                        <span class="summary-icon">📊</span>
+                        <span class="summary-title">TRADE SUMMARY</span>
+                    </div>
+                    <div class="summary-content">
+                        <div class="summary-section">
+                            <div class="summary-label">YOU GIVE:</div>
+                            <div class="summary-items" id="summaryGiveItems">---</div>
+                            <div class="summary-value">
+                                <span class="value-text">TOTAL VALUE:</span>
+                                <span class="value-number" id="summaryGiveValue">0 CR</span>
+                            </div>
+                        </div>
+                        <div class="summary-divider">
+                            <div class="divider-icon">⇄</div>
+                        </div>
+                        <div class="summary-section">
+                            <div class="summary-label">YOU RECEIVE:</div>
+                            <div class="summary-items" id="summaryTakeItems">---</div>
+                            <div class="summary-value">
+                                <span class="value-text">TOTAL VALUE:</span>
+                                <span class="value-number" id="summaryTakeValue">0 CR</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="summary-balance" id="summaryBalance">
+                        <span class="balance-label">NET BALANCE:</span>
+                        <span class="balance-value" id="balanceValue">0 CR</span>
+                    </div>
+                </div>
+
+                <!-- Action Footer -->
+                <div class="trade-footer">
+                    <button class="trade-action-btn cancel-trade-btn" id="cancelTrade">
+                        <span class="action-btn-icon">✕</span>
+                        <span class="action-btn-text">CANCEL TRADE</span>
+                        <div class="btn-hover-effect"></div>
+                    </button>
+                    <button class="trade-action-btn propose-trade-btn" id="proposeTrade">
+                        <span class="action-btn-icon">✓</span>
+                        <span class="action-btn-text">PROPOSE TRADE</span>
+                        <div class="btn-hover-effect"></div>
                     </button>
                 </div>
             </div>

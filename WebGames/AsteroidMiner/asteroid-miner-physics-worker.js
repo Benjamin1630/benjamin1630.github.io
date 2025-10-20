@@ -96,12 +96,20 @@ function updateAsteroids(dt) {
         asteroid.y += asteroid.vy * dt;
         asteroid.rotation += asteroid.rotationSpeed * dt;
         
-        // Wrap around world (optimized with single checks)
-        if (asteroid.x < 0) asteroid.x = CONFIG.worldWidth;
-        else if (asteroid.x > CONFIG.worldWidth) asteroid.x = 0;
+        // Wrap around world with proper margin
+        const margin = asteroid.radius || 50; // Use asteroid radius for proper wrapping
         
-        if (asteroid.y < 0) asteroid.y = CONFIG.worldHeight;
-        else if (asteroid.y > CONFIG.worldHeight) asteroid.y = 0;
+        if (asteroid.x < -margin) {
+            asteroid.x = CONFIG.worldWidth + margin;
+        } else if (asteroid.x > CONFIG.worldWidth + margin) {
+            asteroid.x = -margin;
+        }
+        
+        if (asteroid.y < -margin) {
+            asteroid.y = CONFIG.worldHeight + margin;
+        } else if (asteroid.y > CONFIG.worldHeight + margin) {
+            asteroid.y = -margin;
+        }
     }
 }
 
@@ -115,12 +123,20 @@ function updateHazards(dt) {
         hazard.y += hazard.vy * dt;
         hazard.rotation += 0.05 * dt;
         
-        // Wrap around world
-        if (hazard.x < -50) hazard.x = CONFIG.worldWidth + 50;
-        else if (hazard.x > CONFIG.worldWidth + 50) hazard.x = -50;
+        // Wrap around world with proper margin based on hazard size
+        const margin = hazard.radius || 50; // Use hazard radius for proper wrapping
         
-        if (hazard.y < -50) hazard.y = CONFIG.worldHeight + 50;
-        else if (hazard.y > CONFIG.worldHeight + 50) hazard.y = -50;
+        if (hazard.x < -margin) {
+            hazard.x = CONFIG.worldWidth + margin;
+        } else if (hazard.x > CONFIG.worldWidth + margin) {
+            hazard.x = -margin;
+        }
+        
+        if (hazard.y < -margin) {
+            hazard.y = CONFIG.worldHeight + margin;
+        } else if (hazard.y > CONFIG.worldHeight + margin) {
+            hazard.y = -margin;
+        }
     }
 }
 
