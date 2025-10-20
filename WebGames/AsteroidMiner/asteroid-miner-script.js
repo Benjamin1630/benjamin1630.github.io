@@ -86,7 +86,7 @@ const gameState = {
 // GAME VERSION
 // ================================
 
-const GAME_VERSION = '0.8.8'; // Major.Minor.Patch - Update when making breaking changes to save format
+const GAME_VERSION = '0.8.9'; // Major.Minor.Patch - Update when making breaking changes to save format
 
 // ================================
 // GAME CONFIGURATION
@@ -344,312 +344,312 @@ const RADIO_MESSAGES = {
     // Greeting messages when player approaches
     greeting: {
         cautious: [
-            "Oh, hello there... please keep your distance.",
-            "Greetings. I hope you're not here to cause trouble.",
-            "Hello. Just... give me some space, okay?",
-            "Hi. Let's keep this civil, shall we?"
+            "uh... hey. just stay over there, yeah?",
+            "oh great, company. don't try anything weird.",
+            "hey. you're not gonna be a problem, right?",
+            "sup. let's just... not interact too much."
         ],
         aggressive: [
-            "What do you want?",
-            "This is MY sector, back off!",
-            "You looking for trouble?",
-            "Better not be after my asteroids!"
+            "the hell do you want?",
+            "this is MY turf, piss off!",
+            "you got a death wish or something?",
+            "touch my rocks and we're throwing hands!"
         ],
         efficient: [
-            "Hello, <PLAYER>. Mining efficiency optimal today.",
-            "Greetings. Good hunting out here.",
-            "Hello there. May your cargo bay fill quickly.",
-            "Good to see another professional at work."
+            "sup <PLAYER>. rates are good today.",
+            "hey. decent field out here.",
+            "yo. hope your hold fills quick.",
+            "another grinder out here, nice."
         ],
         greedy: [
-            "Hello, <PLAYER>. Don't even think about my finds.",
-            "Hey there. Remember, I saw that platinum first!",
-            "Greetings. Looking for a trade perhaps?",
-            "Hello. Keep your eyes on your own asteroids."
+            "hey <PLAYER>. don't even LOOK at my haul.",
+            "sup. that platinum? yeah that's MINE.",
+            "oh hey. got any trades? no freebies though.",
+            "yo. eyes on your own rocks, yeah?"
         ],
         lazy: [
-            "Oh... hey. Too tired to chat much.",
-            "Hello. You're working hard, aren't you? Good for you.",
-            "Hey there... mind if I just drift here a bit?",
-            "Hello. Don't suppose you want to trade shifts?"
+            "ugh... hey. too tired for small talk.",
+            "oh hey. you actually work hard huh? crazy.",
+            "sup... gonna just float here a bit.",
+            "hey... wanna swap shifts? no? damn."
         ],
         professional: [
-            "Hello, <PLAYER>. Safe mining out there.",
-            "Greetings, colleague. Beautiful day for mining.",
-            "Hello there. May your yields be high.",
-            "Good day, <PLAYER>. Fly safe."
+            "hey <PLAYER>, fly safe out there.",
+            "sup colleague. good day for it.",
+            "yo. may your yields be fat.",
+            "hey <PLAYER>. don't die out there."
         ],
         opportunist: [
-            "Well, well, look who it is!",
-            "Hey there! Got any rare finds today?",
-            "Hello! Anything interesting in your sector?",
-            "Hey, <PLAYER>! Let me know if you find anything good."
+            "well well, look who showed up!",
+            "yooo! find anything juicy today?",
+            "hey! what's the good stuff in your sector?",
+            "ay <PLAYER>! lemme know if you score big."
         ],
         reckless: [
-            "Hey! Want to race?",
-            "What's up? Fancy some competition?",
-            "Yo! Bet I can mine faster than you!",
-            "Hey there! Let's make this interesting!"
+            "YO! wanna race?!",
+            "sup! down for some competition?",
+            "ayo! bet I mine faster than you!",
+            "hey! let's make this fun!"
         ]
     },
     
     // Player gets too close
     tooClose: {
         cautious: [
-            "Too close! Please back away!",
-            "You're making me nervous!",
-            "Personal space, please!",
-            "Watch it! Too close!"
+            "WHOA back up!",
+            "dude you're making me nervous!",
+            "personal space exists for a reason!",
+            "too close man!"
         ],
         aggressive: [
-            "Back off before I make you!",
-            "Get out of my way!",
-            "Move it or lose it!",
-            "You want a problem? Keep it up!"
+            "back the FUCK off!",
+            "move it or I'll move you!",
+            "you got three seconds to bounce!",
+            "looking for a fight? keep pushing!"
         ],
         efficient: [
-            "Please maintain safe distance.",
-            "You're in my flight path.",
-            "Recommend you adjust course.",
-            "Mind the proximity alarm."
+            "yo, safe distance please.",
+            "you're in my path dude.",
+            "gonna need you to adjust course.",
+            "proximity alarm's going off."
         ],
         greedy: [
-            "Back off, this is my territory!",
-            "Stay away from my finds!",
-            "Too close to my operation!",
-            "This sector's claimed, move along!"
+            "back off, this is MY zone!",
+            "stay away from my operation!",
+            "this sector's mine, scram!",
+            "claimed territory, move along!"
         ],
         lazy: [
-            "Ugh, do you mind?",
-            "Really? You have to be right here?",
-            "Can't a miner get some peace?",
-            "You're blocking my view..."
+            "ughhh really?",
+            "seriously? right here?",
+            "can't get any peace...",
+            "you're blocking my chill spot..."
         ],
         professional: [
-            "Please maintain safe distance, <PLAYER>.",
-            "Collision risk detected. Suggest course correction.",
-            "Professional courtesy: please give me room.",
-            "Safety protocols, <PLAYER>. A bit more space?"
+            "hey <PLAYER>, give me some room yeah?",
+            "collision risk here, back up a bit.",
+            "courtesy check: need some space.",
+            "safety protocols dude. space?"
         ],
         opportunist: [
-            "Whoa, easy there!",
-            "Hey, watch it!",
-            "Little too close for comfort!",
-            "Personal space, friend!"
+            "whoa whoa easy!",
+            "hey! watch where you're going!",
+            "little close there buddy!",
+            "personal space, friend!"
         ],
         reckless: [
-            "Ha! Trying to intimidate me?",
-            "Come any closer, I dare you!",
-            "Oh, we're playing chicken now?",
-            "Bring it on!"
+            "ha! trying to scare me?",
+            "get closer, I DARE you!",
+            "oh we doing this now?",
+            "BRING IT!"
         ]
     },
     
     // Lost asteroid to player
     lostAsteroid: {
         cautious: [
-            "Oh... you got it. That's fine, I suppose.",
-            "Well, there are plenty more...",
-            "You needed it more than me, I'm sure.",
-            "Okay then. I'll find another."
+            "oh... guess you got it. whatever.",
+            "well there's more around...",
+            "you probably needed it more anyway.",
+            "okay then. gonna find another."
         ],
         aggressive: [
-            "Damn you! That was mine!",
-            "Hey! I was mining that!",
-            "You just made my list!",
-            "That's it, we're enemies now!"
+            "ARE YOU KIDDING ME?! that was MINE!",
+            "yo I was MINING that!",
+            "you just made the list, asshole!",
+            "that's IT, we got beef now!"
         ],
         efficient: [
-            "You claimed that asteroid efficiently. Well done.",
-            "Noted. Moving to next target.",
-            "Fair acquisition. Proceeding to alternate target.",
-            "Your claim is recognized. Updating search parameters."
+            "nice snipe. moving on.",
+            "noted. next target acquired.",
+            "fair grab. switching asteroids.",
+            "your claim. updating targets."
         ],
         greedy: [
-            "That was MINE! You'll pay for this!",
-            "Thief! I saw it first!",
-            "You're going to regret that!",
+            "that was MINE you THIEF!",
+            "I SAW THAT FIRST!",
+            "you're gonna PAY for that!",
             "I'll remember this, <PLAYER>!"
         ],
         lazy: [
-            "Eh, saved me the effort.",
-            "You can have it. Too much work anyway.",
-            "One less for me to worry about.",
-            "Thanks for taking that off my list."
+            "eh whatever, saved me work.",
+            "you can have it. too much effort anyway.",
+            "one less for me.",
+            "thanks for doing my job i guess."
         ],
         professional: [
-            "Professional courtesy would appreciate acknowledgment.",
-            "I had targeted that, but I respect your claim.",
-            "Your asteroid. I'll find another.",
-            "Fair play, <PLAYER>. That was yours."
+            "would've appreciated a heads up.",
+            "I had that targeted, but alright.",
+            "your rock. I'll find another.",
+            "fair play <PLAYER>. that's yours."
         ],
         opportunist: [
-            "Hey! I was going for that!",
-            "Sneaky move, <PLAYER>!",
-            "Alright, you win this round!",
-            "Nice grab! I'll get the next one!"
+            "YO! I was going for that!",
+            "sneaky bastard!",
+            "alright you win this one!",
+            "nice yoink! I'll get the next!"
         ],
         reckless: [
-            "You got lucky!",
-            "Damn! Beat me to it!",
-            "Next one's mine!",
-            "Ha! Nice steal! Game on!"
+            "you got lucky punk!",
+            "damn! beat me to it!",
+            "next one's MINE!",
+            "HA! nice steal! game on!"
         ]
     },
     
     // Successfully destroyed asteroid
     success: {
         cautious: [
-            "Got one. That wasn't too difficult.",
-            "Success. Small victories matter.",
-            "Another one down safely.",
-            "Good. No complications."
+            "got one. wasn't too bad.",
+            "nice. small wins.",
+            "another one down.",
+            "good, no drama."
         ],
         aggressive: [
-            "Yeah! That's how it's done!",
-            "Crushed it!",
-            "Who's the best? I'm the best!",
-            "Too easy!"
+            "YEAH! suck it!",
+            "CRUSHED IT!",
+            "who's the BEST? ME!",
+            "too EASY!"
         ],
         efficient: [
-            "Target eliminated. 87.3% efficiency.",
-            "Successful extraction. Optimal yield.",
-            "Asteroid processed. Moving to next target.",
-            "Another unit secured."
+            "target down. 87% efficiency.",
+            "clean extraction. optimal.",
+            "processed. next.",
+            "secured."
         ],
         greedy: [
-            "Cha-ching! More credits!",
-            "Yes! That's valuable cargo!",
-            "Profit secured!",
-            "Money in the bank!"
+            "CHA-CHING! payday baby!",
+            "YES! that's MONEY!",
+            "profit secured!",
+            "credits in the bank!"
         ],
         lazy: [
-            "Finally. That took forever.",
-            "Ugh, about time.",
-            "Done. Can I nap now?",
-            "Whew. Need a break."
+            "finally. took forever.",
+            "ugh about time.",
+            "done. nap time?",
+            "whew. break time."
         ],
         professional: [
-            "Clean extraction. Textbook execution.",
-            "Asteroid secured. Professional standard maintained.",
-            "Successful operation.",
-            "Another satisfied customer."
+            "clean extraction. textbook.",
+            "secured. good work.",
+            "solid operation.",
+            "another satisfied client."
         ],
         opportunist: [
-            "Nice! Got a good one!",
-            "Score!",
-            "That'll sell well!",
-            "Jackpot!"
+            "NICE! good one!",
+            "SCORE!",
+            "that'll sell nice!",
+            "jackpot baby!"
         ],
         reckless: [
-            "BOOM! Demolished!",
-            "Wrecked it!",
-            "Obliterated!",
-            "That was awesome!"
+            "BOOM! OBLITERATED!",
+            "WRECKED!",
+            "DEMOLISHED!",
+            "that was SICK!"
         ]
     },
     
     // Near hazard
     danger: {
         cautious: [
-            "Warning! Hazard detected!",
-            "Danger! Proceeding carefully!",
-            "This is too risky!",
-            "Alert! Hazard proximity!"
+            "SHIT! hazard!",
+            "oh crap danger!",
+            "this is sketchy!",
+            "WARNING! bad news ahead!"
         ],
         aggressive: [
-            "Hazard? I laugh at danger!",
-            "Bring it on, I'm not scared!",
+            "hazard? I EAT danger!",
+            "bring it, I ain't scared!",
             "I can handle this!",
-            "Danger is my middle name!"
+            "danger's my middle name!"
         ],
         efficient: [
-            "Hazard detected. Calculating safe trajectory.",
-            "Warning: environmental risk. Adjusting course.",
-            "Anomaly proximity alert. Proceeding with caution.",
-            "Hazard acknowledged. Optimal path computed."
+            "hazard detected. calculating route.",
+            "warning: risk ahead. adjusting.",
+            "anomaly nearby. proceeding careful.",
+            "hazard noted. path computed."
         ],
         greedy: [
-            "Hazard here, but so is profit!",
-            "Risk versus reward... I'll take it!",
-            "Danger means everyone else stays away!",
-            "High risk, high reward!"
+            "hazard AND profit? worth it!",
+            "risk versus reward... I'm in!",
+            "danger keeps the competition away!",
+            "high risk, HIGH reward!"
         ],
         lazy: [
-            "Ugh, seriously? A hazard?",
-            "Too much effort to avoid this...",
-            "Why is there always something?",
-            "Can't catch a break..."
+            "ughhh SERIOUSLY? a hazard?",
+            "too much effort to avoid...",
+            "why's there ALWAYS something?",
+            "can't catch a break..."
         ],
         professional: [
-            "Hazard detected. Maintaining safe distance.",
-            "Professional advisory: danger zone ahead.",
-            "Proceeding with standard safety protocols.",
-            "Hazard noted. Adjusting mining pattern."
+            "hazard detected. keeping distance.",
+            "heads up: danger zone ahead.",
+            "standard safety protocols active.",
+            "hazard noted. adjusting pattern."
         ],
         opportunist: [
-            "Whoa! Hazard! Time to relocate!",
-            "Yikes! Danger zone!",
-            "Not worth the risk!",
-            "Time to find safer pastures!"
+            "WHOA! hazard! relocating!",
+            "YIKES! danger!",
+            "not worth it!",
+            "time for safer spots!"
         ],
         reckless: [
-            "Hazard? Pfft! I've seen worse!",
-            "This is NOTHING!",
-            "Just makes it more exciting!",
-            "Danger is where the action is!"
+            "hazard? PFFT! I've seen worse!",
+            "this is NOTHING!",
+            "just makes it FUN!",
+            "danger's where the party's at!"
         ]
     },
     
     // Full cargo
     fullCargo: {
         cautious: [
-            "Cargo full. Better head back safely.",
-            "That's enough for now. Time to dock.",
-            "Full load. Heading home before something happens.",
-            "Cargo bay full. Safe return to station."
+            "full up. better get back safe.",
+            "that's enough. heading to dock.",
+            "maxed out. going home before shit happens.",
+            "cargo full. safe return mode."
         ],
         aggressive: [
-            "Maxed out! Time to cash in!",
-            "Cargo full! Everyone out of my way!",
-            "Full load, making my run!",
-            "Got my haul, heading back!"
+            "MAXED! outta my WAY!",
+            "full load! MOVE!",
+            "got my haul, coming through!",
+            "cargo's FULL, don't test me!"
         ],
         efficient: [
-            "Maximum capacity reached. Returning to base.",
-            "Cargo optimal. Initiating return sequence.",
-            "100% capacity. En route to station.",
-            "Full manifest. RTB initiated."
+            "max capacity. returning.",
+            "cargo optimal. heading back.",
+            "100% full. RTB.",
+            "full manifest. returning to base."
         ],
         greedy: [
-            "Overflowing with riches!",
-            "Maximum profit achieved! Heading to cash out!",
-            "Can't fit any more! Time to count my credits!",
-            "Jackpot! Full cargo, full wallet!"
+            "OVERFLOWING with riches!",
+            "max profit! time to CASH OUT!",
+            "can't fit MORE! gonna be RICH!",
+            "JACKPOT! full cargo, fat wallet!"
         ],
         lazy: [
-            "Ugh, finally full. Can rest at the station.",
-            "That's enough work for one trip.",
-            "Time for a long dock break.",
-            "Full. Thank goodness."
+            "ugh finally full. nap time at station.",
+            "enough work for one trip.",
+            "gonna dock for like... hours.",
+            "full. thank god."
         ],
         professional: [
-            "Cargo manifest complete. Professional standards met.",
-            "Optimal load achieved. Returning to station.",
-            "Capacity reached. Clean return initiated.",
-            "Full cargo. Excellent productivity today."
+            "manifest complete. good standards.",
+            "optimal load. returning.",
+            "capacity reached. clean return.",
+            "full cargo. solid productivity."
         ],
         opportunist: [
-            "Cargo's full! Good haul today!",
-            "Maxed out! Time to sell!",
-            "Full up! Station here I come!",
-            "Perfect timing! Full cargo!"
+            "cargo full! nice haul!",
+            "maxed out! time to sell!",
+            "full up! here I come station!",
+            "perfect timing! fully loaded!"
         ],
         reckless: [
-            "Cargo maxed! Record time!",
-            "Full already? I'm on fire!",
-            "Fastest fill ever! Let's go!",
-            "Loaded and ready to race back!"
+            "maxed ALREADY? I'm on FIRE!",
+            "full in record time!",
+            "fastest fill EVER! let's GO!",
+            "loaded and ready to race back!"
         ]
     }
 };
@@ -1767,30 +1767,59 @@ function spawnNPCMiners() {
         for (let i = 0; i < 5; i++) {
             const colorScheme = NPC_SHIP_COLORS[(stationIndex * 5 + i) % NPC_SHIP_COLORS.length];
             
-            // Random delay before departure (0-10 seconds)
-            const departureDelay = Math.random() * 10000;
+            // Staggered departure - each NPC starts docked and will depart at different times
+            const departureDelay = i * 15000 + Math.random() * 10000; // 0-15s, 15-25s, 30-40s, 45-55s, 60-70s
             
-            setTimeout(() => {
-                const personality = getRandomPersonality();
-                const personalityData = NPC_PERSONALITIES[personality];
+            const personality = getRandomPersonality();
+            const personalityData = NPC_PERSONALITIES[personality];
+            
+            // Generate random starting inventory based on asteroid spawn chances
+            const startingInventory = {};
+            const startingCargoAmount = Math.floor(10 + Math.random() * 31); // 10-40 units
+            
+            // Distribute cargo based on asteroid spawn chances
+            const asteroidTypes = Object.keys(ASTEROID_TYPES);
+            const totalWeight = asteroidTypes.reduce((sum, type) => sum + ASTEROID_TYPES[type].baseChance, 0);
+            
+            let remainingCargo = startingCargoAmount;
+            for (let j = 0; j < startingCargoAmount; j++) {
+                // Pick a random asteroid type based on weighted probability
+                let randomValue = Math.random() * totalWeight;
+                let selectedType = asteroidTypes[0];
                 
-                npcMiners.push({
-                    id: `npc_${stationIndex}_${i}`,
-                    x: station.x,
-                    y: station.y,
-                    vx: 0,
-                    vy: 0,
-                    angle: Math.random() * Math.PI * 2,
-                    angularVelocity: 0, // For smooth turning
-                    departureAngle: Math.random() * Math.PI * 2, // Random direction to leave station
-                    size: 28, // Slightly smaller than player
-                    homeStation: station,
-                    cargo: Math.floor(10 + Math.random() * 31), // Random cargo 10-40
-                    maxCargo: 50,
-                    state: 'departing', // States: departing, seeking, mining, returning, docked
-                    targetAsteroid: null,
-                    miningProgress: 0,
-                    miningSpeed: 80 * personalityData.traits.miningSpeed, // Personality affects mining speed
+                for (const type of asteroidTypes) {
+                    randomValue -= ASTEROID_TYPES[type].baseChance;
+                    if (randomValue <= 0) {
+                        selectedType = type;
+                        break;
+                    }
+                }
+                
+                // Add to inventory
+                startingInventory[selectedType] = (startingInventory[selectedType] || 0) + 1;
+            }
+            
+            const totalCargo = Object.values(startingInventory).reduce((sum, amt) => sum + amt, 0);
+            
+            npcMiners.push({
+                id: `npc_${stationIndex}_${i}`,
+                x: station.x,
+                y: station.y,
+                vx: 0,
+                vy: 0,
+                angle: Math.random() * Math.PI * 2,
+                angularVelocity: 0, // For smooth turning
+                departureAngle: Math.random() * Math.PI * 2, // Random direction to leave station
+                size: 28, // Slightly smaller than player
+                homeStation: station,
+                inventory: startingInventory, // Track actual mined asteroids
+                cargo: totalCargo, // Total count for easy reference
+                maxCargo: 50,
+                state: 'docked', // Start docked, will depart after delay
+                targetAsteroid: null,
+                miningProgress: 0,
+                miningSpeed: 80 * personalityData.traits.miningSpeed, // Personality affects mining speed
+                dockedUntil: Date.now() + departureDelay, // Staggered departure times
                     colors: {
                         primary: colorScheme.primary,
                         secondary: colorScheme.secondary,
@@ -1817,7 +1846,6 @@ function spawnNPCMiners() {
                     trackingDuration: 1000 + Math.random() * 1000, // Random 1-2 seconds
                     seekingTimer: Math.random() * 500 // Random offset to desync NPCs
                 });
-            }, departureDelay);
         }
     });
     
@@ -1988,6 +2016,12 @@ function updateNPCMiners(dt = 1) {
         
         // Handle docked state
         if (npc.state === 'docked') {
+            // Keep NPC position locked to station while docked
+            npc.x = npc.homeStation.x;
+            npc.y = npc.homeStation.y;
+            npc.vx = 0;
+            npc.vy = 0;
+            
             // Check if docking duration is complete
             if (Date.now() >= npc.dockedUntil) {
                 // Undock and depart
@@ -2059,18 +2093,19 @@ function updateNPCMiners(dt = 1) {
                     for (const asteroid of asteroids) {
                         if (asteroid.destroyed) continue;
                         
-                        // Check if any NPC is already mining, approaching, or tracking this asteroid
-                        const beingMined = npcMiners.some(other => 
-                            other !== npc && (
-                                other.targetAsteroid === asteroid || 
-                                other.trackingTarget === asteroid
-                            )
+                        // Check if any NPC is already actively mining this asteroid (not just tracking or approaching)
+                        const activelyBeingMined = npcMiners.some(other => 
+                            other !== npc && 
+                            other.state === 'mining' && 
+                            other.targetAsteroid === asteroid
                         );
                         
                         // Also check if player is mining it
                         const playerMining = player.miningTargets.some(mt => mt.asteroid === asteroid);
                         
-                        if (beingMined || playerMining) continue;
+                        // Skip if actively being mined or player is mining
+                        // Allow targeting asteroids that others are just approaching/tracking (creates competition)
+                        if (activelyBeingMined || playerMining) continue;
                         
                         const dx = asteroid.x - npc.x;
                         const dy = asteroid.y - npc.y;
@@ -2098,6 +2133,48 @@ function updateNPCMiners(dt = 1) {
             case 'approaching':
                 // Navigate toward target asteroid
                 if (!npc.targetAsteroid || npc.targetAsteroid.destroyed) {
+                    npc.targetAsteroid = null;
+                    npc.state = 'seeking';
+                    break;
+                }
+                
+                // Check if player started mining this asteroid while we're approaching
+                const playerMiningThisApproaching = player.miningTargets.some(mt => mt.asteroid === npc.targetAsteroid);
+                if (playerMiningThisApproaching) {
+                    // Player claimed the asteroid - react based on personality
+                    const currentTime = Date.now();
+                    if (currentTime - npc.lastMessageTime > MESSAGE_COOLDOWN) {
+                        const message = getNPCMessage(npc, 'lostAsteroid', player.name || 'Captain');
+                        if (message) {
+                            npc.messageQueue.push({
+                                text: message,
+                                timestamp: currentTime,
+                                type: 'warning'
+                            });
+                            npc.lastMessageTime = currentTime;
+                        }
+                    }
+                    
+                    // Show warning indicator
+                    npc.awarenessIndicator = {
+                        type: 'warning',
+                        startTime: currentTime,
+                        duration: 2000
+                    };
+                    
+                    // Adjust reputation based on personality
+                    const personalityReactionValues = {
+                        'aggressive': -15,
+                        'greedy': -12,
+                        'cautious': -5,
+                        'opportunist': -3,
+                        'professional': -2,
+                        'efficient': -1,
+                        'reckless': 0,
+                        'lazy': 2
+                    };
+                    npc.reputation += personalityReactionValues[npc.personality] || -5;
+                    
                     npc.targetAsteroid = null;
                     npc.state = 'seeking';
                     break;
@@ -2140,6 +2217,40 @@ function updateNPCMiners(dt = 1) {
                 // Check if player started mining this asteroid - if so, stop and find another
                 const playerMiningThis = player.miningTargets.some(mt => mt.asteroid === npc.targetAsteroid);
                 if (playerMiningThis) {
+                    // Player stole the asteroid - react based on personality
+                    const currentTime = Date.now();
+                    if (currentTime - npc.lastMessageTime > MESSAGE_COOLDOWN) {
+                        const message = getNPCMessage(npc, 'lostAsteroid', player.name || 'Captain');
+                        if (message) {
+                            npc.messageQueue.push({
+                                text: message,
+                                timestamp: currentTime,
+                                type: 'warning'
+                            });
+                            npc.lastMessageTime = currentTime;
+                        }
+                    }
+                    
+                    // Show warning indicator
+                    npc.awarenessIndicator = {
+                        type: 'warning',
+                        startTime: currentTime,
+                        duration: 2000 // 2 seconds
+                    };
+                    
+                    // Adjust reputation based on personality
+                    const personalityReactionValues = {
+                        'aggressive': -15,
+                        'greedy': -12,
+                        'cautious': -5,
+                        'opportunist': -3,
+                        'professional': -2,
+                        'efficient': -1,
+                        'reckless': 0, // Doesn't care, sees it as competition
+                        'lazy': 2  // Actually grateful
+                    };
+                    npc.reputation += personalityReactionValues[npc.personality] || -5;
+                    
                     npc.targetAsteroid = null;
                     npc.miningProgress = 0;
                     npc.state = 'seeking';
@@ -2302,7 +2413,9 @@ function updateNPCMiners(dt = 1) {
                         }
                     }
                     
-                    // Add to NPC cargo (not player cargo!)
+                    // Add to NPC cargo tracking (actual asteroid type)
+                    const asteroidType = npc.targetAsteroid.type;
+                    npc.inventory[asteroidType] = (npc.inventory[asteroidType] || 0) + 1;
                     npc.cargo++;
                     npc.miningProgress = 0;
                     
@@ -2344,8 +2457,9 @@ function updateNPCMiners(dt = 1) {
                 if (distReturn < npc.homeStation.dockingRange) {
                     // Dock at station - set docked state with timer
                     npc.state = 'docked';
-                    npc.dockedUntil = Date.now() + (10000 + Math.random() * 20000); // 10-30 seconds
+                    npc.dockedUntil = Date.now() + (30000 + Math.random() * 60000); // 30-90 seconds (increased for visibility)
                     npc.cargo = 0; // Sold cargo
+                    npc.inventory = {}; // Clear inventory
                     npc.vx = 0;
                     npc.vy = 0;
                     continue; // Skip rest of update for this NPC
@@ -3826,7 +3940,7 @@ function loadGame(saveName) {
                     lastMessageTime: 0,
                     messageQueue: [],
                     reputation: npcData.reputation || 0,
-                    inventory: npcData.inventory || null,
+                    inventory: npcData.inventory || {}, // Initialize empty inventory if not saved
                     lastInteractionTime: 0,
                     awarenessIndicator: null,
                     // Restore tracking properties
@@ -4161,7 +4275,7 @@ function loadGameData(saveName) {
                     lastMessageTime: 0,
                     messageQueue: [],
                     reputation: npcData.reputation || 0,
-                    inventory: npcData.inventory || null,
+                    inventory: npcData.inventory || {}, // Initialize empty inventory if not saved
                     lastInteractionTime: 0,
                     awarenessIndicator: null,
                     // Restore tracking properties
@@ -4549,9 +4663,8 @@ function updateTradeInventoryDisplays(npc) {
     // Update player inventory amounts
     const playerInventory = gameState.inventory;
     
-    // Update NPC inventory amounts (simulated)
-    const npcInventory = npc.inventory || generateNPCInventory(npc);
-    npc.inventory = npcInventory; // Store it
+    // Use NPC's actual inventory (no need to generate)
+    const npcInventory = npc.inventory || {};
     
     // Get all unique asteroid types from both inventories
     const allTypes = new Set([
@@ -4559,14 +4672,21 @@ function updateTradeInventoryDisplays(npc) {
         ...Object.keys(npcInventory)
     ]);
     
+    // Sort types by baseChance (descending - common to rare)
+    const sortedTypes = Array.from(allTypes).sort((a, b) => {
+        const baseChanceA = ASTEROID_TYPES[a]?.baseChance || 0;
+        const baseChanceB = ASTEROID_TYPES[b]?.baseChance || 0;
+        return baseChanceB - baseChanceA; // Descending order (most common first)
+    });
+    
     // Clear existing cards
     const playerGrid = document.getElementById('playerCargoGrid');
     const npcGrid = document.getElementById('npcCargoGrid');
     playerGrid.innerHTML = '';
     npcGrid.innerHTML = '';
     
-    // Generate cards for each type that exists
-    allTypes.forEach(resourceType => {
+    // Generate cards for each type that exists (in sorted order)
+    sortedTypes.forEach(resourceType => {
         const playerAmount = playerInventory[resourceType] || 0;
         const npcAmount = npcInventory[resourceType] || 0;
         
@@ -4629,34 +4749,6 @@ function createCargoCard(resourceType, asteroidData, amount, owner, action) {
     `;
     
     return card;
-}
-
-function generateNPCInventory(npc) {
-    // Generate random inventory based on personality and cargo
-    const cargo = Math.floor(npc.cargo) || 20;
-    const inventory = {};
-    
-    // Get all asteroid types and their base chances to use as weights
-    const asteroidTypes = Object.keys(ASTEROID_TYPES);
-    const totalWeight = asteroidTypes.reduce((sum, type) => sum + ASTEROID_TYPES[type].baseChance, 0);
-    
-    // Distribute cargo across all asteroid types (weighted by their spawn chances)
-    let remaining = cargo;
-    asteroidTypes.forEach((type, index) => {
-        const weight = ASTEROID_TYPES[type].baseChance / totalWeight;
-        const isLast = index === asteroidTypes.length - 1;
-        
-        if (isLast) {
-            // Give all remaining to last type to ensure we use all cargo
-            inventory[type] = remaining;
-        } else {
-            const amount = Math.floor(remaining * weight * (0.7 + Math.random() * 0.6));
-            inventory[type] = amount;
-            remaining -= amount;
-        }
-    });
-    
-    return inventory;
 }
 
 function resetTradeInputs() {
@@ -11688,42 +11780,23 @@ function updateAsteroids(dt = 1) {
             }
         }
         
-        // Update all NPC target asteroid indices
+        // Update all NPC target asteroid references
         for (const npc of npcMiners) {
-            if (npc.targetAsteroidIndex >= 0) {
-                const newIdx = indexMap.get(npc.targetAsteroidIndex);
-                if (newIdx !== undefined) {
-                    npc.targetAsteroidIndex = newIdx;
-                    // Also update the direct reference if it exists
-                    if (npc.targetAsteroid && !npc.targetAsteroid.destroyed) {
-                        npc.targetAsteroid = asteroids[newIdx];
-                    } else {
-                        npc.targetAsteroid = null;
-                        npc.targetAsteroidIndex = -1;
-                    }
-                } else {
-                    // Old asteroid was destroyed
-                    npc.targetAsteroid = null;
-                    npc.targetAsteroidIndex = -1;
-                }
+            // Check if this NPC's target asteroid was destroyed
+            if (npc.targetAsteroid && npc.targetAsteroid.destroyed) {
+                // Only null out if THIS NPC's specific target was destroyed
+                npc.targetAsteroid = null;
+                npc.targetAsteroidIndex = -1;
             }
             
-            // Also update tracking target index
-            if (npc.trackingTargetIndex >= 0) {
-                const newIdx = indexMap.get(npc.trackingTargetIndex);
-                if (newIdx !== undefined) {
-                    npc.trackingTargetIndex = newIdx;
-                    if (npc.trackingTarget && !npc.trackingTarget.destroyed) {
-                        npc.trackingTarget = asteroids[newIdx];
-                    } else {
-                        npc.trackingTarget = null;
-                        npc.trackingTargetIndex = -1;
-                    }
-                } else {
-                    npc.trackingTarget = null;
-                    npc.trackingTargetIndex = -1;
-                }
+            // Also check tracking target
+            if (npc.trackingTarget && npc.trackingTarget.destroyed) {
+                // Only null out if THIS NPC's specific tracking target was destroyed
+                npc.trackingTarget = null;
+                npc.trackingTargetIndex = -1;
             }
+            // Note: We don't need to update the reference if it's still valid
+            // because we're using object references, not array indices
         }
     }
     
@@ -13035,6 +13108,11 @@ function renderNPCMiners() {
     const cullMargin = 100;
     
     for (const npc of npcMiners) {
+        // Don't render docked NPCs (they're inside the station)
+        if (npc.state === 'docked') {
+            continue;
+        }
+        
         // Cull NPCs outside viewport
         if (npc.x + npc.size < viewLeft - cullMargin || 
             npc.x - npc.size > viewRight + cullMargin ||

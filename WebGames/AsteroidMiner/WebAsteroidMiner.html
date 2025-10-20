@@ -962,53 +962,44 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Trade Summary -->
-                <div class="trade-summary" id="tradeSummary">
-                    <!-- Exchange Status Warning -->
-                    <div class="exchange-status" id="tradeWarning" style="display: none;"></div>
-                    
-                    <div class="summary-header">
-                        <span class="summary-icon">📊</span>
-                        <span class="summary-title">TRADE SUMMARY</span>
-                    </div>
-                    <div class="summary-content">
-                        <div class="summary-section">
-                            <div class="summary-label">YOU GIVE:</div>
-                            <div class="summary-items" id="summaryGiveItems">---</div>
-                            <div class="summary-value">
-                                <span class="value-text">TOTAL VALUE:</span>
-                                <span class="value-number" id="summaryGiveValue">0 CR</span>
-                            </div>
+            <!-- Action Footer with Trade Summary -->
+            <div class="trade-footer">
+                <!-- Exchange Status Warning -->
+                <div class="exchange-status" id="tradeWarning" style="display: none;"></div>
+                
+                <!-- Compact Trade Summary -->
+                <div class="trade-summary-compact" id="tradeSummary">
+                    <div class="summary-row">
+                        <div class="summary-section-compact">
+                            <span class="summary-label-compact">GIVE:</span>
+                            <span class="summary-items-compact" id="summaryGiveItems">---</span>
+                            <span class="summary-value-compact" id="summaryGiveValue">0 CR</span>
                         </div>
-                        <div class="summary-divider">
-                            <div class="divider-icon">⇄</div>
+                        <div class="summary-divider-compact">⇄</div>
+                        <div class="summary-section-compact">
+                            <span class="summary-label-compact">RECEIVE:</span>
+                            <span class="summary-items-compact" id="summaryTakeItems">---</span>
+                            <span class="summary-value-compact" id="summaryTakeValue">0 CR</span>
                         </div>
-                        <div class="summary-section">
-                            <div class="summary-label">YOU RECEIVE:</div>
-                            <div class="summary-items" id="summaryTakeItems">---</div>
-                            <div class="summary-value">
-                                <span class="value-text">TOTAL VALUE:</span>
-                                <span class="value-number" id="summaryTakeValue">0 CR</span>
-                            </div>
+                        <div class="summary-balance-compact" id="summaryBalance">
+                            <span class="balance-label-compact">NET:</span>
+                            <span class="balance-value-compact" id="balanceValue">0 CR</span>
                         </div>
-                    </div>
-                    <div class="summary-balance" id="summaryBalance">
-                        <span class="balance-label">NET BALANCE:</span>
-                        <span class="balance-value" id="balanceValue">0 CR</span>
                     </div>
                 </div>
-
-                <!-- Action Footer -->
-                <div class="trade-footer">
+                
+                <!-- Action Buttons -->
+                <div class="trade-actions">
                     <button class="trade-action-btn cancel-trade-btn" id="cancelTrade">
                         <span class="action-btn-icon">✕</span>
-                        <span class="action-btn-text">CANCEL TRADE</span>
+                        <span class="action-btn-text">CANCEL</span>
                         <div class="btn-hover-effect"></div>
                     </button>
                     <button class="trade-action-btn propose-trade-btn" id="proposeTrade">
                         <span class="action-btn-icon">✓</span>
-                        <span class="action-btn-text">PROPOSE TRADE</span>
+                        <span class="action-btn-text">PROPOSE</span>
                         <div class="btn-hover-effect"></div>
                     </button>
                 </div>
